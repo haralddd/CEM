@@ -1,7 +1,12 @@
 module SourceMatrices
 export create_A!, create_B!, SourceParams
 
+include("SurfaceGen.jl")
+using .SurfaceGen
+export Surface, SurfaceEnsemble, mean_slope, ensemble_mean, ensemble_variance
+
 # TODO: Create specialized symmetric matrix with static size (such as SizedMatrix from StaticArrays.jl)
+
 
 struct SourceParams
     # Parameter pack for source matrix generation
@@ -9,6 +14,7 @@ struct SourceParams
     ω::Float64
     Δξ::Float64
 end
+
 
 SourceParams(; ε, ω, Δξ) = SourceParams(ε, ω, Δξ)
 
@@ -64,7 +70,7 @@ function create_A!(A::AbstractMatrix{ComplexF64}, s::Surface, ξ::AbstractVector
 end
 
 
-function create_B!(B::AbstractMatrix{ComplexF64}, s::Surface, ξ::AbstractVector{Float64}, p::Params)::Nothing
+function create_B!(B::AbstractMatrix{ComplexF64}, s::Surface, ξ::AbstractVector{Float64}, p::SourceParams)::Nothing
     c = 299_792_458.0 # speed of light m/s
     γ = 0.5772156649015328606065 # Euler constant
 

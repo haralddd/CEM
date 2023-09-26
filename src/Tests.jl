@@ -14,7 +14,7 @@ function test_surfaces()
     L = 10.0
     δ = 30e-3
     a = 100e-3
-    N = 100
+    N = 1000
     M = 100
 
     @time se = SurfaceEnsemble(L, δ, a, N, M)
@@ -87,4 +87,4 @@ function test_matrix_gen()
 end
 
 
-test_matrix_gen()
+test_surfaces()
