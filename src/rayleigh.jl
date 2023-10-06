@@ -15,39 +15,42 @@ using Plots
 
 function solve()
 
-    ε(ω) = 1.0 # Permittivity
+    ε₀ = 1.0 # Relative permittivity of vacuum
+    μ₀ = 1.0 # Relative permeability of vacuum
 
-    # Maximum relative permeability of Iron (99.8% pure)
-    # https://en.wikipedia.org/wiki/Permeability_(electromagnetism)#Values_for_some_common_materials
-    # Permeability varies greatly with magnetic field strength, so this is only useful in testing
-    μ(ω) = 1.0
+    μ = 2.0 # Permeability
+    ε = 1.0 # Permittivity
+
+
 
     # Speed of light in vacuum
     c = 299_792_458.0 # [m/s]
 
-    α(q::ComplexF64, ω::Float64)::ComplexF64 = √(ε(ω) * μ(ω) * (ω / c)^2 - q^2)
+    α(q::ComplexF64, ω::Float64)::ComplexF64 = √(ε * μ * (ω / c)^2 - q^2)
 
     α₀(q::ComplexF64, ω::Float64)::ComplexF64 =
         (abs(q) < ω / c) ?
-        (√(ε(ω) * μ(ω) * (ω / c)^2 - q^2)) :
+        (√(ε₀ * μ₀ * (ω / c)^2 - q^2)) :
         (abs(q) > ω / c) ?
         (im * √(q^2 - (ω / c)^2)) :
         0.0im # In vacuum, ε = μ = 1
 
     L = 1.0e-6 # Length of surface [m]
-    N = 100 # Number of surface points
+    Q = 6.0e-6 # Truncated wave number [1/m]
+    Nq = 128 # Wave number grid points
+    Nx = Nq^2 # Surface grid points, must be able to resolve p-q in Fourier space
     Δξ = L / N # Surface point spacing
-    Δξ |> display
 
-    ξs = range(-0.5L, 0.5L - Δξ, N) # Surface points
-    ξs |> display
-    ζs = zeros(N) .|> ComplexF64 # Surface height, flat surface
+    θ₀ = asin(√() / √(ε₀ * μ₀)) # Angle of incidence
+    k = ω / c * sin(θ₀)
+
+    ξs = range(-0.5L, 0.5L, Nq) # Surface points
+    ζs = zeros(Nx) .|> ComplexF64 # Surface height, flat surface
     qs = fftfreq(N, 2π * Δξ) |> fftshift .|> ComplexF64
     ps = fftfreq(N, 2π * Δξ) .+ 2.0e-8 |> fftshift .|> ComplexF64
-    ks = fftfreq(N, 2π * Δξ) .+ 2.0 * eps() |> fftshift .|> ComplexF64
-    ω = 1.0e6 # Angular frequency
 
-    display(qs)
+
+    ω = 1.0e6 # Angular frequency
 
     PF = plan_fft(ζs) # Plan Fourier transform of surface points
 
@@ -55,13 +58,9 @@ function solve()
     # Where u is the resulting coordinate space
     I(γ, q) = reduce(+, exp.(-im * γ * ζs) .* exp.(-im * q * ξs))
 
-    I(0.0, 0.0) |> display
-
-    α₀(0.0im, ω) |> display
-    (α(0.0im, ω) - α₀(0.0im, ω)) |> display
-
     # Coordinate space is the set of vectors (p, q), so all operations are in this space,
     #   i.e. f(p) * g(q)' makes the matrix dependent on p and q along each axis
+
 
     # For p-polarized light
     Nₚ⁺(p, q) = +(p * q + α(p, ω) * α₀(q, ω)) / (α(p, ω) - α₀(q, ω)) * I(α(p, ω) - α₀(q, ω), p - q)
@@ -76,8 +75,8 @@ function solve()
     # Solve the equation ∫dq / 2π N⁺(p, q) R(q, k) = N⁻(p, k), i.e. sum over q
 
     Npq = Matrix{ComplexF64}(undef, N, N) # Nₚ⁺(p|q) matrix
-    Rqk = Matrix{ComplexF64}(undef, N, N) # Rₚ(q|k) Solution matrix
-    Npk = Matrix{ComplexF64}(undef, N, N) # Nₚ⁻(p|k) matrix
+    Rqk = Matrix{ComplexF64}(undef, N) # Rₚ(q|k) Solution matrix
+    Npk = Matrix{ComplexF64}(undef, N) # Nₚ⁻(p|k) matrix
 
 
     for (n, q) in enumerate(qs)
@@ -86,10 +85,8 @@ function solve()
         end
     end
 
-    for (l, k) in enumerate(ks)
-        for (m, p) in enumerate(ps)
-            Npk[m, l] = Nₚ⁻(p, k)
-        end
+    for (m, p) in enumerate(ps)
+        Npk[m, l] = Nₚ⁻(p, k)
     end
 
     display("Nₚ⁺ = ")
