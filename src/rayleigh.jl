@@ -10,53 +10,119 @@
 
 using FFTW
 using Plots
+using SparseArrays
+using BenchmarkTools
 
+struct RayleighParams
+    ν = 'p' # Polarization [p, s]
 
+    # Input parameteres
+    c0 = 299_792_458.0 # [m/s], Speed of light in vacuum
 
-function solve()
-
-    ε₀ = 1.0 # Relative permittivity of vacuum
-    μ₀ = 1.0 # Relative permeability of vacuum
-
-    μ = 2.0 # Permeability
-    ε = 1.0 # Permittivity
-
-
-
-    # Speed of light in vacuum
-    c = 299_792_458.0 # [m/s]
-
-    α(q::ComplexF64, ω::Float64)::ComplexF64 = √(ε * μ * (ω / c)^2 - q^2)
-
-    α₀(q::ComplexF64, ω::Float64)::ComplexF64 =
-        (abs(q) < ω / c) ?
-        (√(ε₀ * μ₀ * (ω / c)^2 - q^2)) :
-        (abs(q) > ω / c) ?
-        (im * √(q^2 - (ω / c)^2)) :
-        0.0im # In vacuum, ε = μ = 1
-
-    L = 1.0e-6 # Length of surface [m]
-    Q = 6.0e-6 # Truncated wave number [1/m]
-    Nq = 128 # Wave number grid points
-    Nx = Nq^2 # Surface grid points, must be able to resolve p-q in Fourier space
-    Δξ = L / N # Surface point spacing
-
-    θ₀ = asin(√() / √(ε₀ * μ₀)) # Angle of incidence
+    κ0 = 1.0 # ν: ϵ₀ / μ₀
+    κ = 0.1 # Polarization dependent constant
+    ω = 1.0e6 # Angular frequency
+    θ₀ = 0.0 # Angle of incidence
     k = ω / c * sin(θ₀)
 
-    ξs = range(-0.5L, 0.5L, Nq) # Surface points
-    ζs = zeros(Nx) .|> ComplexF64 # Surface height, flat surface
-    qs = fftfreq(N, 2π * Δξ) |> fftshift .|> ComplexF64
-    ps = fftfreq(N, 2π * Δξ) .+ 2.0e-8 |> fftshift .|> ComplexF64
+    # Sizings
+    Q = 2 * ω / c # Truncated wave number [1/m]
+    NQ = 128 # Number of wave numbers
+    ΔQ = Q / NQ # Wave number spacing [1/m]
+
+    Nx = 2 * Nq
+    Lx = 1.0e-6 # Surface length [m]
+    Δx = Lx / Nx # Surface point spacing [m]
+
+    Ni = 20 # Order of surface expansion
+end
+
+function solve_s(rp::RayleighParams)
+    # Solve the reduced Rayleigh equations for s-polarized light
+    # TODO: Implement this, currently only p-polarized light is supported
+    throw("s-polarized Reduced Rayleigh Method not implemented")
+
+    println("""
+    Physical parameters:
+    c:  $(rp.c)
+    ν:  $(rp.ν) ⟹ κ → μ
+    μ₀: $(rp.κ0)
+    μ:  $(rp.κ)
+    ω:  $(rp.ω)
+    θ₀: $(rp.θ₀)
+
+    Sizings:
+    Q:  $(rp.Q)
+    NQ: $(rp.Nq)
+    hQ: $(rp.hq)
+
+    Nx: $(rp.Nx)
+    Lx: $(rp.Lx)
+    hx: $(rp.hx)
+
+    Ni: $(rp.Ni)
+    """)
+end
+
+function solve_p(rp::RayleighParams)
+    # Solve the reduced Rayleigh equations for p-polarized light
+
+    println("""
+    Physical parameters:
+        c:  $(rp.c)
+        ν:  $(rp.ν) ⟹ κ → ε
+        ε₀: $(rp.κ0)
+        ε:  $(rp.κ)
+        ω:  $(rp.ω)
+        θ₀: $(rp.θ₀)
+
+    Sizings:
+        Q:  $(rp.Q)
+        NQ: $(rp.Nq)
+        hQ: $(rp.hq)
+
+        Nx: $(rp.Nx)
+        Lx: $(rp.Lx)
+        hx: $(rp.hx)
+
+        Ni: $(rp.Ni)
+    """)
+
+    ε0 = rp.κ0 # Permittivity of free space
+    ε = rp.κ # Permittivity of the medium
+    ω = rp.ω # Angular frequency
 
 
-    ω = 1.0e6 # Angular frequency
+    # Make ranges
+    xs = range(-0.5rp.Lx, 0.5rp.Lx - rp.hx; length=rp.Nx) # Coordinates
+    ζs = zeros(rp.Nx) # Surface height, flat surface
 
-    PF = plan_fft(ζs) # Plan Fourier transform of surface points
+    qs = range(-0.5Q, 0.5Q - hq; length=rp.Nq) # Wave numbers
+    ps = range(-0.5Q, 0.5Q - hq; length=rp.Nq) # Wave numbers
 
-    # I(γ|q) = ∫dx exp(-iγζ(x)) ⋅ exp(-iux)
-    # Where u is the resulting coordinate space
-    I(γ, q) = reduce(+, exp.(-im * γ * ζs) .* exp.(-im * q * ξs))
+    α(q::ComplexF64)::ComplexF64 = √(ε * (ω / c)^2 - q^2)
+
+    α0(q::ComplexF64)::ComplexF64 =
+        (abs(q) < ω / c) ?
+        (√(ε0 * (ω / c)^2 - q^2)) :
+        (abs(q) > ω / c) ?
+        (im * √(q^2 - (ω / c)^2)) :
+        0.0im
+
+
+
+    FT = plan_fft(xs)   # Plan Fourier transform of surface points,
+    # corresponding to the total space spanned by p-q
+
+    gs = Vector{Matrix{ComplexF64}}(undef, rp.Ni) # Surface expansion Fourier transforms
+    for i in eachindex(gs)
+        gs[i] = FT * ζs .^ (i - 1)
+    end
+
+    gsi = Vector{Matrix{ComplexF64}}(undef, rp.Ni) # Inverse surface expansion Fourier transforms
+    for i in eachindex(gsi)
+        gsi[i] = FT \ ζs .^ (i - 1)
+    end
 
     # Coordinate space is the set of vectors (p, q), so all operations are in this space,
     #   i.e. f(p) * g(q)' makes the matrix dependent on p and q along each axis
