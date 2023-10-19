@@ -102,13 +102,16 @@ function solve_p(rp::RayleighParams)
     ε = rp.κ # Permittivity of the medium
     ω = rp.ω # Angular frequency
 
+    Nq = rp.Nq # Number of wave numbers
+    Nx = rp.Nx # Number of surface points
+    Ni = rp.Ni # Order of surface power expansion
 
-    # Make ranges
-    xs = range(-0.5rp.Lx, 0.5rp.Lx - rp.hx; length=rp.Nx) # Coordinates
-    ζs = zeros(rp.Nx) # Surface height, flat surface
+    Npq = zeros(Nq, Nq) # Nₚ⁺(p|q) matrix
+    Rqk = Matrix{ComplexF64}(undef, Nq) # Rₚ(q|k) Solution vector
+    Npk = Matrix{ComplexF64}(undef, Nq) # Nₚ⁻(p|k) vector
 
-    qs = range(-0.5Q, 0.5Q - hq; length=rp.Nq) # Wave numbers
-    ps = range(-0.5Q, 0.5Q - hq; length=rp.Nq) # Wave numbers
+    ζFTs = Matrix{ComplexF64}(undef, Nx, Ni) # Fourier transform of surface heights
+
 
     α(q::ComplexF64)::ComplexF64 = √(ε * (ω / c)^2 - q^2)
 
@@ -119,52 +122,22 @@ function solve_p(rp::RayleighParams)
         (im * √(q^2 - (ω / c)^2)) :
         0.0im
 
-    # Coordinate space is the set of vectors (p, q), so all operations are in this space,
-    #   i.e. f(p) * g(q)' makes the matrix dependent on p and q along each axis
+    N⁺_ker(n::Int) = (-1.0im)^n * (+p * q + α(p) * α0(q)) * (α(p) - α0(q))^(n - 1)
+    N⁻_ker(n::Int) = (-1.0im)^n * (-p * q + α(p) * α0(q)) * (α(p) + α0(q))^(n - 1)
 
+    @simd for n in axes(ζFTs, 2)
+        ζFTs[:, n] = rp.FT_plan * rp.ζ .^ n
+    end
 
-    # For p-polarized light
-    Nₚ⁺(p, q) = +(p * q + α(p, ω) * α₀(q, ω)) / (α(p, ω) - α₀(q, ω)) * I(α(p, ω) - α₀(q, ω), p - q)
-
-    Nₚ⁻(p, q) = -(p * q - α(p, ω) * α₀(q, ω)) / (α(p, ω) + α₀(q, ω)) * I(α(p, ω) + α₀(q, ω), p - q)
-
-    # Constrained by u = p - q', I should be a matrix of size N x N
-
-
-
-
-    # Solve the equation ∫dq / 2π N⁺(p, q) R(q, k) = N⁻(p, k), i.e. sum over q
-
-    Npq = Matrix{ComplexF64}(undef, N, N) # Nₚ⁺(p|q) matrix
-    Rqk = Matrix{ComplexF64}(undef, N) # Rₚ(q|k) Solution vector
-    Npk = Matrix{ComplexF64}(undef, N) # Nₚ⁻(p|k) matrix
-
-
-    for (n, q) in enumerate(qs)
-        for (m, p) in enumerate(ps)
-            Npq[m, n] = Nₚ⁺(p, q)
+    for (i, p) in enumerate(rp.p)
+        for (j, q) in enumerate(rp.q)
+            for m in axes(ζFTs, 2)
+                Npq[i, j] += N⁺_ker(n) * ζFTs[i-j+Nq, n]
+            end
         end
     end
 
-    for (m, p) in enumerate(ps)
-        Npk[m, l] = Nₚ⁻(p, k)
-    end
-
-    display("Nₚ⁺ = ")
-    display(Npq)
-    display("Nₚ⁻ = ")
-    display(Npk)
-
-
-    Rqk = Npk / Npq
-
-    display("Rₚ(q|k) = ")
-    display(Rqk)
-
-
 end
-
-solve_p()
 
 
 
