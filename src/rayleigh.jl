@@ -11,33 +11,26 @@
 using FFTW
 using Plots
 using BenchmarkTools
+# using Statistics
 
 @enum Polarization p s
 @enum SurfType flat gauss
 
-function is_power_two(n::Int)::Bool
-    # Check if n is a power of 2
-    (n & (n - 1)) == 0
-end
-
-signal = sin.(range(0, stop=10π, length=1000))
-plot(signal)
-fft(signal) |> fftshift .|> abs |> plot
-rfft(signal) |> fftshift .|> abs |> plot
-
 struct RayleighParams
     ν::Polarization # Polarization [p, s]
     c0 # [m/s], Speed of light in vacuum
-    κ0  # ν: ϵ₀ / μ₀
-    κ::ComplexF64   # Polarization dependent constant
-    λ   # Angular frequency
+    ε # Permittivity of the scattering medium
+    μ # Permeability of the scaterring medium
+    λ   # wavelength in [μm]
+    ω   # Angular frequency
+    ks   # Parallel component wave number
+    kis
 
     # Sizings
     Q   # Truncated wave number, q = (-∞,∞) -> q_n = (-Q_mult / 2, Q_mult / 2)
     Nq  # Number of wave numbers
     Δq  # Wave number spacing [1/m]
     wq  # Weights of the quadrature in q_n
-    # Qis  # Integer array from p - q to Qi[i, j] in the Fourier transform array
 
     Nx  # Number of surface points
     Lx  # Surface length [m]
@@ -47,62 +40,65 @@ struct RayleighParams
 
     ps   # Scattered wave numbers
     qs   # Scattered wave numbers
-    ks   # Incoming wave numbers
     ζs   # Surface heights
 
     FT_plan # Planned Fourier transform of surface points
 
-    RayleighParams(; ν::Polarization=p, surf_t::SurfType=flat, κ0=1.0, κ=2.25, λ=400e-9, Q_mult=4, Nq=128, L=1.0e-4, Ni=10) = begin
-        c0 = 299_792_458.0
-        # λ = c0 / 2πω
+    RayleighParams(; ν::Polarization=p, surf_t::SurfType=flat, ε=-17.5, μ=1.0, λ=600e-9, Q_mult=4, Nq=127, L=10.0e-6, Ni=10) = begin
+        #=
+        All lengths are in units of μm
+        =#
+
+        c0 = 299_792_458.0 # [m/s], Speed of light in vacuum
+        # c0 = 1.0 # [m/s], Speed of light in vacuum, natural units
+
         K = 2π / λ
         ω = c0 * K
 
-        # Scale all variables such that ω/c0 = 1
+        # All variables scaled such that ω/c0 = 1
 
         # Assertions and warnings
-        @assert L / λ > 100.0 "Surface length must be much larger than 1 wavelength, Lx ≫ λ, but is Lx:$Lx and λ:$λ."
+        @assert L / λ > 10.0 "Surface length must be much larger than 1 wavelength, L ≫ λ, but is L:$L and λ:$λ."
         @assert Q_mult > 2 "Q_mult must be greater than 2, but is $Q_mult."
         @assert Nq > 2 "Nq must be greater than 2, but is $Nq."
 
-
-
         Nx = 2 * Nq
 
-        Q = Q_mult # Truncated wave number
-        Δq = Q / (Nq - 1.0)
+        # Q = Q_mult * ω / c0 # Truncated wave number
+        Q = Q_mult # Truncated wave number, divided by ω / c0
+        Δq = Q / Nq
 
-        # Non-inclusive, such that Nq splits the range evenly.
         ps = -Q/2:Δq:Q/2
         qs = Q/2:-Δq:-Q/2
-        ks = -1.0:Δq:1.0
-
-        wq = ones(Nq + 1)
+        # ks = 0.0:Δq:1.0
+        ks = sind.(0.0:0.5:90.0)
+        kis = [searchsortedfirst(qs, ks[i], rev=true) for i in eachindex(ks)] |> unique
+        display(kis)
+        ks_new = qs[kis]
+        wq = ones(size(qs))
         wq[1] = wq[end] = 3.0 / 8.0
         wq[2] = wq[end-1] = 7.0 / 6.0
         wq[3] = wq[end-2] = 23.0 / 24.0
 
-        Lx = L * (ω / c0)
-        Δx = Lx / (Nx - 2.0)
+        Lx = L * ω / c0 # Surface length, scaled up by ω / c0, since reciprocal space is scaled down by ω / c0
+        Δx = Lx / Nx
         xs = -Lx/2:Δx:Lx/2
 
         if false #surf_t == gauss
             ζs = cos.(4 * 2π .* xs ./ Lx) * 1e-9
         elseif surf_t == flat
-            ζs = zeros(Nx - 2) # Flat surface
+            ζs = zeros(Nx) # Flat surface
         end
-        # Rescale ζ to be in units of λ
-        ζs *= (ω / c0)
 
-        # Qis = Matrix{Int}(undef, Nq + 1, Nq + 1)
+        ζs *= (ω / c0) # Scale surface heights by ω / c0
 
-        new(ν, c0, κ0, κ, λ, Q, Nq, Δq, wq,
-            Nx, Lx, Δx, Ni, ps, qs, ks, ζs,
+        new(ν, c0, ε, μ, λ, ω, ks_new, kis, Q, Nq, Δq, wq,
+            Nx, Lx, Δx, Ni, ps, qs, ζs,
             plan_rfft(ζs))
     end
 end
 
-function print(rp::RayleighParams)
+function show_params(rp::RayleighParams)
     names = fieldnames(typeof(rp))
     for name in names
         field = getfield(rp, name)
@@ -111,166 +107,211 @@ function print(rp::RayleighParams)
     end
 end
 
-function solve_p(rp::RayleighParams)
+
+# function M_plus!(rp::RayleighParams)
+#     for m in axes(gs, 2)
+#         n = m - 1
+#         for (i, p) in enumerate(ps)
+#             for (j, q) in enumerate(qs)
+#                 denom = α(p) - α0(q)
+
+#                 Mpq[i, j] += (-1.0im)^n * gs[pq_idx(i, j), m] / factorial(n) * (
+#                     (p + κ * q) * (p - q) * denom^(n - 1) +
+#                     (α(p) + κ * α0(q)) * denom^n
+#                 )
+#             end
+#         end
+#     end
+# end
+
+function solve(rp::RayleighParams)
     # Solve the reduced Rayleigh equations for p-polarized light
 
-    ε0 = rp.κ0 # Permittivity of free space
-    ε = rp.κ # Permittivity of the medium
+    ε = rp.ε + 1e-6im # Permittivity of the medium, added small absorption to avoid singularities
+    μ = rp.μ # Permeability of the medium
 
-    ps = rp.ps # Scattered wave numbers
-    qs = rp.qs # Scattered wave numbers
+    κ = rp.ν == p ? ε : μ # Polarization dependent factor
 
-    ks = rp.ks # Incoming wave numbers
+    ω = rp.ω # Angular frequency
+    c0 = rp.c0 # Speed of light in vacuum
+
+    ps = rp.ps # Scattered ∥ wave numbers
+    qs = rp.qs # Scattered ∥ wave numbers
+
+    ks = rp.ks # Incoming ∥ wave number
+    kis = rp.kis
     ζs = rp.ζs # Surface heights
 
-    Nq = length(qs) # Number of wave numbers
-    Np = length(ps) # Number of surface points
-    Nk = length(ks) # Number of incoming wave numbers
-    Nx = length(ζs) # Number of surface points
+    Nq = length(qs)
+    Np = length(ps)
+    Nk = length(ks)
+    Nx = length(ζs)
     Ni = rp.Ni + 1 # Order of surface power expansion
 
-    Npq = zeros(ComplexF64, Np, Nq) # Nₚ⁺(p|q) matrix
-    Rqk = Matrix{ComplexF64}(undef, Nq, Nk) # Rₚ(q|k) Solution vector
-    Npk = zeros(ComplexF64, Np, Nk) # Nₚ⁻(p|k) vector
+    Mpq = zeros(ComplexF64, Np, Nq) # M⁺(p|q) matrix
+    Rqk = Matrix{ComplexF64}(undef, Nq, Nk) # Vector of solution R(q|k) vectors
+    Mpk = zeros(ComplexF64, Np, Nk) # Vector of M⁻(p|k) RHS vectors
 
 
-    α(q::Float64)::ComplexF64 = √Complex(ε - q^2)
+    α(q::Float64)::ComplexF64 = √complex(ε * μ - q^2)
 
+    # Assumed μ0 = ε0 = 1
     α0(q::Float64)::ComplexF64 =
-        (abs(q) < 1.0) ?
-        (√(ε0 - q^2)) :
-        (abs(q) > 1.0) ?
-        (im * √(q^2 - 1.0)) :
-        0.0im
+        abs(q) > 1.0 ?
+        1.0im * √(q^2 - 1.0) :
+        √complex(1.0 - q^2)
 
     g_size = Nx ÷ 2 + 1
     gs = Matrix{ComplexF64}(undef, g_size, Ni)
-    for n in axes(gs, 2)
+    display("Applying FFT to up to $Ni orders of ζⁿ: ")
+    @time for n in axes(gs, 2)
         gs[:, n] = rp.FT_plan * ζs .^ (n - 1)
     end
 
+    # Symmetrize gs access -NQ,...,-1, 0, 1,...,NQ, by p-q indexing 
+    function pq_idx(i::Int, j::Int)::Int
+        idx = -g_size + i + j - 1
+        return (idx < 0) ? -idx + 1 : idx + 1
+    end
 
+    display("Evaluate M⁺(p,q) matrix: ")
 
-    # Symmetrize gs access -NQ,...,-1, 0, 1,...,NQ
-    re_gs(i, n) = (i < 0) ? -gs[-i+1, n] : gs[i+1, n]
-    # Fix p-q indexing 
-    pq_idx(i, j) = -g_size + i + j - 1
-
-    # Evaluate N⁺ₚ(p,q) matrix
-    for n in axes(gs, 2)
+    for m in axes(gs, 2)
+        n = m - 1
         for (i, p) in enumerate(ps)
             for (j, q) in enumerate(qs)
-                Npq[i, j] += (p * q + α(p) * α0(q)) * (1.0im)^(n - 1) * (α(p) - α0(q))^(n - 2) / factorial(n - 1) * re_gs(pq_idx(i, j), n)
+                denom = α(p) - α0(q)
+                Mpq[i, j] += (-1.0im)^n * gs[pq_idx(i, j), m] / factorial(n) * (
+                    (p + κ * q) * (p - q) * denom^(n - 1) +
+                    (α(p) + κ * α0(q)) * denom^n
+                )
             end
         end
     end
 
-    # Evaluate N⁻ₚ(p,k) vector
-    for n in axes(gs, 2)
+    display("Evaluate M⁻ₚ(p,k) vector: ")
+
+    @time for m in axes(gs, 2)
+        n = m - 1
         for (i, p) in enumerate(ps)
             for (j, k) in enumerate(ks)
-                Npk[i, j] -= (p * k - α(p) * α0(k)) * (1.0im)^(n - 1) * (α(p) + α0(k))^(n - 2) / factorial(n - 1) * re_gs(pq_idx(i, j), n)
+                denom = α(p) + α0(k)
+
+                Mpk[i, j] -= (-1.0im)^n * gs[pq_idx(i, kis[j]), m] / factorial(n) * (
+                    (p + κ * k) * (p - k) * denom^(n - 1) +
+                    (α(p) - κ * α0(k)) * denom^n
+                )
             end
         end
     end
 
+    nans1 = findall(!isfinite, Mpq)
+    nans2 = findall(!isfinite, Mpk)
 
-    for k in axes(ks, 1)
-        Rqk[:, k] = Npq \ Npk[:, k]
-    end
-    Rqk .*= 2π / rp.Δq
-
-    nans1 = findall(!isfinite, Npq)
-    nans2 = findall(!isfinite, Npk)
-    nans3 = findall(!isfinite, Rqk)
-    if length(nans1) > 0 || length(nans2) > 0 || length(nans3) > 0
-        println("Npq:")
-        display(Npq[nans1])
+    if length(nans1) > 0 || length(nans2) > 0
+        println("Mpq:")
+        display(Mpq[nans1])
+        println("Mpq idxs:")
         display(nans1)
-        println("Npk:")
-        display(Npk[nans2])
+
+        println("Mpk:")
+        display(Mpk[nans2])
+        println("Mpk idxs:")
         display(nans2)
-        println("Rqk:")
-        display(Rqk[nans3])
-        display(nans3)
-        throw("Non-finite values in Npq, Npk, or Rqk")
+
+        display("Number of NaNs in Mpq: $(length(nans1))")
+        display("Number of NaNs in Mpk: $(length(nans2))")
+
+        throw("Non-finite values in Mpq or Mpk")
     end
-    #= Debug print information
-    # println("\ngs:")
-    # display(gs)
 
+    # Solve the system Δq / 2π ∑_q N⁺ₚ(p|q) * Rₚ(q|k) = N⁻ₚ(p|k) for R
+    display("Solve Ax = b: ")
+    @time for i in eachindex(ks)
+        Rqk[:, i] = Mpq \ Mpk[:, i]
+    end
 
-    println("\nN⁺ₚ(p,q):")
-    # display(Npq)
-
-    display(Npq[.!isfinite.(Npq)])
-    display(findall(!isfinite, Npq))
-
-
-    println("\nN⁻ₚ(p,k):")
-    # display(Npk)
-
-    display(Npk[.!isfinite.(Npk)])
-    display(findall(!isfinite, Npk))
-
-    println("\nRₚ(q|k):")
-    display(Rqk)
-    =#
     return Rqk
 end
-
-rp = RayleighParams();
-print(rp)
-sol = solve_p(rp);
-display(size(sol))
-
-θ(k) = asin(k)
 
 mean_DRC(rp::RayleighParams, sol::Matrix{ComplexF64}) = begin
     # Calculate the mean differential reflection coefficient
     # Factor of ω / c0 removed due to scaling
-    retval = similar(sol, Float64)
-    for (i, q) in enumerate(rp.qs[rp.qs.>-1.0+1e-3.&&rp.qs.<1.0-1e-3])
-        for (j, k) in enumerate(rp.ks)
-            retval[i, j] = 1.0 / (rp.Lx) / 2π * cos(θ(q))^2 / cos(θ(k)) * abs2(sol[i, j])
+
+    ω = rp.ω
+    c0 = rp.c0
+    qs = rp.qs[rp.qs.<ω/c0.&&rp.qs.>-ω/c0]
+    ks = rp.ks
+
+    retval = Matrix{Float64}(undef, length(qs), length(ks))
+
+    for (i, q) in enumerate(qs)
+        for (j, k) in enumerate(ks)
+            retval[i, j] = 1.0 / rp.Lx / 2π * cos(θ(q, ω, c0))^2 / cos(θ(k, ω, c0)) * abs2(sol[i, j])
         end
     end
     return retval
 end
 
-mean_DRC(rp, sol)
+Nq = 2^10
+display(Nq)
+
+silver = -17.5 + 0.48im
+glass = 2.25
+
+rp_p = RayleighParams(;
+    ν=p,
+    Nq=Nq,
+    ε=glass,
+    L=10.0e-6,
+    Q_mult=4,
+    Ni=10
+);
 
 
-function mean_DRC_incoh(rp::RayleighParams, sol::Matrix{ComplexF64})
-    # Calculate the mean differential reflection coefficient for incoherent light
-    return 1.0 / (rp.Lx) * rp.ω / (2π * rp.c0)
-end
 
-plot(rp.ks, abs2.(sum(sol, dims=1))')
+# show_params(rp_p)
+@time sol_p = solve(rp_p);
 
-function solve_s(rp::RayleighParams)
-    # Solve the reduced Rayleigh equations for s-polarized light
-    # TODO: Implement this, currently only p-polarized light is supported
-    throw("s-polarized Reduced Rayleigh Method not implemented")
 
-    println("""
-    Physical parameters:
-    c:  $(rp.c)
-    ν:  $(rp.ν) ⟹ κ → μ
-    μ₀: $(rp.κ0)
-    μ:  $(rp.κ)
-    ω:  $(rp.ω)
-    θ₀: $(rp.θ₀)
 
-    Sizings:
-    Q:  $(rp.Q)
-    NQ: $(rp.Nq)
-    hQ: $(rp.hq)
+# sum(abs2, sol_p)
+rp_s = RayleighParams(;
+    ν=s,
+    Nq=Nq,
+    ε=glass,
+    L=10.0e-6,
+    Q_mult=4,
+    Ni=10
+);
+# show_params(rp_s)
+@time sol_s = solve(rp_s);
+θs_new_p = asind.(rp_p.ks)
+θs_new_s = asind.(rp_s.ks)
 
-    Nx: $(rp.Nx)
-    Lx: $(rp.Lx)
-    hx: $(rp.hx)
+refl_p = (maximum(abs.(sol_p), dims=1) |> vec) .^ 2
+refl_s = (maximum(abs.(sol_s), dims=1) |> vec) .^ 2
 
-    Ni: $(rp.Ni)
-    """)
-end
+display(refl_s[1])
+
+
+
+ε = silver
+
+r0 = abs2((1.0 - sqrt(ε)) / (1 + sqrt(ε)))
+
+brewster = 56
+
+bi = findfirst(refl_p .== minimum(refl_p))
+display("Brewster angle $brewster vs. $(θs_new_p[bi])")
+
+plot(θs_new_p, refl_p, label="ν = p", marker=(:circle, 2));
+plot!(θs_new_s, refl_s, label="ν = s", marker=(:circle, 2));
+plot!([0.0, 90.0], [1.0, 1.0], linestyle=:dash, linecolor=:black, linewidth=1, label=nothing);
+plot!([90.0, 90.0], [0.0, 1.0], linestyle=:dash, linecolor=:black, linewidth=1, label=nothing);
+
+
+xlims!(0, 90);
+ylims!(0, 1.00);
+xlabel!("Θ [°]");
+ylabel!("Fresnel reflection coefficient")
