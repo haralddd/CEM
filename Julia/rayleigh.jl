@@ -11,7 +11,11 @@
 using FFTW
 using Plots
 using BenchmarkTools
+using StaticArrays
 # using Statistics
+
+sz = SizedVector{1024}(zeros(ComplexF64, 1024))
+
 
 @enum Polarization p s
 @enum SurfType flat gauss
@@ -83,11 +87,12 @@ struct RayleighParams
         Lx = L * ω / c0 # Surface length, scaled up by ω / c0, since reciprocal space is scaled down by ω / c0
         Δx = Lx / Nx
         xs = -Lx/2:Δx:Lx/2
+        ζs = SizedVector{Nx}(undef)
 
         if false #surf_t == gauss
             ζs = cos.(4 * 2π .* xs ./ Lx) * 1e-9
         elseif surf_t == flat
-            ζs = zeros(Nx) # Flat surface
+            ζs = zeros(ComplexF64, Nx) # Flat surface
         end
 
         ζs *= (ω / c0) # Scale surface heights by ω / c0
@@ -106,23 +111,6 @@ function show_params(rp::RayleighParams)
         display(field)
     end
 end
-
-
-# function M_plus!(rp::RayleighParams)
-#     for m in axes(gs, 2)
-#         n = m - 1
-#         for (i, p) in enumerate(ps)
-#             for (j, q) in enumerate(qs)
-#                 denom = α(p) - α0(q)
-
-#                 Mpq[i, j] += (-1.0im)^n * gs[pq_idx(i, j), m] / factorial(n) * (
-#                     (p + κ * q) * (p - q) * denom^(n - 1) +
-#                     (α(p) + κ * α0(q)) * denom^n
-#                 )
-#             end
-#         end
-#     end
-# end
 
 function solve(rp::RayleighParams)
     # Solve the reduced Rayleigh equations for p-polarized light
@@ -296,9 +284,9 @@ display(refl_s[1])
 
 
 
-ε = silver
+ε = glass
 
-r0 = abs2((1.0 - sqrt(ε)) / (1 + sqrt(ε)))
+r_analytical = abs2.((1.0 .- .√(ε .- rp_p.ks .^ 2)) ./ (1 .+ .√(ε .- rp_p.ks .^ 2)))
 
 brewster = 56
 
@@ -307,6 +295,7 @@ display("Brewster angle $brewster vs. $(θs_new_p[bi])")
 
 plot(θs_new_p, refl_p, label="ν = p", marker=(:circle, 2));
 plot!(θs_new_s, refl_s, label="ν = s", marker=(:circle, 2));
+plot!(θs_new_p, r_analytical, label="Analytical Fresnel")
 plot!([0.0, 90.0], [1.0, 1.0], linestyle=:dash, linecolor=:black, linewidth=1, label=nothing);
 plot!([90.0, 90.0], [0.0, 1.0], linestyle=:dash, linecolor=:black, linewidth=1, label=nothing);
 
