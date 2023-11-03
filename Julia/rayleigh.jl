@@ -12,43 +12,44 @@ using FFTW
 using Plots
 using BenchmarkTools
 using StaticArrays
+using LinearAlgebra
 # using Statistics
-
-sz = SizedVector{1024}(zeros(ComplexF64, 1024))
 
 
 @enum Polarization p s
 @enum SurfType flat gauss
 
-struct RayleighParams
+v = rand(1024);
+F = plan_rfft(v)
+typeof(F)
+
+vsz = SizedVector
+
+struct RayleighParams{Nq,Ni}
+
+    FT::FFTW.rFFTWPlan{Float64,-1,false,1,Tuple{Int64}} # Planned Fourier transform of surface points
+    ζs::SizedVector{2 * Nq,Float64}  # Surface heights
+    Fζs::SizedVector{Nq + 1,ComplexF64}  # Fourier transform of surface heights, prealloc
+    ps::SizedVector{Nq,Float64}  # Scattered wave numbers
+    qs::SizedVector{Nq,Float64}  # Scattered wave numbers
+
+
     ν::Polarization # Polarization [p, s]
-    c0 # [m/s], Speed of light in vacuum
-    ε # Permittivity of the scattering medium
-    μ # Permeability of the scaterring medium
-    λ   # wavelength in [μm]
-    ω   # Angular frequency
-    ks   # Parallel component wave number
-    kis
+    ε::Float64 # Permittivity of the scattering medium
+    μ::Float64 # Permeability of the scaterring medium
+    λ::Float64   # wavelength in [μm]
+    ω::Float64   # Angular frequency
+    k::Float64   # Parallel component wave number
 
     # Sizings
-    Q   # Truncated wave number, q = (-∞,∞) -> q_n = (-Q_mult / 2, Q_mult / 2)
-    Nq  # Number of wave numbers
-    Δq  # Wave number spacing [1/m]
-    wq  # Weights of the quadrature in q_n
+    Q::Float64   # Truncated wave number, q = (-∞,∞) -> q_n = (-Q_mult / 2, Q_mult / 2)
+    Δq::Float64  # Wave number spacing [1/m]
+    # wq::Float64  # Weights of the quadrature in q_n
 
-    Nx  # Number of surface points
-    Lx  # Surface length [m]
-    Δx  # Surface point spacing [m]
+    Lx::Float64  # Surface length [m]
+    Δx::Float64  # Surface point spacing [m]
 
-    Ni  # Order of surface power expansion
-
-    ps   # Scattered wave numbers
-    qs   # Scattered wave numbers
-    ζs   # Surface heights
-
-    FT_plan # Planned Fourier transform of surface points
-
-    RayleighParams(; ν::Polarization=p, surf_t::SurfType=flat, ε=-17.5, μ=1.0, λ=600e-9, Q_mult=4, Nq=127, L=10.0e-6, Ni=10) = begin
+    RayleighParams(; ν::Polarization=p, surf_t::SurfType=flat, ε=2.25, μ=1.0, λ=600e-9, Q_mult=4, Nq=127, L=10.0e-6, Ni=10, θ0=45) = begin
         #=
         All lengths are in units of μm
         =#
@@ -62,8 +63,8 @@ struct RayleighParams
         # All variables scaled such that ω/c0 = 1
 
         # Assertions and warnings
-        @assert L / λ > 10.0 "Surface length must be much larger than 1 wavelength, L ≫ λ, but is L:$L and λ:$λ."
-        @assert Q_mult > 2 "Q_mult must be greater than 2, but is $Q_mult."
+        @assert L / λ > 10.0 "Surface length must be much larger than the wavelength, L ≫ λ, but is L:$L and λ:$λ."
+        @assert Q_mult > 2 "Q_mult must be greater than 2, but is $Q_mult. ¤ is recommended."
         @assert Nq > 2 "Nq must be greater than 2, but is $Nq."
 
         Nx = 2 * Nq
@@ -74,20 +75,22 @@ struct RayleighParams
 
         ps = -Q/2:Δq:Q/2
         qs = Q/2:-Δq:-Q/2
+
         # ks = 0.0:Δq:1.0
-        ks = sind.(0.0:0.5:90.0)
+        # ks = sind.(0.0:0.5:90.0)
+
         kis = [searchsortedfirst(qs, ks[i], rev=true) for i in eachindex(ks)] |> unique
         display(kis)
         ks_new = qs[kis]
-        wq = ones(size(qs))
-        wq[1] = wq[end] = 3.0 / 8.0
-        wq[2] = wq[end-1] = 7.0 / 6.0
-        wq[3] = wq[end-2] = 23.0 / 24.0
+        # wq = ones(size(qs))
+        # wq[1] = wq[end] = 3.0 / 8.0
+        # wq[2] = wq[end-1] = 7.0 / 6.0
+        # wq[3] = wq[end-2] = 23.0 / 24.0
 
         Lx = L * ω / c0 # Surface length, scaled up by ω / c0, since reciprocal space is scaled down by ω / c0
         Δx = Lx / Nx
         xs = -Lx/2:Δx:Lx/2
-        ζs = SizedVector{Nx}(undef)
+        ζs = SizedVector{Nx}(Vector{ComplexF64}(undef, Nx))
 
         if false #surf_t == gauss
             ζs = cos.(4 * 2π .* xs ./ Lx) * 1e-9
@@ -97,9 +100,9 @@ struct RayleighParams
 
         ζs *= (ω / c0) # Scale surface heights by ω / c0
 
-        new(ν, c0, ε, μ, λ, ω, ks_new, kis, Q, Nq, Δq, wq,
-            Nx, Lx, Δx, Ni, ps, qs, ζs,
-            plan_rfft(ζs))
+        new{Nq,Ni}(plan_fft(ζs), ζs, ps, qs,
+            ν, ε, μ, λ, ω, K,
+            Q, Δq, wq, Lx, Δx)
     end
 end
 
@@ -126,15 +129,17 @@ function solve(rp::RayleighParams)
     ps = rp.ps # Scattered ∥ wave numbers
     qs = rp.qs # Scattered ∥ wave numbers
 
-    ks = rp.ks # Incoming ∥ wave number
-    kis = rp.kis
+    k = rp.k # Incoming ∥ wave number
+    ki = rp.ki
     ζs = rp.ζs # Surface heights
+
+    FT = rp.FT
 
     Nq = length(qs)
     Np = length(ps)
     Nk = length(ks)
     Nx = length(ζs)
-    Ni = rp.Ni + 1 # Order of surface power expansion
+    Ni = rp.Ni # Order of surface power expansion
 
     Mpq = zeros(ComplexF64, Np, Nq) # M⁺(p|q) matrix
     Rqk = Matrix{ComplexF64}(undef, Nq, Nk) # Vector of solution R(q|k) vectors
@@ -149,13 +154,6 @@ function solve(rp::RayleighParams)
         1.0im * √(q^2 - 1.0) :
         √complex(1.0 - q^2)
 
-    g_size = Nx ÷ 2 + 1
-    gs = Matrix{ComplexF64}(undef, g_size, Ni)
-    display("Applying FFT to up to $Ni orders of ζⁿ: ")
-    @time for n in axes(gs, 2)
-        gs[:, n] = rp.FT_plan * ζs .^ (n - 1)
-    end
-
     # Symmetrize gs access -NQ,...,-1, 0, 1,...,NQ, by p-q indexing 
     function pq_idx(i::Int, j::Int)::Int
         idx = -g_size + i + j - 1
@@ -163,9 +161,8 @@ function solve(rp::RayleighParams)
     end
 
     display("Evaluate M⁺(p,q) matrix: ")
-
-    for m in axes(gs, 2)
-        n = m - 1
+    for m in 0:Ni
+        mul!(FTζ, rp.FT_plan, ζs)
         for (i, p) in enumerate(ps)
             for (j, q) in enumerate(qs)
                 denom = α(p) - α0(q)
@@ -174,6 +171,13 @@ function solve(rp::RayleighParams)
                     (α(p) + κ * α0(q)) * denom^n
                 )
             end
+
+            denom = α(p) + α0(k)
+
+            Mpk[i] -= (-1.0im)^n * FTζ[pq_idx(i, ki)] / factorial(n) * (
+                (p + κ * k) * (p - k) * denom^(n - 1) +
+                (α(p) - κ * α0(k)) * denom^n
+            )
         end
     end
 
@@ -181,16 +185,7 @@ function solve(rp::RayleighParams)
 
     @time for m in axes(gs, 2)
         n = m - 1
-        for (i, p) in enumerate(ps)
-            for (j, k) in enumerate(ks)
-                denom = α(p) + α0(k)
 
-                Mpk[i, j] -= (-1.0im)^n * gs[pq_idx(i, kis[j]), m] / factorial(n) * (
-                    (p + κ * k) * (p - k) * denom^(n - 1) +
-                    (α(p) - κ * α0(k)) * denom^n
-                )
-            end
-        end
     end
 
     nans1 = findall(!isfinite, Mpq)
