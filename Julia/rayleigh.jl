@@ -8,47 +8,47 @@
 # rough surfaces one can get multiple scattering events.
 =#
 
+
 using FFTW
 using Plots
 using BenchmarkTools
-using StaticArrays
 using LinearAlgebra
-# using Statistics
-
 
 @enum Polarization p s
 @enum SurfType flat gauss
 
-v = rand(1024);
-F = plan_rfft(v)
-typeof(F)
+struct RayleighParams
 
-vsz = SizedVector
+    FT::FFTW.cFFTWPlan{ComplexF64,-1,true,1,Tuple{Int64}} # Planned Fourier transform of surface points
+    ys::Vector{Float64}  # Surface heights (must be complex for in place FFT)
+    ps::Vector{Float64}  # Scattered wave numbers
+    qs::Vector{Float64}  # Scattered wave numbers
+    wq::Vector{Float64}  # Weights of the quadrature in q_n
 
-struct RayleighParams{Nq,Ni}
-
-    FT::FFTW.rFFTWPlan{Float64,-1,false,1,Tuple{Int64}} # Planned Fourier transform of surface points
-    ζs::SizedVector{2 * Nq,Float64}  # Surface heights
-    Fζs::SizedVector{Nq + 1,ComplexF64}  # Fourier transform of surface heights, prealloc
-    ps::SizedVector{Nq,Float64}  # Scattered wave numbers
-    qs::SizedVector{Nq,Float64}  # Scattered wave numbers
-
+    # Preallocated steps in the calculations
+    Fys::Vector{ComplexF64}  # Fourier transform of surface heights, prealloc
+    sFys::Vector{ComplexF64} # Shifted Fourier transform of surface heights, prealloc
+    Mpq::Matrix{ComplexF64}  # Matrix of the Mpq coefficients (A)
+    Npk::Vector{ComplexF64}  # Vector of the Npk coefficients (b)
+    Rqk::Vector{ComplexF64}  # Vector of the reflection solution (x = A \ b)
 
     ν::Polarization # Polarization [p, s]
-    ε::Float64 # Permittivity of the scattering medium
-    μ::Float64 # Permeability of the scaterring medium
+    ε::ComplexF64 # Permittivity of the scattering medium
+    μ::ComplexF64 # Permeability of the scaterring medium
     λ::Float64   # wavelength in [μm]
     ω::Float64   # Angular frequency
     k::Float64   # Parallel component wave number
+    ki::Int      # Looked up index of the incoming wave number
 
     # Sizings
     Q::Float64   # Truncated wave number, q = (-∞,∞) -> q_n = (-Q_mult / 2, Q_mult / 2)
     Δq::Float64  # Wave number spacing [1/m]
-    # wq::Float64  # Weights of the quadrature in q_n
-
     Lx::Float64  # Surface length [m]
     Δx::Float64  # Surface point spacing [m]
 
+    Ni::Int      # Order of surface power expansion
+
+    # Constructor
     RayleighParams(; ν::Polarization=p, surf_t::SurfType=flat, ε=2.25, μ=1.0, λ=600e-9, Q_mult=4, Nq=127, L=10.0e-6, Ni=10, θ0=45) = begin
         #=
         All lengths are in units of μm
@@ -59,6 +59,7 @@ struct RayleighParams{Nq,Ni}
 
         K = 2π / λ
         ω = c0 * K
+        k = K * sind(θ0) # Parallel component wave number
 
         # All variables scaled such that ω/c0 = 1
 
@@ -76,36 +77,41 @@ struct RayleighParams{Nq,Ni}
         ps = -Q/2:Δq:Q/2
         qs = Q/2:-Δq:-Q/2
 
-        # ks = 0.0:Δq:1.0
-        # ks = sind.(0.0:0.5:90.0)
+        # Find the nearest index of the incoming wave number
+        ki = searchsortedfirst(qs, k, rev=true)
+        k_new = qs[ki]
 
-        kis = [searchsortedfirst(qs, ks[i], rev=true) for i in eachindex(ks)] |> unique
-        display(kis)
-        ks_new = qs[kis]
-        # wq = ones(size(qs))
-        # wq[1] = wq[end] = 3.0 / 8.0
-        # wq[2] = wq[end-1] = 7.0 / 6.0
-        # wq[3] = wq[end-2] = 23.0 / 24.0
+        wq = ones(size(qs))
+        wq[1] = wq[end] = 3.0 / 8.0
+        wq[2] = wq[end-1] = 7.0 / 6.0
+        wq[3] = wq[end-2] = 23.0 / 24.0
 
         Lx = L * ω / c0 # Surface length, scaled up by ω / c0, since reciprocal space is scaled down by ω / c0
         Δx = Lx / Nx
         xs = -Lx/2:Δx:Lx/2
-        ζs = SizedVector{Nx}(Vector{ComplexF64}(undef, Nx))
 
-        if false #surf_t == gauss
-            ζs = cos.(4 * 2π .* xs ./ Lx) * 1e-9
+        if surf_t == gauss
+            ys = cos.(4 * 2π .* xs ./ Lx) * 1e-9
         elseif surf_t == flat
-            ζs = zeros(ComplexF64, Nx) # Flat surface
+            ys = zeros(Nx + 1) # Flat surface
         end
 
-        ζs *= (ω / c0) # Scale surface heights by ω / c0
+        ys *= (ω / c0) # Scale surface heights by ω / c0
 
-        new{Nq,Ni}(plan_fft(ζs), ζs, ps, qs,
-            ν, ε, μ, λ, ω, K,
-            Q, Δq, wq, Lx, Δx)
+        Fys = similar(ys, ComplexF64)
+        sFys = similar(Fys)
+        Mpq = zeros(ComplexF64, Nq + 1, Nq + 1)
+        Npk = zeros(ComplexF64, Nq + 1)
+        Rqk = similar(Npk)
+
+        ε_new = ε + 1e-6im # Add a small imaginary part to avoid singularities
+
+        new(plan_fft!(Fys), ys, ps, qs, wq,
+            Fys, sFys, Mpq, Npk, Rqk,
+            ν, ε_new, μ, λ, ω, k_new, ki,
+            Q, Δq, Lx, Δx, Ni)
     end
 end
-
 function show_params(rp::RayleighParams)
     names = fieldnames(typeof(rp))
     for name in names
@@ -115,106 +121,72 @@ function show_params(rp::RayleighParams)
     end
 end
 
-function solve(rp::RayleighParams)
+function solve(rp::RayleighParams, reduction::Function=identity)::T where {T}
     # Solve the reduced Rayleigh equations for p-polarized light
 
-    ε = rp.ε + 1e-6im # Permittivity of the medium, added small absorption to avoid singularities
-    μ = rp.μ # Permeability of the medium
-
-    κ = rp.ν == p ? ε : μ # Polarization dependent factor
-
-    ω = rp.ω # Angular frequency
-    c0 = rp.c0 # Speed of light in vacuum
-
-    ps = rp.ps # Scattered ∥ wave numbers
-    qs = rp.qs # Scattered ∥ wave numbers
-
-    k = rp.k # Incoming ∥ wave number
+    # Shorthand parameters
+    κ = rp.ν == p ? rp.ε : rp.μ
+    k = rp.k
     ki = rp.ki
-    ζs = rp.ζs # Surface heights
+    Ni = rp.Ni
 
-    FT = rp.FT
-
-    Nq = length(qs)
-    Np = length(ps)
-    Nk = length(ks)
-    Nx = length(ζs)
-    Ni = rp.Ni # Order of surface power expansion
-
-    Mpq = zeros(ComplexF64, Np, Nq) # M⁺(p|q) matrix
-    Rqk = Matrix{ComplexF64}(undef, Nq, Nk) # Vector of solution R(q|k) vectors
-    Mpk = zeros(ComplexF64, Np, Nk) # Vector of M⁻(p|k) RHS vectors
-
-
-    α(q::Float64)::ComplexF64 = √complex(ε * μ - q^2)
+    α(q::Float64)::ComplexF64 = √complex(rp.ε * rp.μ - q^2)
 
     # Assumed μ0 = ε0 = 1
-    α0(q::Float64)::ComplexF64 =
-        abs(q) > 1.0 ?
-        1.0im * √(q^2 - 1.0) :
-        √complex(1.0 - q^2)
+    α0(q::Float64)::ComplexF64 = √complex(1.0 - q^2)
 
-    # Symmetrize gs access -NQ,...,-1, 0, 1,...,NQ, by p-q indexing 
-    function pq_idx(i::Int, j::Int)::Int
-        idx = -g_size + i + j - 1
-        return (idx < 0) ? -idx + 1 : idx + 1
-    end
+    Mpq_eval(p::Float64, q::Float64, n::Int)::ComplexF64 = (
+        (-1.0im)^n / factorial(n) * (
+            (p + κ * q) * (p - q) * (α(p) - α0(q))^(n - 1) +
+            (α(p) + κ * α0(q)) * (α(p) - α0(q))^n)
+    )
+    Npk_eval(p::Float64, n::Int)::ComplexF64 = (
+        (-1.0im)^n / factorial(n) * (
+            (p + κ * k) * (p - k) * (α(p) + α0(k))^(n - 1) +
+            (α(p) - κ * α0(k)) * (α(p) + α0(k))^n)
+    )
 
-    display("Evaluate M⁺(p,q) matrix: ")
-    for m in 0:Ni
-        mul!(FTζ, rp.FT_plan, ζs)
-        for (i, p) in enumerate(ps)
-            for (j, q) in enumerate(qs)
-                denom = α(p) - α0(q)
-                Mpq[i, j] += (-1.0im)^n * gs[pq_idx(i, j), m] / factorial(n) * (
-                    (p + κ * q) * (p - q) * denom^(n - 1) +
-                    (α(p) + κ * α0(q)) * denom^n
-                )
-            end
+    for n in 0:Ni
+        display("n = $n")
 
-            denom = α(p) + α0(k)
+        rp.Fys .= rp.ys .^ n
+        rp.FT * rp.Fys # In place FFT
+        fftshift!(rp.sFys, rp.Fys) # No way to do shift in place apparently
 
-            Mpk[i] -= (-1.0im)^n * FTζ[pq_idx(i, ki)] / factorial(n) * (
-                (p + κ * k) * (p - k) * denom^(n - 1) +
-                (α(p) - κ * α0(k)) * denom^n
-            )
+        for I in CartesianIndices(rp.Mpq)
+            i, j = Tuple(I)
+            rp.Mpq[I] += Mpq_eval(rp.ps[i], rp.qs[i], n) * rp.sFys[i+j-1]
+        end
+
+        for i in eachindex(rp.Npk)
+            rp.Npk[i] -= Npk_eval(rp.ps[i], n) * rp.sFys[i+ki-1]
         end
     end
 
-    display("Evaluate M⁻ₚ(p,k) vector: ")
-
-    @time for m in axes(gs, 2)
-        n = m - 1
-
-    end
-
-    nans1 = findall(!isfinite, Mpq)
-    nans2 = findall(!isfinite, Mpk)
+    nans1 = findall(!isfinite, rp.Mpq)
+    nans2 = findall(!isfinite, rp.Npk)
 
     if length(nans1) > 0 || length(nans2) > 0
         println("Mpq:")
-        display(Mpq[nans1])
+        display(rp.Mpq[nans1])
         println("Mpq idxs:")
         display(nans1)
 
-        println("Mpk:")
-        display(Mpk[nans2])
-        println("Mpk idxs:")
+        println("Npk:")
+        display(rp.Npk[nans2])
+        println("Npk idxs:")
         display(nans2)
 
         display("Number of NaNs in Mpq: $(length(nans1))")
-        display("Number of NaNs in Mpk: $(length(nans2))")
+        display("Number of NaNs in Npk: $(length(nans2))")
 
-        throw("Non-finite values in Mpq or Mpk")
+        throw("Non-finite values in Mpq or Npk")
     end
 
     # Solve the system Δq / 2π ∑_q N⁺ₚ(p|q) * Rₚ(q|k) = N⁻ₚ(p|k) for R
-    display("Solve Ax = b: ")
-    @time for i in eachindex(ks)
-        Rqk[:, i] = Mpq \ Mpk[:, i]
-    end
+    # rp.Rqk .= rp.Mpq \ rp.Npk
 
-    return Rqk
+    return reduction(rp.Mpq \ rp.Npk)
 end
 
 mean_DRC(rp::RayleighParams, sol::Matrix{ComplexF64}) = begin
@@ -236,8 +208,7 @@ mean_DRC(rp::RayleighParams, sol::Matrix{ComplexF64}) = begin
     return retval
 end
 
-Nq = 2^10
-display(Nq)
+Nq = 2^11
 
 silver = -17.5 + 0.48im
 glass = 2.25
@@ -252,10 +223,12 @@ rp_p = RayleighParams(;
 );
 
 
+reduction = x::Vector{ComplexF64} -> maximum(abs.(x))^2
 
 # show_params(rp_p)
-@time sol_p = solve(rp_p);
+@time sol_p = solve(rp_p, reduction);
 
+sol_p
 
 
 # sum(abs2, sol_p)
