@@ -14,27 +14,24 @@ using Plots
 using BenchmarkTools
 using LinearAlgebra
 
-@enum Polarization p s
-@enum SurfType flat gauss
 
+
+
+@enum Polarization p s
 struct RayleighParams
 
     FT::FFTW.cFFTWPlan{ComplexF64,-1,true,1,Tuple{Int64}} # Planned Fourier transform of surface points
-    ys::Vector{Float64}  # Surface heights (must be complex for in place FFT)
+    M_pre::Array{ComplexF64,3} # Precomputed Mpq coefficients
+    N_pre::Matrix{ComplexF64} # Precomputed Npk coefficients
+
+    xs::Vector{Float64}  # Surface points
     ps::Vector{Float64}  # Scattered wave numbers
     qs::Vector{Float64}  # Scattered wave numbers
     wq::Vector{Float64}  # Weights of the quadrature in q_n
 
-    # Preallocated steps in the calculations
-    Fys::Vector{ComplexF64}  # Fourier transform of surface heights, prealloc
-    sFys::Vector{ComplexF64} # Shifted Fourier transform of surface heights, prealloc
-    Mpq::Matrix{ComplexF64}  # Matrix of the Mpq coefficients (A)
-    Npk::Vector{ComplexF64}  # Vector of the Npk coefficients (b)
-    Rqk::Vector{ComplexF64}  # Vector of the reflection solution (x = A \ b)
-
     ν::Polarization # Polarization [p, s]
     ε::ComplexF64 # Permittivity of the scattering medium
-    μ::ComplexF64 # Permeability of the scaterring medium
+    μ::ComplexF64 # Permeability of the scattering medium
     λ::Float64   # wavelength in [μm]
     ω::Float64   # Angular frequency
     k::Float64   # Parallel component wave number
@@ -49,10 +46,11 @@ struct RayleighParams
     Ni::Int      # Order of surface power expansion
 
     # Constructor
-    RayleighParams(; ν::Polarization=p, surf_t::SurfType=flat, ε=2.25, μ=1.0, λ=600e-9, Q_mult=4, Nq=127, L=10.0e-6, Ni=10, θ0=45) = begin
+    RayleighParams(; ν::Polarization=p, ε=2.25, μ=1.0, λ=600e-9, Q_mult=4, Nq=127, L=10.0e-6, Ni=10, θ0=45) = begin
         #=
         All lengths are in units of μm
         =#
+        display("Initialising variables...")
 
         c0 = 299_792_458.0 # [m/s], Speed of light in vacuum
         # c0 = 1.0 # [m/s], Speed of light in vacuum, natural units
@@ -90,28 +88,50 @@ struct RayleighParams
         Δx = Lx / Nx
         xs = -Lx/2:Δx:Lx/2
 
-        if surf_t == gauss
-            ys = cos.(4 * 2π .* xs ./ Lx) * 1e-9
-        elseif surf_t == flat
-            ys = zeros(Nx + 1) # Flat surface
-        end
-
-        ys *= (ω / c0) # Scale surface heights by ω / c0
-
-        Fys = similar(ys, ComplexF64)
-        sFys = similar(Fys)
-        Mpq = zeros(ComplexF64, Nq + 1, Nq + 1)
-        Npk = zeros(ComplexF64, Nq + 1)
-        Rqk = similar(Npk)
-
         ε_new = ε + 1e-6im # Add a small imaginary part to avoid singularities
 
-        new(plan_fft!(Fys), ys, ps, qs, wq,
-            Fys, sFys, Mpq, Npk, Rqk,
+        ## Precalculate invariant coefficients:
+        display("Preconditioning solver")
+        N_pre = Matrix{ComplexF64}(undef, length(ps), Ni + 1)
+        M_pre = Array{ComplexF64,3}(undef, length(ps), length(qs), Ni + 1)
+
+        α(q::Float64)::ComplexF64 = √complex(ε * μ - q^2)
+
+        # Assumed μ0 = ε0 = 1
+        α0(q::Float64)::ComplexF64 = √complex(1.0 - q^2)
+
+        κ = ν == p ? ε : μ
+
+        display("Precalculating invariant coefficients in M.")
+        Mpq_invariant(p::Float64, q::Float64, n::Int)::ComplexF64 = (
+            (-1.0im)^n / factorial(n) * (
+                (p + κ * q) * (p - q) * (α(p) - α0(q))^(n - 1) +
+                (α(p) + κ * α0(q)) * (α(p) - α0(q))^n)
+        )
+        for I in CartesianIndices(M_pre)
+            i, j, n = Tuple(I)
+            M_pre[i, j, n] = Mpq_invariant(ps[i], qs[j], n - 1)
+        end
+
+        display("Precalculating invariant coefficients in N.")
+        Npk_invariant(p::Float64, n::Int)::ComplexF64 = (
+            (-1.0im)^n / factorial(n) * (
+                (p + κ * k) * (p - k) * (α(p) + α0(k))^(n - 1) +
+                (α(p) - κ * α0(k)) * (α(p) + α0(k))^n)
+        )
+
+        for I in CartesianIndices(N_pre)
+            i, n = Tuple(I)
+            N_pre[i, n] = Npk_invariant(ps[i], n - 1)
+        end
+
+        new(plan_fft!(xs), M_pre, N_pre,
+            xs, ps, qs, wq,
             ν, ε_new, μ, λ, ω, k_new, ki,
             Q, Δq, Lx, Δx, Ni)
     end
 end
+
 function show_params(rp::RayleighParams)
     names = fieldnames(typeof(rp))
     for name in names
@@ -121,7 +141,99 @@ function show_params(rp::RayleighParams)
     end
 end
 
-function solve(rp::RayleighParams, reduction::Function=identity)::T where {T}
+get_θ(rp::RayleighParams) = asind(rp.k)
+
+function gaussian_surface_gen(δ::Float64, a::Float64, rp::RayleighParams)
+    W(x) = exp(-x^2 / a^2)
+    g(k) = √π * a * exp(-(a * k / 2.0)^2)
+
+    xs = rp.xs
+
+    W_p = W.(xs) |> ComplexF64
+
+    return rp.FT \ (
+        (rp.FT * (randn(Float64, N) |> ComplexF64)) .*
+        (P * W_p)) .* δ * 2π / sqrt(N)
+
+end
+
+
+@enum SurfType flat gauss singlebump
+struct SurfPreAlloc
+    # Preallocated steps in the calculations for a given surface
+    Mpq::Matrix{ComplexF64}  # Matrix of the Mpq coefficients (A)
+    Npk::Vector{ComplexF64}  # Vector of the Npk coefficients (b)
+    Rqk::Vector{ComplexF64}  # Vector of the reflection solution (x = A \ b)
+
+    Fys::Vector{ComplexF64}  # Fourier transform of surface heights, prealloc
+    sFys::Vector{ComplexF64} # Shifted Fourier transform of surface heights, prealloc
+    ys::Vector{Float64}  # Surface heights
+
+    function SurfPreAlloc(rp::RayleighParams, surf_t::SurfType, δ::Float64, a::Float64)
+        Lx = rp.Lx
+        xs = rp.xs
+
+        if surf_t == singlebump
+            ys = δ * exp.(-xs .^ 2 / a^2)
+        elseif surf_t == gauss
+
+            # δ = RMS height of surface profile function
+            # a = Autocorrelation length
+            # TODO: Move code from SurfaceGen into here
+        elseif surf_t == flat
+            ys = zeros(rp.Nx + 1) # Flat surface
+        end
+
+        ys *= (ω / c0) # Scale surface heights by ω / c0
+
+        ys = similar(xs)
+        Fys = Vector{ComplexF64}(undef, rp.Nq + 1)
+        sFys = similar(Fys)
+        Mpq = zeros(ComplexF64, rp.Nq + 1, rp.Nq + 1)
+        Npk = zeros(ComplexF64, rp.Nq + 1)
+        Rqk = similar(Npk)
+
+        new(Mpq, Npk, Rqk, Fys, sFys, ys)
+    end
+end
+
+rp_test = RayleighParams(;
+    ν=p,
+    Nq=2^11,
+    ε=2.25,
+    L=10.0e-6,
+    Q_mult=4,
+    Ni=10
+);
+
+
+
+function solve(rp::RayleighParams, M_pre::Array{ComplexF64,3}, N_pre::Matrix{ComplexF64})
+
+    for n in axes(M_pre, 3)
+        display("n = $n")
+
+        rp.Fys .= ys .^ n
+        rp.FT * rp.Fys # In place FFT
+        fftshift!(rp.sFys, rp.Fys) # No way to do shift in place apparently
+
+
+        for I in CartesianIndices(rp.Mpq)
+            i, j = Tuple(I)
+            rp.Mpq[I] += M_pre[i, j, n] * rp.sFys[i+j-1]
+        end
+
+        for i in eachindex(rp.Npk)
+            rp.Npk[i] -= N_pre[i, n] * rp.sFys[i+rp.ki-1]
+        end
+    end
+
+    return rp.Mpq \ rp.Npk
+end
+
+
+
+function solve(rp::RayleighParams, reduction::Function=identity)
     # Solve the reduced Rayleigh equations for p-polarized light
 
     # Shorthand parameters
@@ -155,7 +267,7 @@ function solve(rp::RayleighParams, reduction::Function=identity)::T where {T}
 
         for I in CartesianIndices(rp.Mpq)
             i, j = Tuple(I)
-            rp.Mpq[I] += Mpq_eval(rp.ps[i], rp.qs[i], n) * rp.sFys[i+j-1]
+            rp.Mpq[I] += Mpq_eval(rp.ps[i], rp.qs[j], n) * rp.sFys[i+j-1]
         end
 
         for i in eachindex(rp.Npk)
