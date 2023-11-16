@@ -11,13 +11,15 @@ module RayleighSetup
 =#
 
 using FFTW
+using StructArrays
 
-export RayleighParams, SurfPreAlloc, Polarization, SurfType
+export RayleighParams, SurfPreAlloc
+export Polarization, s, p
+export SurfType, flat, gauss, singlebump
 export show_params
 export test_rp, test_sp, test_rp_and_sp, c0
 
 const c0 = 299_792_458.0 # [m/s], Speed of light in vacuum
-
 
 @enum Polarization p s
 struct RayleighParams
@@ -29,8 +31,6 @@ struct RayleighParams
     # Planned Fourier transform of surface points
     # cFFTWPlan{T,K,inplace,dims,flags}
     FT::FFTW.cFFTWPlan{ComplexF64,-1,true,1,Tuple{Int64}}
-    M_pre::Array{ComplexF64,3} # Precomputed Mpq coefficients
-    N_pre::Matrix{ComplexF64} # Precomputed Npk coefficients
 
     xs::Vector{Float64}  # Surface points
     ps::Vector{Float64}  # Scattered wave numbers
@@ -42,8 +42,6 @@ struct RayleighParams
     μ::ComplexF64 # Permeability of the scattering medium
     λ::Float64   # wavelength in [μm]
     ω::Float64   # Angular frequency
-    k::Float64   # Parallel component wave number
-    ki::Int      # Looked up index of the incoming wave number
 
     # Sizings
     Q::Float64   # Truncated wave number, q = (-∞,∞) -> q_n = (-Q_mult / 2, Q_mult / 2)
@@ -58,7 +56,7 @@ struct RayleighParams
     Nx::Int      # Number of surfaces sections in xs
 
     # Constructor
-    RayleighParams(; ν::Polarization=p, ε=2.25, μ=1.0, λ=600e-9, Q_mult=4, Nq=127, L=10.0e-6, Ni=10, θ0=45, δ=30e-9, a=100e-9) = begin
+    RayleighParams(; ν::Polarization=p, ε=2.25, μ=1.0, λ=600e-9, Q_mult=4, Nq=127, L=10.0e-6, Ni=10, δ=30e-9, a=100e-9) = begin
         #=
         All lengths are being scaled to ω/c
         =#
@@ -66,8 +64,6 @@ struct RayleighParams
 
         K = 2π / λ
         ω = c0 * K
-        k = K * sind(θ0) # Parallel component wave number
-
         # All variables scaled such that ω/c0 = 1
 
         # Assertions and warnings
@@ -84,10 +80,6 @@ struct RayleighParams
         ps = -Q/2:Δq:Q/2
         qs = Q/2:-Δq:-Q/2
 
-        # Find the nearest index of the incoming wave number
-        ki = searchsortedfirst(qs, k, rev=true)
-        k_new = qs[ki]
-
         wq = ones(size(qs))
         wq[1] = wq[end] = 3.0 / 8.0
         wq[2] = wq[end-1] = 7.0 / 6.0
@@ -102,52 +94,15 @@ struct RayleighParams
 
         display("Sizes: Nx = $Nx, Nq = $Nq, len(xs) = $(length(xs)), len(ps) = $(length(ps)), len(qs) = $(length(qs))")
 
-        ε_new = ε + 1e-6im # Add a small imaginary part to avoid singularities
+        ε_new = ε + 1e-3im # Add a small imaginary part to avoid singularities
 
-        ## Precalculate invariant coefficients:
-        display("Preconditioning solver")
-        N_pre = Matrix{ComplexF64}(undef, length(ps), Ni + 1)
-        M_pre = Array{ComplexF64,3}(undef, length(ps), length(qs), Ni + 1)
-
-        α(q::Float64)::ComplexF64 = √complex(ε * μ - q^2)
-
-        # Assumed μ0 = ε0 = 1
-        α0(q::Float64)::ComplexF64 = √complex(1.0 - q^2)
-
-        κ = ν == p ? ε : μ
-
-        display("Precalculating invariant coefficients in M.")
-        Mpq_invariant(p::Float64, q::Float64, n::Int)::ComplexF64 = (
-            (-1.0im)^n / factorial(n) * (
-                (p + κ * q) * (p - q) * (α(p) - α0(q))^(n - 1) +
-                (α(p) + κ * α0(q)) * (α(p) - α0(q))^n)
-        )
-        for I in CartesianIndices(M_pre)
-            i, j, n = Tuple(I)
-            M_pre[i, j, n] = Mpq_invariant(ps[i], qs[j], n - 1)
-        end
-
-        display("Precalculating invariant coefficients in N.")
-        Npk_invariant(p::Float64, n::Int)::ComplexF64 = (
-            (-1.0im)^n / factorial(n) * (
-                (p + κ * k) * (p - k) * (α(p) + α0(k))^(n - 1) +
-                (α(p) - κ * α0(k)) * (α(p) + α0(k))^n)
-        )
-
-        for I in CartesianIndices(N_pre)
-            i, n = Tuple(I)
-            N_pre[i, n] = Npk_invariant(ps[i], n - 1)
-        end
-
-        new(plan_fft!(xs |> complex), M_pre, N_pre,
+        new(plan_fft!(similar(xs, ComplexF64)),
             xs, ps, qs, wq,
-            ν, ε_new, μ, λ, ω, k_new, ki,
+            ν, ε_new, μ, λ, ω,
             Q, Δq, Lx, Δx, δ_new, a_new,
             Ni, Nq, Nx)
     end
 end
-
-get_θ(rp::RayleighParams) = asind(rp.k)
 
 function gaussian_surface_gen(rp::RayleighParams)
     W(x) = exp(-x^2 / rp.a^2)
@@ -163,6 +118,12 @@ function gaussian_surface_gen(rp::RayleighParams)
         (rp.FT * W_p)) .* (rp.δ * 2π / sqrt(N))
 end
 
+function single_bump_gen(rp::RayleighParams)
+    # In this case, δ is taken as the peak height
+    # and a is taken as the standard deviation width of the gaussian bump
+    return rp.δ * exp.((-0.5 / rp.a^2) * rp.xs .^ 2)
+end
+
 @enum SurfType flat gauss singlebump
 struct SurfPreAlloc
     #=
@@ -174,7 +135,6 @@ struct SurfPreAlloc
     # Preallocated steps in the calculations for a given surface
     Mpq::Matrix{ComplexF64}  # Matrix of the Mpq coefficients (A)
     Npk::Vector{ComplexF64}  # Vector of the Npk coefficients (b)
-    Rqk::Vector{ComplexF64}  # Vector of the reflection solution (x = A \ b)
 
     Fys::Vector{ComplexF64}  # Fourier transform of surface heights, prealloc
     sFys::Vector{ComplexF64} # Shifted Fourier transform of surface heights, prealloc
@@ -182,27 +142,21 @@ struct SurfPreAlloc
 
     function SurfPreAlloc(rp::RayleighParams, surf_t::SurfType)
         xs = rp.xs
-        ω = rp.ω
 
         if surf_t == singlebump
-            ys = rp.δ * exp.(-xs .^ 2 / rp.a^2)
+            ys = single_bump_gen(rp)
         elseif surf_t == gauss
             ys = gaussian_surface_gen(rp) .|> real
-
-            # δ = RMS height of surface profile function
-            # a = Autocorrelation length
-            # TODO: Move code from SurfaceGen into here
         elseif surf_t == flat
             ys = zeros(size(xs)) # Flat surface
         end
 
-        Fys = Vector{ComplexF64}(undef, rp.Nq + 1)
+        Fys = similar(ys, ComplexF64)
         sFys = similar(Fys)
-        Mpq = zeros(ComplexF64, rp.Nq + 1, rp.Nq + 1)
-        Npk = zeros(ComplexF64, rp.Nq + 1)
-        Rqk = similar(Npk)
+        Mpq = Matrix{ComplexF64}(undef, rp.Nq + 1, rp.Nq + 1)
+        Npk = Vector{ComplexF64}(undef, rp.Nq + 1)
 
-        new(Mpq, Npk, Rqk, Fys, sFys, ys)
+        new(Mpq, Npk, Fys, sFys, ys)
     end
 end
 
