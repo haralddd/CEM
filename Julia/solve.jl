@@ -105,20 +105,16 @@ function test_solvers(surf_t::SurfType=flat)
         solve_pre!(sp, rp, M_pre, N_pre, ki)
         res[i] = unitary(sp.R, rp, k)
     end
-    return res
+    return ims, res
 end
 
 using DelimitedFiles
 test = rand(100)
 writedlm("test.csv", test, ',')
 
-res_flat = test_solvers(flat)
+ims, res_flat = test_solvers(flat)
 writedlm("res_flat.csv", res_flat, ',')
-res_bump = test_solvers(singlebump)
+_, res_bump = test_solvers(singlebump)
 writedlm("res_bump.csv", res_bump, ',')
-res_gaussian = test_solvers(gaussian)
+_, res_gaussian = test_solvers(gaussian)
 writedlm("res_gaussian.csv", res_bump, ',')
-
-plot(ims, res_flat, label="flat")
-plot!(ims, res_bump, label="bump")
-plot!(ims, res_gaussian, label="gaussian") |> display
