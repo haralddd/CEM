@@ -11,12 +11,11 @@ module RayleighSetup
 =#
 
 using FFTW
-using StructArrays
 
 export RayleighParams, SurfPreAlloc
 export Polarization, s, p
-export SurfType, flat, gauss, singlebump
-export show_params
+export SurfType, flat, gaussian, singlebump
+export show_params, gaussian_surface_gen, single_bump_gen
 export test_rp, test_sp, test_rp_and_sp, c0
 
 const c0 = 299_792_458.0 # [m/s], Speed of light in vacuum
@@ -60,7 +59,6 @@ struct RayleighParams
         #=
         All lengths are being scaled to ω/c
         =#
-        display("Initialising variables...")
 
         K = 2π / λ
         ω = c0 * K
@@ -92,13 +90,9 @@ struct RayleighParams
         δ_new = δ * ω / c0 # RMS height of surface profile function scaled
         a_new = a * ω / c0 # Autocorrelation length scaled
 
-        display("Sizes: Nx = $Nx, Nq = $Nq, len(xs) = $(length(xs)), len(ps) = $(length(ps)), len(qs) = $(length(qs))")
-
-        ε_new = ε + 1e-3im # Add a small imaginary part to avoid singularities
-
         new(plan_fft!(similar(xs, ComplexF64)),
             xs, ps, qs, wq,
-            ν, ε_new, μ, λ, ω,
+            ν, ε, μ, λ, ω,
             Q, Δq, Lx, Δx, δ_new, a_new,
             Ni, Nq, Nx)
     end
@@ -124,7 +118,7 @@ function single_bump_gen(rp::RayleighParams)
     return rp.δ * exp.((-0.5 / rp.a^2) * rp.xs .^ 2)
 end
 
-@enum SurfType flat gauss singlebump
+@enum SurfType flat gaussian singlebump
 struct SurfPreAlloc
     #=
         SurfPreAlloc is a struct which contains all
@@ -135,7 +129,7 @@ struct SurfPreAlloc
     # Preallocated steps in the calculations for a given surface
     Mpq::Matrix{ComplexF64}  # Matrix of the Mpq coefficients (A)
     Npk::Vector{ComplexF64}  # Vector of the Npk coefficients (b)
-
+    R::Vector{ComplexF64}    # Reflection coefficient
     Fys::Vector{ComplexF64}  # Fourier transform of surface heights, prealloc
     sFys::Vector{ComplexF64} # Shifted Fourier transform of surface heights, prealloc
     ys::Vector{Float64}  # Surface heights
@@ -145,7 +139,7 @@ struct SurfPreAlloc
 
         if surf_t == singlebump
             ys = single_bump_gen(rp)
-        elseif surf_t == gauss
+        elseif surf_t == gaussian
             ys = gaussian_surface_gen(rp) .|> real
         elseif surf_t == flat
             ys = zeros(size(xs)) # Flat surface
@@ -155,8 +149,9 @@ struct SurfPreAlloc
         sFys = similar(Fys)
         Mpq = Matrix{ComplexF64}(undef, rp.Nq + 1, rp.Nq + 1)
         Npk = Vector{ComplexF64}(undef, rp.Nq + 1)
+        R = similar(Npk)
 
-        new(Mpq, Npk, Fys, sFys, ys)
+        new(Mpq, Npk, R, Fys, sFys, ys)
     end
 end
 

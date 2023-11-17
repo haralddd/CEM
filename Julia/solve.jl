@@ -1,130 +1,11 @@
 using MKL
 push!(LOAD_PATH, "Julia/RayleighSetup/")
+push!(LOAD_PATH, "Julia/RayleighSolver/")
 using RayleighSetup
-using FFTW
+using RayleighSolver
 using Plots
 using BenchmarkTools
-using Caching
 
-using LinearAlgebra
-BLAS.get_config() |> display
-
-function α(q::Float64, εμ::ComplexF64)::ComplexF64
-    # Calculate the α parameter for a given p
-    return sqrt(εμ - q^2)
-end
-function α0(q::Float64)::ComplexF64
-    # Calculate the α0 parameter for a given q
-    return sqrt(complex(1.0 - q^2))
-end
-
-function calc_M_invariant!(M::Array{ComplexF64,3}, rp::RayleighParams)::Nothing
-    # Calculate the surface invariant part of the Mpq matrix
-    # Invariant under surface change), but NOT incident angle θ0
-
-    ps = rp.ps
-    qs = rp.qs
-    κ = rp.ν == p ? rp.ε : rp.μ
-    εμ = rp.ε * rp.μ
-
-    @inbounds for I in eachindex(IndexCartesian(), M)
-        i, j, n = Tuple(I)
-        p = ps[i]
-        q = qs[j]
-        M[i, j, n] = (
-            (-1.0im)^(n - 1) / factorial(n - 1) * (
-                (p + κ * q) * (p - q) * (α(p, εμ) - α0(q))^(n - 2) +
-                (α(p, εμ) + κ * α0(q)) * (α(p, εμ) - α0(q))^(n - 1))
-        )
-    end
-    return nothing
-end
-
-function calc_N_invariant!(N::Matrix{ComplexF64}, rp::RayleighParams, k::Float64)::Nothing
-    # Calculate the surface invariant part of the Npk vector
-    # Invariant under surface change, but NOT incident angle θ0
-    # Input k must be the nearest value in qs for correct results
-    ps = rp.ps
-    κ = rp.ν == p ? rp.ε : rp.μ
-    εμ = rp.ε * rp.μ
-
-
-    @inbounds for I in eachindex(IndexCartesian(), N)
-        (i, n) = Tuple(I)
-        p = ps[i]
-        N[i, n] = (
-            (-1.0im)^(n - 1) / factorial(n - 1) * (
-                (p + κ * k) * (p - k) * (α(p, εμ) + α0(k))^(n - 2) +
-                (α(p, εμ) - κ * α0(k)) * (α(p, εμ) + α0(k))^(n - 1))
-        )
-    end
-    return nothing
-end
-
-function solve_step!(sp::SurfPreAlloc, rp::RayleighParams,
-    M_pre::Array{ComplexF64,3}, N_pre::Matrix{ComplexF64},
-    ki::Int)::Vector{ComplexF64}
-    sp.Mpq .= 0.0
-    sp.Npk .= 0.0
-
-    display("Calculating Mpq and Npk")
-    @inbounds for n in axes(M_pre, 3)
-        sp.Fys .= sp.ys .^ (n - 1)
-        rp.FT * sp.Fys # In place FFT
-        fftshift!(sp.sFys, sp.Fys) # No way to do shift in place apparently
-
-        @inbounds for I in eachindex(IndexCartesian(), sp.Mpq)
-            i, j = Tuple(I)
-            sp.Mpq[i, j] += M_pre[i, j, n] * sp.sFys[i+j-1]
-        end
-
-        @inbounds for i in eachindex(sp.Npk)
-            sp.Npk[i] -= N_pre[i, n] * sp.sFys[i+ki-1]
-        end
-    end
-
-    display("Solving for R")
-    return sp.Mpq \ sp.Npk
-end
-
-using IterTools
-using LoopVectorization
-
-Tuple(CartesianIndices(rand(3, 4)))
-
-function solve!(sp::SurfPreAlloc, rp::RayleighParams)
-    # Solve for the reflection coefficient
-    # This function is not used in the final implementation
-    # since it is more efficient to solve for R at each step
-    sp.Mpq .= 0.0
-    sp.Npk .= 0.0
-
-    M(p, q, n) = (
-        (-1.0im)^(n - 1) / factorial(n - 1) * (
-            (p + κ * q) * (p - q) * (α(p, εμ) - α0(q))^(n - 2) +
-            (α(p, εμ) + κ * α0(q)) * (α(p, εμ) - α0(q))^(n - 1))
-    )
-
-    N(p, k, n) = (
-        (-1.0im)^(n - 1) / factorial(n - 1) * (
-            (p + κ * k) * (p - k) * (α(p, εμ) + α0(k))^(n - 2) +
-            (α(p, εμ) - κ * α0(k)) * (α(p, εμ) + α0(k))^(n - 1))
-    )
-    vmapreduce
-
-    for n in 1:rp.Ni+1
-        sp.Fys .= sp.ys .^ (n - 1)
-        rp.FT * sp.Fys # In place FFT
-        fftshift!(sp.sFys, sp.Fys) # No way to do shift in place apparently
-
-        vmapntt!(I -> M(Tuple(I)..., n) * sp.sFys[I], sp.Mpq, eachindex(IndexCartesian(), sp.Mpq))
-        vmapntt!(N, sp.Npk, product(rp.ps, n))
-    end
-
-
-    display("Solving for R")
-    return sp.Mpq \ sp.Npk
-end
 
 function test_fresnel(; ε=2.25)
     surf_t::SurfType = flat::SurfType
@@ -187,99 +68,57 @@ function trapz(xs, ys)
     return res
 end
 
-function drc(R::ComplexF64, θs::Float64, θ0::Float64, rp::RayleighParams)
-    # Calculate the differential reflection coefficient
-    # ω/c factored out in rescaling, degrees in radians
-    return cos(θs)^2 * abs2(R) * rp.ω / (2π * rp.Lx * c0 * cos(θ0))
+function unitary(R, rp, k)
+    sum = 0.0
+    idxs = findall(x -> -1.0 < x < 1.0, rp.qs)
+    for i in idxs
+        sum += abs2(R[i]) * real(α0(rp.qs[i])) / real(α0(k))
+    end
+    return sum
 end
 
-function drc_q_space(R::ComplexF64, q::Float64, θ0::Float64, rp::RayleighParams)
-    # Calculate the differential reflection coefficient
-    # degrees in radians
-    return abs2(R) * sqrt(1 - q^2) / (2π * rp.Lx * (c0 / rp.ω) * cos(θ0))
-end
-
-@enum SimType perf mem
-function test_unitary(Nq=2^13 - 1, ε=-1.0, mem::SimType=perf)
-    # This function checks the unitary condition of the scattering vector
-    # for flat and single bump gaussian surfaces
-    surf_flat::SurfType = flat::SurfType
-    surf_bump::SurfType = singlebump::SurfType
-
-    θ0_in = 45.0
-    Nq = 2^13 - 1
-    ε = -1.0
-
+function test_solvers(surf_t::SurfType=flat)
+    θ0 = 45.0
     L = 10.0e-6
-    height = 30.0e-8 # Height of the bump
-    width = L / 10.0 # Width of the bump
+    ims = range(1e-1im, 1e-4im, length=50)
 
-    rp = RayleighSetup.RayleighParams(
-        ν=p,
-        Nq=Nq,
-        ε=ε,
-        δ=height,
-        a=width,
-        L=L,
-        Q_mult=4,
-    )
+    res = Vector{Float64}(undef, length(ims))
+    Threads.@threads for i in eachindex(ims)
+        im = ims[i]
+        rp = RayleighParams(
+            ν=p,
+            Nq=2^10,
+            ε=-20.0 + im,
+            Ni=10,
+            L=L,
+        )
+        sp = SurfPreAlloc(rp, surf_t)
+        ki = searchsortedfirst(rp.qs, sind(θ0), rev=true)
+        k = rp.qs[ki]
 
-    # Generate and show surfaces
-    display("Generating surface and steps for flat surf")
-    @time sp_flat = SurfPreAlloc(rp, surf_flat)
+        # Pre-calculate the invariant parts of the M and N matrices
+        M_pre = Array{ComplexF64,3}(undef, length(rp.ps), length(rp.qs), rp.Ni + 1)
+        N_pre = Matrix{ComplexF64}(undef, length(rp.ps), rp.Ni + 1)
+        pre_M_invariant!(M_pre, rp)
+        pre_N_invariant!(N_pre, rp, k)
 
-    display("Preallocating surface and steps for single bump surf")
-    @time sp_bump = SurfPreAlloc(rp, surf_bump)
-
-    display("Plotting surfaces for viz")
-    plt = plot(rp.xs, sp_bump.ys, label="Bump")
-    plot!(rp.xs, sp_flat.ys, label="Flat")
-    ylims!(-10.0 * rp.δ, 10.0 * rp.δ)
-    display(plt)
-
-    # Calc the invariant parts
-    display("Calculating invariant parts of Mpk")
-    Mpq_pre = Array{ComplexF64,3}(undef, length(rp.ps), length(rp.qs), rp.Ni + 1)
-    @time calc_M_invariant!(Mpq_pre, rp)
-
-
-    ki = searchsortedfirst(rp.qs, sind(θ0_in), rev=true)
-    k = rp.qs[ki]
-
-    display("Calculating invariant parts of Npk")
-    Npk_pre = Matrix{ComplexF64}(undef, length(rp.ps), rp.Ni + 1)
-    @time calc_N_invariant!(Npk_pre, rp, k)
-
-    display("Solving flat surface")
-    sol_flat = solve_step!(sp_flat, rp, Mpq_pre, Npk_pre, ki)
-
-
-    display("Solving single bump surface")
-    sol_bump = solve_step!(sp_bump, rp, Mpq_pre, Npk_pre, ki)
-
-
-
-
-    display("Unitary conditions")
-    ridx = findall(x -> -1.0 < x < 1.0, rp.qs) # reduced domain of scattered light
-    θ0 = asin(k)
-
-    drc_pf = [drc_q_space(sol_flat[i], rp.qs[i], θ0, rp) for i in ridx]
-    drc_pb = [drc_q_space(sol_bump[i], rp.qs[i], θ0, rp) for i in ridx]
-
-    unit(R, q) = (rp.ω / c0)^2 * rp.Δq * abs2(R) * α0(q) / (α0(k) * 2π * rp.Lx)
-    unit_pf = [unit(sol_flat[i], rp.qs[i]) for i in ridx]
-    unit_pb = [unit(sol_bump[i], rp.qs[i]) for i in ridx]
-
-    display("Flat p: $(sum(unit_pf))")
-    display("Bump p: $(sum(unit_pb))")
-
-    display("Flat p: $(sum(drc_pf)*rp.Δq)")
-    display("Bump p: $(sum(drc_pb)*rp.Δq)")
-
-    # show_params(rp)
-
-    return nothing
+        solve_pre!(sp, rp, M_pre, N_pre, ki)
+        res[i] = unitary(sp.R, rp, k)
+    end
+    return res
 end
 
-test_unitary();
+using DelimitedFiles
+test = rand(100)
+writedlm("test.csv", test, ',')
+
+res_flat = test_solvers(flat)
+writedlm("res_flat.csv", res_flat, ',')
+res_bump = test_solvers(singlebump)
+writedlm("res_bump.csv", res_bump, ',')
+res_gaussian = test_solvers(gaussian)
+writedlm("res_gaussian.csv", res_bump, ',')
+
+plot(ims, res_flat, label="flat")
+plot!(ims, res_bump, label="bump")
+plot!(ims, res_gaussian, label="gaussian") |> display
