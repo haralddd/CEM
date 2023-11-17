@@ -2,3 +2,4 @@
 .vscode
 C
 Manifest.toml
+*.csv
