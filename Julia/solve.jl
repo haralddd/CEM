@@ -111,10 +111,3 @@ end
 using DelimitedFiles
 test = rand(100)
 writedlm("test.csv", test, ',')
-
-ims, res_flat = test_solvers(flat)
-writedlm("res_flat.csv", res_flat, ',')
-_, res_bump = test_solvers(singlebump)
-writedlm("res_bump.csv", res_bump, ',')
-_, res_gaussian = test_solvers(gaussian)
-writedlm("res_gaussian.csv", res_bump, ',')

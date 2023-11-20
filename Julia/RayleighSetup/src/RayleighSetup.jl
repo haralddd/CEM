@@ -104,12 +104,11 @@ function gaussian_surface_gen(rp::RayleighParams)
 
     xs = rp.xs
     N = length(xs)
-
-    W_p = W.(xs) |> complex
+    ks = -rp.Q:rp.Δq:rp.Q
 
     return rp.FT \ (
-        (rp.FT * (randn(Float64, N) |> complex)) .*
-        (rp.FT * W_p)) .* (rp.δ * 2π / sqrt(N))
+        (rp.FT * (rp.δ .* randn(Float64, N) |> complex)) .*
+        .√(g.(ks)))
 end
 
 function single_bump_gen(rp::RayleighParams)
