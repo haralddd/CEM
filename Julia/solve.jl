@@ -1,113 +1,152 @@
-using MKL
+# using MKL
 push!(LOAD_PATH, "Julia/RayleighSetup/")
 push!(LOAD_PATH, "Julia/RayleighSolver/")
 using RayleighSetup
 using RayleighSolver
-using Plots
-using BenchmarkTools
+using DelimitedFiles
+using Dates
 
+function setup_dir()
+    if !isdir("data")
+        mkdir("data")
+    end
+end
 
-function test_fresnel(; ε=2.25)
-    surf_t::SurfType = flat::SurfType
+function test_write()
+    setup_dir()
+    timestamp = now() |> string
+    @show A1 = [1.0 + 1.0im, 2.0 + 2.0im, 0] .|> complex
+    @show A2 = [3.0 + 3.0im, 3, 4.0im,] .|> complex
+    N = 3
+    pol = s
+    open("data/" * timestamp * "test_$(pol|>string)_N$(N).bin", "w") do io
+        write(io, A1)
+        write(io, A2)
+    end
+    open("data/" * timestamp * "test_$(pol|>string)_N$(N).bin", "r") do io
+        data = reinterpret(ComplexF64, read(io))
+        data = reshape(data, 3, :)
+        display(data)
+        display(data[:, 1])
+    end
+end
 
-    θs = 0.0:1.0:90.0
+function solve_gaussian_glass(; ν::Polarization=s)
+
+    λ = 632.8e-9 # He-Ne laser wavelength
+    L = 50 * λ # Length of surface
+    δ = λ / 20
+    a = λ / 4
+
     Nq = 2^10
+    ε = 2.25 + 1e-4im # small imaginary component to avoid singularities
+    Ni = 10
 
-    rp_p = RayleighSetup.RayleighParams(
-        ν=p,
+
+    ### Solve for p-polarization
+    # General parameters
+    rp = RayleighParams(
+        ν=ν,
+        λ=λ,
         Nq=Nq,
-        ε=ε
+        ε=ε,
+        Ni=Ni,
+        L=L,
+        δ=δ,
+        a=a,
     )
 
-    rp_s = RayleighParams(
-        ν=s,
-        Nq=Nq,
-        ε=ε
-    )
+
+    # Ensemble params
+    N_ens = 10
+    θ0 = 0.0
+    θ1 = 34.05
+
+    @assert N_ens != Nq "N_ens must be different from Nq due to binary file read limitations"
 
     # Calc the invariant part of Mpk
     display("Calculating invariant parts of Mpk")
-    Mpk_p_pre = calc_Mpq_invariant(rp_p)
-    Mpk_s_pre = calc_Mpq_invariant(rp_s)
+    Mpk_pre = Array{ComplexF64,3}(undef, length(rp.ps), length(rp.qs), Ni + 1)
+    @time pre_M_invariant!(Mpk_pre, rp)
+    nan_idxs = findall(isnan.(Mpk_pre))
+    inf_idxs = findall(isinf.(Mpk_pre))
+    @assert length(nan_idxs) == 0 "Mpk_pre has NaNs at indices $nan_idxs"
+    @assert length(inf_idxs) == 0 "Mpk_pre has Infs at indices $inf_idxs"
 
-    kis = [searchsortedfirst(rp_p.qs, sind(θs[i]), rev=true) for i in eachindex(θs)] |> unique
-    ks = rp_p.qs[kis]
 
-    # Results in Fresnel coefficients
-    rs_p = Vector{Float64}(undef, length(ks))
-    rs_s = Vector{Float64}(undef, length(ks))
+    # display(Mpk_pre[isnan.(Mpk_pre)])
+    # display(Mpk_pre[isinf.(Mpk_pre)])
 
-    sp_p = SurfPreAlloc(rp_p, surf_t)
-    sp_s = SurfPreAlloc(rp_s, surf_t)
+    res = Matrix{ComplexF64}(undef, length(rp.qs), N_ens)
 
-    for i in eachindex(ks)
-        Npk_p_pre = calc_Npk_invariant(rp_p, ks[i])
-        Npk_s_pre = calc_Npk_invariant(rp_s, ks[i])
-        # Solve and insert the specular reflection coefficient
-        rs_p[i] = solve_step!(sp_p, rp_p, Mpk_p_pre, Npk_p_pre, kis[i]) .|> abs |> maximum
-        rs_s[i] = solve_step!(sp_s, rp_s, Mpk_s_pre, Npk_s_pre, kis[i]) .|> abs |> maximum
+    #### First angle
+    ki = searchsortedfirst(rp.qs, sind(θ0), rev=true)
+    k = rp.qs[ki]
+
+    display("Calculating invariant parts of Npk")
+    Npk_pre = Matrix{ComplexF64}(undef, length(rp.ps), Ni + 1)
+    @time pre_N_invariant!(Npk_pre, rp, k)
+
+    nan_idxs = findall(isnan.(Npk_pre))
+    inf_idxs = findall(isinf.(Npk_pre))
+    @assert length(nan_idxs) == 0 "Npk_pre has NaNs at indices $nan_idxs"
+    @assert length(inf_idxs) == 0 "Npk_pre has Infs at indices $inf_idxs"
+    # display(Npk_pre[isnan.(Npk_pre)])
+    # display(Npk_pre[isinf.(Npk_pre)])
+
+    display("Solving for θ0, N: $N_ens")
+    for i in axes(res, 2)
+        sp = SurfPreAlloc(rp, gaussian)
+        solve_pre!(sp, rp, Mpk_pre, Npk_pre, ki)
+        res[:, i] .= sp.R
     end
 
+    setup_dir()
+    timestamp = now() |> string
+    filestr = "data/" * timestamp * "gglass_θ$(θ0)_$(ν|>string)_Nq$(Nq).bin"
+    open(filestr, "w") do io
+        write(io, res)
+        display("Wrote to $filestr")
+    end # io θ0
 
-    display("Plotting Fresnel coefficients")
-    plot(θs, rs_p .^ 2, label="p", marker=(:circle, 2))
-    plot!(θs, rs_s .^ 2, label="s", marker=(:square, 2))
+    #### Second angle
 
-    return nothing
-end
+    ki = searchsortedfirst(rp.qs, sind(θ1), rev=true)
+    k = rp.qs[ki]
 
-function trapz(xs, ys)
-    # Simple trapezoidal integration with variable step size
-    @assert length(xs) == length(ys)
-    res = 0.0
-
-    for i in eachindex(xs)
-        i == 1 && continue
-        res += 0.5 * abs(xs[i] - xs[i-1]) * (ys[i] + ys[i-1])
+    display("Calculating invariant parts of Npk")
+    pre_N_invariant!(Npk_pre, rp, k)
+    display("Solving for θ1, N: $N_ens")
+    for i in axes(res, 2)
+        sp = SurfPreAlloc(rp, gaussian)
+        solve_pre!(sp, rp, Mpk_pre, Npk_pre, ki)
+        res[:, i] .= sp.R
     end
-    return res
+
+    timestamp = now() |> string
+    filestr = "data/" * timestamp * "gglass_θ$(θ1)_$(ν|>string)_Nq$(Nq).bin"
+    open(filestr, "w") do io
+        write(io, res)
+        display("Wrote to $filestr")
+    end # io θ1
+    nothing
 end
 
-function unitary(R, rp, k)
-    sum = 0.0
-    idxs = findall(x -> -1.0 < x < 1.0, rp.qs)
-    for i in idxs
-        sum += abs2(R[i]) * real(α0(rp.qs[i])) / real(α0(k))
-    end
-    return sum
+if length(ARGS) != 3
+    println("Usage: julia solve.jl [p|s] [N] . Where p|s is the polarization and N is the number of surfaces to solve for.")
+    exit(1)
 end
 
-function test_solvers(surf_t::SurfType=flat)
-    θ0 = 45.0
-    L = 10.0e-6
-    ims = range(1e-1im, 1e-4im, length=50)
-
-    res = Vector{Float64}(undef, length(ims))
-    Threads.@threads for i in eachindex(ims)
-        im = ims[i]
-        rp = RayleighParams(
-            ν=p,
-            Nq=2^10,
-            ε=-20.0 + im,
-            Ni=10,
-            L=L,
-        )
-        sp = SurfPreAlloc(rp, surf_t)
-        ki = searchsortedfirst(rp.qs, sind(θ0), rev=true)
-        k = rp.qs[ki]
-
-        # Pre-calculate the invariant parts of the M and N matrices
-        M_pre = Array{ComplexF64,3}(undef, length(rp.ps), length(rp.qs), rp.Ni + 1)
-        N_pre = Matrix{ComplexF64}(undef, length(rp.ps), rp.Ni + 1)
-        pre_M_invariant!(M_pre, rp)
-        pre_N_invariant!(N_pre, rp, k)
-
-        solve_pre!(sp, rp, M_pre, N_pre, ki)
-        res[i] = unitary(sp.R, rp, k)
-    end
-    return ims, res
+if ARGS[1] == "p"
+    pol = p
+else
+    pol = s
+end
+if ARGS[2] == "s"
+    pol = s
+else
+    pol = p
 end
 
-using DelimitedFiles
-test = rand(100)
-writedlm("test.csv", test, ',')
+solve_gaussian_glass()
+exit(0)

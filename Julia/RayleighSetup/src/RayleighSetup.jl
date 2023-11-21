@@ -16,6 +16,7 @@ export RayleighParams, SurfPreAlloc
 export Polarization, s, p
 export SurfType, flat, gaussian, singlebump
 export show_params, gaussian_surface_gen, single_bump_gen
+export gg, Wg
 export test_rp, test_sp, test_rp_and_sp, c0
 
 const c0 = 299_792_458.0 # [m/s], Speed of light in vacuum
@@ -55,7 +56,7 @@ struct RayleighParams
     Nx::Int      # Number of surfaces sections in xs
 
     # Constructor
-    RayleighParams(; ν::Polarization=p, ε=2.25, μ=1.0, λ=600e-9, Q_mult=4, Nq=127, L=10.0e-6, Ni=10, δ=30e-9, a=100e-9) = begin
+    RayleighParams(; ν::Polarization=p, ε=2.25 + 1e-4im, μ=1.0, λ=600e-9, Q_mult=4, Nq=127, L=10.0e-6, Ni=10, δ=30e-9, a=100e-9) = begin
         #=
         All lengths are being scaled to ω/c
         =#
@@ -63,6 +64,7 @@ struct RayleighParams
         K = 2π / λ
         ω = c0 * K
         # All variables scaled such that ω/c0 = 1
+        @assert imag(ε * μ) != 0.0 "ε times μ must have a small imaginary component to avoid singularities, but is $ε."
 
         # Assertions and warnings
         @assert L / λ > 10.0 "Surface length must be much larger than the wavelength, L ≫ λ, but is L:$L and λ:$λ."
@@ -98,17 +100,20 @@ struct RayleighParams
     end
 end
 
+
+Wg(x, a) = exp(-x^2 / a^2)
+gg(k, a) = √π * a * exp(-(a * k / 2.0)^2)
+
 function gaussian_surface_gen(rp::RayleighParams)
-    W(x) = exp(-x^2 / rp.a^2)
-    g(k) = √π * rp.a * exp(-(rp.a * k / 2.0)^2)
 
     xs = rp.xs
     N = length(xs)
     ks = -rp.Q:rp.Δq:rp.Q
 
-    return rp.FT \ (
-        (rp.FT * (rp.δ .* randn(Float64, N) |> complex)) .*
-        .√(g.(ks)))
+    Z = rp.δ .* randn(Float64, N) |> complex
+    F = Wg.(xs, rp.a)
+
+    return rp.FT \ ((rp.FT * Z) .* sqrt.(rp.FT * F))
 end
 
 function single_bump_gen(rp::RayleighParams)
