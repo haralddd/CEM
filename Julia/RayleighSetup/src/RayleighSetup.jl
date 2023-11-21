@@ -13,7 +13,7 @@ module RayleighSetup
 using FFTW
 
 export RayleighParams, SurfPreAlloc
-export Polarization, s, p
+export Polarization, s, p, polarization_from_string
 export SurfType, flat, gaussian, singlebump
 export show_params, gaussian_surface_gen, single_bump_gen
 export gg, Wg
@@ -22,6 +22,7 @@ export test_rp, test_sp, test_rp_and_sp, c0
 const c0 = 299_792_458.0 # [m/s], Speed of light in vacuum
 
 @enum Polarization p s
+polarization_from_string(str::String) = str == "p" ? p : s
 struct RayleighParams
 
     #= 
