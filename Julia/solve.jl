@@ -1,4 +1,4 @@
-# using MKL
+using MKL
 push!(LOAD_PATH, "Julia/RayleighSetup/")
 push!(LOAD_PATH, "Julia/RayleighSolver/")
 using RayleighSetup
@@ -6,9 +6,9 @@ using RayleighSolver
 using DelimitedFiles
 using Dates
 
-function setup_dir()
-    if !isdir("data")
-        mkdir("data")
+function setup_dir(str="data")
+    if !isdir(str)
+        mkdir(str)
     end
 end
 
@@ -31,7 +31,7 @@ function test_write()
     end
 end
 
-function solve_gaussian_glass(; ν::Polarization=s)
+function solve_gaussian_glass(; ν::Polarization=s, N_ens::Int=10)
 
     λ = 632.8e-9 # He-Ne laser wavelength
     L = 50 * λ # Length of surface
@@ -58,7 +58,6 @@ function solve_gaussian_glass(; ν::Polarization=s)
 
 
     # Ensemble params
-    N_ens = 10
     θ0 = 0.0
     θ1 = 34.05
 
@@ -91,19 +90,18 @@ function solve_gaussian_glass(; ν::Polarization=s)
     inf_idxs = findall(isinf.(Npk_pre))
     @assert length(nan_idxs) == 0 "Npk_pre has NaNs at indices $nan_idxs"
     @assert length(inf_idxs) == 0 "Npk_pre has Infs at indices $inf_idxs"
-    # display(Npk_pre[isnan.(Npk_pre)])
-    # display(Npk_pre[isinf.(Npk_pre)])
 
     display("Solving for θ0, N: $N_ens")
-    for i in axes(res, 2)
+    @time for i in axes(res, 2)
         sp = SurfPreAlloc(rp, gaussian)
         solve_pre!(sp, rp, Mpk_pre, Npk_pre, ki)
         res[:, i] .= sp.R
     end
 
-    setup_dir()
     timestamp = now() |> string
-    filestr = "data/" * timestamp * "gglass_θ$(θ0)_$(ν|>string)_Nq$(Nq).bin"
+    run_dir = "data/" * timestamp
+    setup_dir(run_dir)
+    filestr = run_dir * "/gglass_θ$(θ0)_ν$(ν|>string)_Nq$(Nq)_Nens$(N_ens).bin"
     open(filestr, "w") do io
         write(io, res)
         display("Wrote to $filestr")
@@ -117,14 +115,13 @@ function solve_gaussian_glass(; ν::Polarization=s)
     display("Calculating invariant parts of Npk")
     pre_N_invariant!(Npk_pre, rp, k)
     display("Solving for θ1, N: $N_ens")
-    for i in axes(res, 2)
+    @time for i in axes(res, 2)
         sp = SurfPreAlloc(rp, gaussian)
         solve_pre!(sp, rp, Mpk_pre, Npk_pre, ki)
         res[:, i] .= sp.R
     end
 
-    timestamp = now() |> string
-    filestr = "data/" * timestamp * "gglass_θ$(θ1)_$(ν|>string)_Nq$(Nq).bin"
+    filestr = run_dir * "/gglass_θ$(θ1)_ν$(ν|>string)_Nq$(Nq)_Nens$(N_ens).bin"
     open(filestr, "w") do io
         write(io, res)
         display("Wrote to $filestr")
@@ -132,21 +129,14 @@ function solve_gaussian_glass(; ν::Polarization=s)
     nothing
 end
 
-if length(ARGS) != 3
+if length(ARGS) != 2
     println("Usage: julia solve.jl [p|s] [N] . Where p|s is the polarization and N is the number of surfaces to solve for.")
     exit(1)
 end
 
-if ARGS[1] == "p"
-    pol = p
-else
-    pol = s
-end
-if ARGS[2] == "s"
-    pol = s
-else
-    pol = p
-end
+pol = polarization_from_string(ARGS[1])
+N = parse(Int, ARGS[2])
 
-solve_gaussian_glass()
+# solve_gaussian_glass(; ν=p, N_ens=100)
+solve_gaussian_glass(; ν=pol, N_ens=N)
 exit(0)
