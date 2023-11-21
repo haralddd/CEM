@@ -67,8 +67,9 @@ function pre_M_invariant!(M::Array{ComplexF64,3}, rp::RayleighParams)::Nothing
     εμ = rp.ε * rp.μ
 
     @inbounds for n in axes(M, 3)
-        Mn = view(M, :, :, n)
+        Mn = Matrix{ComplexF64}(undef, length(ps), length(qs))
         M_invariant!(Mn, ps, qs, κ, εμ, n - 1)
+        M[:, :, n] .= Mn
     end
     return nothing
 end
@@ -82,8 +83,9 @@ function pre_N_invariant!(N::Matrix{ComplexF64}, rp::RayleighParams, k::Float64)
     εμ = rp.ε * rp.μ
 
     @inbounds for n in axes(N, 2)
-        Nn = view(N, :, n)
+        Nn = Vector{ComplexF64}(undef, length(ps))
         N_invariant!(Nn, ps, k, εμ, κ, n - 1)
+        N[:, n] .= Nn
     end
     return nothing
 end
