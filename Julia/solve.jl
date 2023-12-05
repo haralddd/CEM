@@ -31,7 +31,8 @@ function test_write()
     end
 end
 
-function solve_gaussian_glass(; ν::Polarization=s, N_ens::Int=10)
+ε_list = Dict("glass" => 2.25 + 1.0e-4im, "silver" => -17.5 + 0.48im)
+function solve_gaussian(; type="glass", ν::Polarization=s, N_ens::Int=10)
 
     λ = 632.8e-9 # He-Ne laser wavelength
     L = 50 * λ # Length of surface
@@ -39,7 +40,8 @@ function solve_gaussian_glass(; ν::Polarization=s, N_ens::Int=10)
     a = λ / 4
 
     Nq = 2^10
-    ε = 2.25 + 1e-4im # small imaginary component to avoid singularities
+
+    ε = ε_list[type]
     Ni = 10
 
 
@@ -55,6 +57,7 @@ function solve_gaussian_glass(; ν::Polarization=s, N_ens::Int=10)
         δ=δ,
         a=a,
     )
+    display(rp.ν)
 
 
     # Ensemble params
@@ -101,7 +104,7 @@ function solve_gaussian_glass(; ν::Polarization=s, N_ens::Int=10)
     timestamp = now() |> string
     run_dir = "data/" * timestamp
     setup_dir(run_dir)
-    filestr = run_dir * "/gglass_θ$(θ0)_ν$(ν|>string)_Nq$(Nq)_Nens$(N_ens).bin"
+    filestr = run_dir * "/gsilver_θ$(θ0)_ν$(ν|>string)_Nq$(Nq)_Nens$(N_ens).bin"
     open(filestr, "w") do io
         write(io, res)
         display("Wrote to $filestr")
@@ -121,7 +124,7 @@ function solve_gaussian_glass(; ν::Polarization=s, N_ens::Int=10)
         res[:, i] .= sp.R
     end
 
-    filestr = run_dir * "/gglass_θ$(θ1)_ν$(ν|>string)_Nq$(Nq)_Nens$(N_ens).bin"
+    filestr = run_dir * "/gsilver_θ$(θ1)_ν$(ν|>string)_Nq$(Nq)_Nens$(N_ens).bin"
     open(filestr, "w") do io
         write(io, res)
         display("Wrote to $filestr")
@@ -129,14 +132,14 @@ function solve_gaussian_glass(; ν::Polarization=s, N_ens::Int=10)
     nothing
 end
 
-if length(ARGS) != 2
-    println("Usage: julia solve.jl [p|s] [N] . Where p|s is the polarization and N is the number of surfaces to solve for.")
+if length(ARGS) != 3
+    println("Usage: julia solve.jl [glass|silver] [p|s] [N] . Where p|s is the polarization and N is the number of surfaces to solve for.")
     exit(1)
 end
 
-pol = polarization_from_string(ARGS[1])
-N = parse(Int, ARGS[2])
+type = ARGS[1]
+pol = polarization_from_string(ARGS[2])
+N = parse(Int, ARGS[3])
 
-# solve_gaussian_glass(; ν=p, N_ens=100)
-solve_gaussian_glass(; ν=pol, N_ens=N)
+solve_gaussian(; type=type, ν=pol, N_ens=N)
 exit(0)
