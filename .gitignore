@@ -1,6 +1,5 @@
 .idea
 .vscode
-C
 Manifest.toml
 *.csv
 data
