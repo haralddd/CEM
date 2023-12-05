@@ -83,8 +83,8 @@ int test_avx(int N) {
         double b4 = (double)(i + 3);
         B[i / 4] = AVXComplex
                 {
-                        _mm256_set_pd(b1, b2, b3, b4),
-                        _mm256_set_pd(b1, b2, b3, b4)
+                    _mm256_set_pd(b1, b2, b3, b4),
+                    _mm256_set_pd(b1, b2, b3, b4)
                 };
     }
     TIME_END;
@@ -94,7 +94,7 @@ int test_avx(int N) {
     TIME_START;
 #pragma omp parallel for
     for (int i = 0; i < N / 4; ++i) {
-        B_res[i] = mm_c_sqrt(B[i]);
+        B_res[i] = mm_c_sqrt_unsafe(B[i]);
     }
     TIME_END;
 
