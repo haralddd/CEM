@@ -1,10 +1,9 @@
-using MKL
-push!(LOAD_PATH, "Julia/RayleighSetup/")
+# using MKL
 push!(LOAD_PATH, "Julia/RayleighSolver/")
-using RayleighSetup
 using RayleighSolver
 using DelimitedFiles
 using Dates
+using Statistics
 
 function setup_dir(str="data")
     if !isdir(str)
@@ -31,8 +30,32 @@ function test_write()
     end
 end
 
-ε_list = Dict("glass" => 2.25 + 1.0e-4im, "silver" => -17.5 + 0.48im)
-function solve_gaussian(; type="glass", ν::Polarization=s, N_ens::Int=10)
+function MDRC_prefactor(k, q, L)
+    return 1 / (2π * L) * α0(q) / α0(k)
+end
+
+function MDRC_coh(R, k, qs, L)
+    # Find indices of qs where qs is between -1 and 1
+    qis = findall(q -> q > -1 && q < 1, qs)
+    mdrc_coh = Vector{Float64}(undef, length(qis))
+
+    for (i, qi) in enumerate(qis)
+        mdrc_coh[i] = MDRC_prefactor(k, qs[qi], L) * abs2(mean(R[qi, :]))
+    end
+    return mdrc_coh
+end
+
+function MDRC_incoh(R, k, qs, L)
+    # Find indices of qs where qs is between -1 and 1
+    qis = findall(q -> q > -1 && q < 1, qs)
+    mdrc_incoh = Vector{Float64}(undef, length(qis))
+    for (i, qi) in enumerate(qis)
+        mdrc_incoh[i] = MDRC_prefactor(k, qs[qi], L) * (mean(abs2.(R[qi, :])) - abs2(mean(R[qi, :])))
+    end
+    return mdrc_incoh
+end
+
+function solve_gaussian_and_save(; ν::Polarization=s, ε=2.25, μ=1.0, N_ens::Int=10)
 
     λ = 632.8e-9 # He-Ne laser wavelength
     L = 50 * λ # Length of surface
@@ -40,8 +63,6 @@ function solve_gaussian(; type="glass", ν::Polarization=s, N_ens::Int=10)
     a = λ / 4
 
     Nq = 2^10
-
-    ε = ε_list[type]
     Ni = 10
 
 
@@ -52,13 +73,21 @@ function solve_gaussian(; type="glass", ν::Polarization=s, N_ens::Int=10)
         λ=λ,
         Nq=Nq,
         ε=ε,
+        μ=μ,
         Ni=Ni,
         L=L,
         δ=δ,
         a=a,
     )
-    display(rp.ν)
 
+    # Directory setup and dump config to txt
+    timestamp = now() |> string
+    run_dir = "data/" * timestamp
+    setup_dir(run_dir)
+    open(run_dir * "/config.txt", "w") do io
+        write(io, params_as_string(rp))
+        write(io, "\nN_ens = $N_ens")
+    end
 
     # Ensemble params
     θ0 = 0.0
@@ -95,20 +124,28 @@ function solve_gaussian(; type="glass", ν::Polarization=s, N_ens::Int=10)
     @assert length(inf_idxs) == 0 "Npk_pre has Infs at indices $inf_idxs"
 
     display("Solving for θ0, N: $N_ens")
+    sp = SurfPreAlloc(rp, gaussian)
     @time for i in axes(res, 2)
         sp = SurfPreAlloc(rp, gaussian)
         solve_pre!(sp, rp, Mpk_pre, Npk_pre, ki)
         res[:, i] .= sp.R
     end
 
-    timestamp = now() |> string
-    run_dir = "data/" * timestamp
-    setup_dir(run_dir)
-    filestr = run_dir * "/gsilver_θ$(θ0)_ν$(ν|>string)_Nq$(Nq)_Nens$(N_ens).bin"
+    filestr = run_dir * "/θ$(θ0)_R_ComplexF64.bin"
     open(filestr, "w") do io
         write(io, res)
         display("Wrote to $filestr")
     end # io θ0
+
+    # Save MDRC_incoh and MDRC_coh
+    open(run_dir * "/θ$(θ0)_mdrc_incoh.bin", "w") do io
+        mdrc_incoh = MDRC_incoh(res, k, rp.qs, L)
+        write(io, mdrc_incoh)
+    end
+    open(run_dir * "/θ$(θ0)_mdrc_coh.bin", "w") do io
+        mdrc_coh = MDRC_coh(res, k, rp.qs, L)
+        write(io, mdrc_coh)
+    end
 
     #### Second angle
 
@@ -124,22 +161,39 @@ function solve_gaussian(; type="glass", ν::Polarization=s, N_ens::Int=10)
         res[:, i] .= sp.R
     end
 
-    filestr = run_dir * "/gsilver_θ$(θ1)_ν$(ν|>string)_Nq$(Nq)_Nens$(N_ens).bin"
+    filestr = run_dir * "/θ$(θ1)_R_ComplexF64.bin"
     open(filestr, "w") do io
         write(io, res)
         display("Wrote to $filestr")
     end # io θ1
+
+    # Save MDRC_incoh and MDRC_coh
+    open(run_dir * "/θ$(θ1)_mdrc_incoh.bin", "w") do io
+        mdrc_incoh = MDRC_incoh(res, k, rp.qs, L)
+        write(io, mdrc_incoh)
+    end
+    open(run_dir * "/θ$(θ1)_mdrc_coh.bin", "w") do io
+        mdrc_coh = MDRC_coh(res, k, rp.qs, L)
+        write(io, mdrc_coh)
+    end
     nothing
 end
 
-if length(ARGS) != 3
-    println("Usage: julia solve.jl [glass|silver] [p|s] [N] . Where p|s is the polarization and N is the number of surfaces to solve for.")
-    exit(1)
+if abspath(PROGRAM_FILE) == @__FILE__
+    if length(ARGS) != 4
+        println("Usage: julia solve.jl [p|s] [ε] [μ] [N].
+        p|s:\tPolarization
+        ε:\tRelative permittivity of the material
+        μ:\tRelative permeability of the material
+        N:\tNumber of surface realizations to solve for")
+        exit(1)
+    end
+    pol = polarization_from_string(ARGS[1])
+    ε = parse(ComplexF64, ARGS[2])
+    μ = parse(ComplexF64, ARGS[3])
+    N = parse(Int, ARGS[4])
+
+    solve_gaussian_and_save(; ν=pol, ε=ε, μ=μ, N_ens=N)
+else
+
 end
-
-type = ARGS[1]
-pol = polarization_from_string(ARGS[2])
-N = parse(Int, ARGS[3])
-
-solve_gaussian(; type=type, ν=pol, N_ens=N)
-exit(0)

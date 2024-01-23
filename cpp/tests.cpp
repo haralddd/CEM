@@ -5,13 +5,15 @@
 #include "complex_util.hpp"
 #include <complex.h>
 #include <cstdio>
+//#include <cstdlib>
 #include <chrono>
 #include <Eigen/Dense>
+#include <omp.h>
 
-#define TIME_INIT std::chrono::high_resolution_clock::time_point t1, t2;
-#define TIME_START t1 = std::chrono::high_resolution_clock::now();
+#define TIME_INIT std::chrono::high_resolution_clock::time_point t1, t2
+#define TIME_START t1 = std::chrono::high_resolution_clock::now()
 #define TIME_END t2 = std::chrono::high_resolution_clock::now(); \
-    printf("Time: %f\n", std::chrono::duration<double>(t2 - t1).count()); \
+    printf("Time: %f\n", std::chrono::duration<double>(t2 - t1).count())
 
 
 
@@ -42,26 +44,29 @@ int main(int argc, char **argv) {
     return 0;
 }
 
-int test_csqrt(int N) {
-    // Init C-style complex array
-    TIME_INIT;
-    printf("csqrt: init array\n");
+double drand() {
+    // Makes random double in (0.01, 1.00)
+    return 0.01*(double)(rand() % 100 + 1);
+}
 
-    _Complex double A[N];
+int test_csqrt(int N) {
+    // C-style complex array sqrt
+    TIME_INIT;
+
+    printf("csqrt: alloc\n");
     TIME_START;
+    _Complex double input[N];
+    _Complex double res[N];
     for (int i = 0; i < N; ++i) {
-        double a = (double) i;
-        double b = (double) i;
-        A[i] = a + b * I;
+        input[i] = drand() + drand() * I;
     }
     TIME_END;
 
     printf("csqrt: test csqrt\n");
-    _Complex double A_res[N];
     TIME_START;
-#pragma omp parallel for
+#pragma omp parallel for simd
     for (int i = 0; i < N; ++i) {
-        A_res[i] = csqrt(A[i]);
+        res[i] = csqrt(input[i]);
     }
     TIME_END;
 
@@ -69,32 +74,24 @@ int test_csqrt(int N) {
 }
 
 int test_avx(int N) {
-    // Init AVXComplex array
+    // AVXComplex array square root
     TIME_INIT;
-    printf("avx: init array\n");
 
-    AVXComplex B[N / 4];
+    printf("avx: alloc\n");
     TIME_START;
-    for (int i = 0; i < N; i += 4) {
-
-        double b1 = (double)(i);
-        double b2 = (double)(i + 1);
-        double b3 = (double)(i + 2);
-        double b4 = (double)(i + 3);
-        B[i / 4] = AVXComplex
-                {
-                    _mm256_set_pd(b1, b2, b3, b4),
-                    _mm256_set_pd(b1, b2, b3, b4)
-                };
+    AVXComplex input[N / 4];
+    AVXComplex res[N / 4];
+    for (int i = 0; i < N / 4; ++i) {
+        input[i].real = _mm256_set_pd(drand(), drand(), drand(), drand());
+        input[i].imag = _mm256_set_pd(drand(), drand(), drand(), drand());
     }
     TIME_END;
 
-    printf("avx: test mm_c_sqrt\n");
-    AVXComplex B_res[N / 4];
+    printf("avx: test mm_csqrt_unsafe\n");
     TIME_START;
-#pragma omp parallel for
+//#pragma omp parallel for shared(res, input)
     for (int i = 0; i < N / 4; ++i) {
-        B_res[i] = mm_c_sqrt_unsafe(B[i]);
+        res[i] = mm_csqrt_unsafe(input[i]);
     }
     TIME_END;
 
