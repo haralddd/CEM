@@ -24,7 +24,7 @@ function N_ker(p::Float64, k::Float64, κ::ComplexF64, α::ComplexF64, α0::Comp
 end
 function M_invariant!(M::AbstractMatrix{ComplexF64}, ps::Vector{Float64}, qs::Vector{Float64}, κ::ComplexF64, εμ::ComplexF64, n::Int)::Nothing
 
-    @inbounds for (i, p) in enumerate(ps)
+    for (i, p) in enumerate(ps)
         for (j, q) in enumerate(qs)
             M[i, j] = M_ker(p, q, κ, α(p, εμ), α0(q), n)
         end
@@ -33,7 +33,7 @@ function M_invariant!(M::AbstractMatrix{ComplexF64}, ps::Vector{Float64}, qs::Ve
 end
 function N_invariant!(N::AbstractVector{ComplexF64}, ps::Vector{Float64}, k::Float64, κ::ComplexF64, εμ::ComplexF64, n::Int)::Nothing
 
-    @inbounds for (i, p) in enumerate(ps)
+    for (i, p) in enumerate(ps)
         N[i] = N_ker(p, k, κ, α(p, εμ), α0(k), n)
     end
     return nothing
@@ -60,8 +60,8 @@ function pre_M_invariant!(M::Array{ComplexF64,3}, rp::RayleighParams)::Nothing
     κ = rp.ν == p ? rp.ε : rp.μ
     εμ = rp.ε * rp.μ
 
-    @inbounds for n in axes(M, 3)
-        Mn = Matrix{ComplexF64}(undef, length(ps), length(qs))
+    for n in axes(M, 3)
+        Mn = Matrix{ComplexF64}(undef, size(M, 1), size(M, 2))
         M_invariant!(Mn, ps, qs, κ, εμ, n - 1)
         M[:, :, n] .= Mn
     end
@@ -76,8 +76,8 @@ function pre_N_invariant!(N::Matrix{ComplexF64}, rp::RayleighParams, k::Float64)
     κ = rp.ν == p ? rp.ε : rp.μ
     εμ = rp.ε * rp.μ
 
-    @inbounds for n in axes(N, 2)
-        Nn = Vector{ComplexF64}(undef, length(ps))
+    for n in axes(N, 2)
+        Nn = Vector{ComplexF64}(undef, size(N, 1))
         N_invariant!(Nn, ps, k, εμ, κ, n - 1)
         N[:, n] .= Nn
     end
@@ -95,12 +95,12 @@ function solve_pre!(sp::SurfPreAlloc, rp::RayleighParams,
         rp.FT * sp.Fys # In place FFT
         fftshift!(sp.sFys, sp.Fys)
 
-        @inbounds for I in eachindex(IndexCartesian(), sp.Mpq)
+        for I in eachindex(IndexCartesian(), sp.Mpq)
             i, j = Tuple(I)
             sp.Mpq[i, j] += M_pre[i, j, n] * sp.sFys[i+j-1]
         end
 
-        @inbounds for i in eachindex(sp.Npk)
+        for i in eachindex(sp.Npk)
             sp.Npk[i] -= N_pre[i, n] * sp.sFys[i+ki-1]
         end
     end

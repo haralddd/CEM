@@ -3,4 +3,5 @@
 Manifest.toml
 *.csv
 data
+plots
 */cmake-build-debug

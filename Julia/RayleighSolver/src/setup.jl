@@ -48,7 +48,7 @@ struct RayleighParams
     Nx::Int      # Number of surfaces sections in xs
 
     # Constructor
-    RayleighParams(; ν::Polarization=p, ε=2.25 + 1e-4im, μ=1.0, λ=600e-9, Q_mult=4, Nq=127, L=10.0e-6, Ni=10, δ=30e-9, a=100e-9) = begin
+    RayleighParams(; ν::Polarization=p, ε=2.25, μ=1.0, λ=600e-9, Q_mult=4, Nq=127, L=10.0e-6, Ni=10, δ=30e-9, a=100e-9) = begin
         #=
         All lengths are being scaled to ω/c
         =#
@@ -158,7 +158,7 @@ struct SurfPreAlloc
         elseif surf_t == gaussian
             ys = gaussian_surface_gen(rp) .|> real
         elseif surf_t == flat
-            ys = zeros(size(xs)) # Flat surface
+            ys = ones(size(xs)) # Flat surface
         end
 
         Fys = similar(ys, ComplexF64)
