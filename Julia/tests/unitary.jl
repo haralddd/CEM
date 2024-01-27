@@ -12,13 +12,14 @@ function unitary(R, rp, k)
     return sum
 end
 
-function test_solvers(; surf_t::SurfType=flat, ε=2.25, μ=1.0, ν::Polarization=p)
+function test_unitarity(; surf_t::SurfType=flat, ε=2.25, μ=1.0, ν::Polarization=p)
     θ0 = 45.0
     L = 10.0e-6
     ims = range(1e-1im, 1e-4im, length=50)
 
     res = Vector{Float64}(undef, length(ims))
     for i in eachindex(ims)
+        display("$i")
         im = ims[i]
         rp = RayleighParams(
             ν=ν,
@@ -39,23 +40,20 @@ function test_solvers(; surf_t::SurfType=flat, ε=2.25, μ=1.0, ν::Polarization
         pre_N_invariant!(N_pre, rp, k)
 
         solve_pre!(sp, rp, M_pre, N_pre, ki)
-        res[i] = unitary(sp.R, rp, k)
+        res[i] = unitary(sp.Npk, rp, k)
     end
     return ims, res
 end
 
+display("Running unitarity simulations for p")
+ims_p, res_p = test_unitarity(surf_t=flat, ε=-20, μ=1, ν=p)
+display("Running unitarity simulations for s")
+ims_s, res_s = test_unitarity(surf_t=flat, ε=1, μ=-20, ν=s)
 
-function plot_unitarity()
-    ims_p, res_p = test_solvers(surf_t=flat, ε=-20, μ=1, ν=p)
-    ims_s, res_s = test_solvers(surf_t=flat, ε=1, μ=-20, ν=s)
-
-    fig = Figure(; size=(500, 400))
-    ax = Axis(fig[1, 1], xlabel=L"Imaginary part of $\varepsilon$", ylabel=L"$$Unitarity")
-    scatter!(ax, imag.(ims_p), res_p, label="p", color=(:blue, 0.5), marker=:circle)
-    scatter!(ax, imag.(ims_s), res_s, label="s", color=(:red, 0.5), marker=:rect)
-    axislegend(ax, loc=:tr)
-    display(fig)
-    save("plots/unitarity.pdf", fig)
-end
-
-plot_unitarity()
+fig = Figure(; size=(500, 400))
+ax = Axis(fig[1, 1], xlabel=L"Im$(\varepsilon)$", ylabel=L"$$Scattered intensity")
+scatter!(ax, imag.(ims_p), res_p, label="p", color=:red, marker=:vline, markersize=16)
+scatter!(ax, imag.(ims_s), res_s, label="s", color=:blue, marker=:hline, markersize=16)
+axislegend(ax, loc=:tr)
+display(fig)
+save("plots/unitarity.pdf", fig)

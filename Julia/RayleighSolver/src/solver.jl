@@ -3,10 +3,12 @@ function α(q::Float64, εμ::ComplexF64)::ComplexF64
     # Calculate the α parameter for a given p
     return sqrt(εμ - q^2)
 end
+
 function α0(q::Float64)::ComplexF64
     # Calculate the α0 parameter for a given q
     return sqrt(complex(1.0 - q^2))
 end
+
 function M_ker(p::Float64, q::Float64, κ::ComplexF64, α::ComplexF64, α0::ComplexF64, n::Int)::ComplexF64
     # Calculate the kernel of the Mpq matrix
     Δα = α - α0
@@ -15,6 +17,7 @@ function M_ker(p::Float64, q::Float64, κ::ComplexF64, α::ComplexF64, α0::Comp
         (α + κ * α0) * Δα^n
     )
 end
+
 function N_ker(p::Float64, k::Float64, κ::ComplexF64, α::ComplexF64, α0::ComplexF64, n::Int)::ComplexF64
     Δα = α + α0
     return (-1.0im)^n / factorial(n) * (
@@ -22,36 +25,8 @@ function N_ker(p::Float64, k::Float64, κ::ComplexF64, α::ComplexF64, α0::Comp
         (α - κ * α0) * Δα^n
     )
 end
-function M_invariant!(M::AbstractMatrix{ComplexF64}, ps::Vector{Float64}, qs::Vector{Float64}, κ::ComplexF64, εμ::ComplexF64, n::Int)::Nothing
 
-    for (i, p) in enumerate(ps)
-        for (j, q) in enumerate(qs)
-            M[i, j] = M_ker(p, q, κ, α(p, εμ), α0(q), n)
-        end
-    end
-    return nothing
-end
-function N_invariant!(N::AbstractVector{ComplexF64}, ps::Vector{Float64}, k::Float64, κ::ComplexF64, εμ::ComplexF64, n::Int)::Nothing
-
-    for (i, p) in enumerate(ps)
-        N[i] = N_ker(p, k, κ, α(p, εμ), α0(k), n)
-    end
-    return nothing
-end
-function M_invariant(ps::Vector{Float64}, qs::Vector{Float64}, κ::ComplexF64, εμ::ComplexF64, n::Int)::Matrix{ComplexF64}
-    M = Matrix{ComplexF64}(undef, length(ps), length(qs))
-    M_invariant!(M, ps, qs, κ, εμ, n)
-    return M
-end
-
-
-function N_invariant(ps::Vector{Float64}, k::Float64, εμ::ComplexF64, κ::ComplexF64, n::Int)::Vector{ComplexF64}
-    N = similar(ps, ComplexF64)
-    N_invariant!(N, ps, k, εμ, κ, n)
-    return N
-end
-
-function pre_M_invariant!(M::Array{ComplexF64,3}, rp::RayleighParams)::Nothing
+function M_invariant!(M::Array{ComplexF64,3}, rp::RayleighParams)::Nothing
     # Calculate the surface invariant part of the Mpq matrix
     # Invariant under surface change), but NOT incident angle θ0
 
@@ -61,14 +36,18 @@ function pre_M_invariant!(M::Array{ComplexF64,3}, rp::RayleighParams)::Nothing
     εμ = rp.ε * rp.μ
 
     for n in axes(M, 3)
-        Mn = Matrix{ComplexF64}(undef, size(M, 1), size(M, 2))
-        M_invariant!(Mn, ps, qs, κ, εμ, n - 1)
-        M[:, :, n] .= Mn
+        for i in eachindex(ps)
+            p = ps[i]
+            for j in eachindex(qs)
+                q = qs[j]
+                M[i, j, n] = M_ker(p, q, κ, α(p, εμ), α0(q), n)
+            end
+        end
     end
     return nothing
 end
 
-function pre_N_invariant!(N::Matrix{ComplexF64}, rp::RayleighParams, k::Float64)::Nothing
+function N_invariant!(N::Matrix{ComplexF64}, rp::RayleighParams, k::Float64)::Nothing
     # Calculate the surface invariant part of the Npk vector
     # Invariant under surface change, but NOT incident angle θ0
     # Input k must be the nearest value in qs for correct results
@@ -77,16 +56,27 @@ function pre_N_invariant!(N::Matrix{ComplexF64}, rp::RayleighParams, k::Float64)
     εμ = rp.ε * rp.μ
 
     for n in axes(N, 2)
-        Nn = Vector{ComplexF64}(undef, size(N, 1))
-        N_invariant!(Nn, ps, k, εμ, κ, n - 1)
-        N[:, n] .= Nn
+        for i in eachindex(ps)
+            p = ps[i]
+            N[i, n] = N_ker(p, k, κ, α(p, εμ), α0(k), n)
+        end
     end
     return nothing
 end
 
-function solve_pre!(sp::SurfPreAlloc, rp::RayleighParams,
+function solve!(sp::SurfPreAlloc, rp::RayleighParams,
     M_pre::Array{ComplexF64,3}, N_pre::Matrix{ComplexF64},
     ki::Int)::Nothing
+
+    # Calculates the preallocated surface integral
+    # sp is the preallocated surface struct, containing the preallocated output
+    # rp is the RayleighParams struct, containing the constant parameters for the calculation
+    # Matrix M_pre is preallocated and contains the invariant part of the Mpq matrix
+    # Matrix N_pre is preallocated and contains the invariant part of the Npk vector
+    # ki is the index of the nearest value in qs to the incident angle θ0
+
+    # Stores the result in sp.Npk
+
     sp.Mpq .= 0.0
     sp.Npk .= 0.0
 
@@ -95,8 +85,7 @@ function solve_pre!(sp::SurfPreAlloc, rp::RayleighParams,
         rp.FT * sp.Fys # In place FFT
         fftshift!(sp.sFys, sp.Fys)
 
-        for I in eachindex(IndexCartesian(), sp.Mpq)
-            i, j = Tuple(I)
+        for i in axes(sp.Mpq, 1), j in axes(sp.Mpq, 2)
             sp.Mpq[i, j] += M_pre[i, j, n] * sp.sFys[i+j-1]
         end
 
@@ -105,37 +94,6 @@ function solve_pre!(sp::SurfPreAlloc, rp::RayleighParams,
         end
     end
 
-    sp.R .= sp.Mpq \ sp.Npk
+    sp.Npk .= sp.Mpq \ sp.Npk
     return nothing
-end
-
-function solve(rp::RayleighParams, ys::Vector{Float64}, ki::Int)::Vector{ComplexF64}
-    # Allocating version of the solver
-    # Solve for the reflection coefficient R
-    #   version of solver without pre-calculated M and N
-    ps = rp.ps
-    qs = rp.qs
-    κ = rp.ν == p ? rp.ε : rp.μ
-    εμ = rp.ε * rp.μ
-    Ni = rp.Ni
-    k = qs[ki]
-
-    Mpq = zeros(ComplexF64, length(ps), length(qs))  # Matrix of the Mpq coefficients (A)
-    Npk = zeros(ComplexF64, length(ps))  # Vector of the Npk coefficients (b)
-    Fys = similar(ys, ComplexF64)  # Fourier transform of surface heights, prealloc
-
-    for n in 0:Ni
-        Fys .= ys .^ n
-        rp.FT * Fys # In place FFT
-        Fys .= fftshift(Fys)
-
-        for (i, p) in enumerate(ps)
-            for (j, q) in enumerate(qs)
-                Mpq[i, j] += M_ker(p, q, κ, α(p, εμ), α0(q), n) * Fys[i+j-1]
-            end
-            Npk[i] -= N_ker(p, k, κ, α(p, εμ), α0(k), n) * Fys[i+ki-1]
-        end
-    end
-
-    return Mpq \ Npk
 end

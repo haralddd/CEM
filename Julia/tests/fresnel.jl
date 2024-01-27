@@ -48,8 +48,8 @@ function test_fresnel(; ε=2.25)
     Mpk_s_pre = Array{ComplexF64,3}(undef, length(rp_s.ps), length(rp_s.qs), rp_s.Ni + 1)
     Npk_s_pre = Matrix{ComplexF64}(undef, length(rp_s.ps), rp_s.Ni + 1)
 
-    @time pre_M_invariant!(Mpk_p_pre, rp_p)
-    @time pre_M_invariant!(Mpk_s_pre, rp_s)
+    @time M_invariant!(Mpk_p_pre, rp_p)
+    @time M_invariant!(Mpk_s_pre, rp_s)
 
     # Check for undefined behaviour
     @assert all(isfinite.(Mpk_p_pre))
@@ -59,45 +59,34 @@ function test_fresnel(; ε=2.25)
     ks = rp_p.qs[kis]
     θs = asind.(ks)
 
+    sp_p = SurfPreAlloc(rp_p, surf_t)
+    sp_s = SurfPreAlloc(rp_s, surf_t)
+
     # Results in Fresnel coefficients
-    rs_p = Vector{Float64}(undef, length(ks))
-    rs_s = Vector{Float64}(undef, length(ks))
+    res_p = Vector{Float64}(undef, length(ks))
+    res_s = Vector{Float64}(undef, length(ks))
 
     @time for i in eachindex(ks)
-        sp_p = SurfPreAlloc(rp_p, surf_t)
-        sp_s = SurfPreAlloc(rp_s, surf_t)
+        # Draw new surface sample
+        generate!(sp_p.ys, rp_p, surf_t)
+        generate!(sp_s.ys, rp_s, surf_t)
 
-        pre_N_invariant!(Npk_p_pre, rp_p, ks[i])
-        pre_N_invariant!(Npk_s_pre, rp_s, ks[i])
+        # Calculate the invariant part of Npk (depends on k)
+        N_invariant!(Npk_p_pre, rp_p, ks[i])
+        N_invariant!(Npk_s_pre, rp_s, ks[i])
 
-        # Check for undefined behaviour
-        Np_check = isfinite.(Npk_p_pre)
-        Ns_check = isfinite.(Npk_s_pre)
-        if !all(Np_check) || !all(Ns_check)
-            idxs_p = findall(x -> !x, Np_check)
-            idxs_s = findall(x -> !x, Ns_check)
-            display("Npk_p_pre ($idxs_p) or Npk_s_pre ($idxs_s) is not finite")
+        # Solve for R
+        solve!(sp_p, rp_p, Mpk_p_pre, Npk_p_pre, kis[i])
+        solve!(sp_s, rp_s, Mpk_s_pre, Npk_s_pre, kis[i])
 
-            display("$(Npk_p_pre[idxs_p]), $(Npk_s_pre[idxs_s])")
-            display("Iteration: $i")
-
-            error("Undefined behaviour")
-        end
-
-        # Solve and insert the specular reflection coefficient
-        solve_pre!(sp_p, rp_p, Mpk_p_pre, Npk_p_pre, kis[i])
-        solve_pre!(sp_s, rp_s, Mpk_s_pre, Npk_s_pre, kis[i])
-
-        rs_p[i] = sp_p.R .|> abs2 |> maximum
-        rs_s[i] = sp_s.R .|> abs2 |> maximum
+        res_p[i] = (sp_p.Npk .|> abs |> maximum) ./ 2π
+        res_s[i] = (sp_s.Npk .|> abs |> maximum) ./ 2π
     end
 
-
-    display("Plotting Fresnel coefficients")
     fig1 = Figure(; size=(500, 400))
     ax1 = Axis(fig1[1, 1], xlabel=L"Reflected angle $θ$", ylabel=L"Reflection coefficient $R$")
-    scatter!(ax1, θs, rs_p, label="p", color=:blue, marker=:circle)
-    scatter!(ax1, θs, rs_s, label="s", color=:red, marker=:rect)
+    scatter!(ax1, θs, res_p .^ 2, label="p", color=:blue, marker=:circle)
+    scatter!(ax1, θs, res_s .^ 2, label="s", color=:red, marker=:rect)
     lines!(ax1, θs, Rp.(θs, ε), label="p (Fresnel)", linestyle=:solid, color=(:blue, 0.5))
     lines!(ax1, θs, Rs.(θs, ε), label="s (Fresnel)", linestyle=:solid, color=(:red, 0.5))
     axislegend(ax1; position=:lt)
@@ -107,13 +96,13 @@ function test_fresnel(; ε=2.25)
     fig2 = Figure(; size=(500, 400))
     ax2 = Axis(fig2[1, 1], xlabel=L"Reflected angle $θ$", ylabel=L"Error, $|1 - R_p + R_s|$")
 
-    lines!(ax2, θs, abs.(1.0 .- (rs_p .^ 2 .+ rs_s .^ 2)))
+    lines!(ax2, θs, abs.(1.0 .- (res_p .^ 2 .+ res_s .^ 2)))
     tightlimits!(ax2)
 
     return fig1, fig2
 end
 
-fig1, fig2 = test_fresnel(ε=2.25 + 1e-6im)
+fig1, fig2 = test_fresnel(ε=2.25)
 display(fig1)
 display(fig2)
 save("plots/fresnel_glass.pdf", fig1)
@@ -123,4 +112,3 @@ display(fig1)
 display(fig2)
 save("plots/fresnel_silver.pdf", fig1)
 save("plots/fresnel_silver_error.pdf", fig2)
-

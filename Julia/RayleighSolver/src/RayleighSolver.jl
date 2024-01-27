@@ -1,5 +1,6 @@
 module RayleighSolver
 
+using LinearAlgebra
 using FFTW
 
 include("setup.jl")
@@ -13,15 +14,14 @@ export
     params_as_string,
     SurfPreAlloc,
     SurfType, flat, gaussian, singlebump,
+    generate!,
 
 
     # Solver functions
     α, α0,
     M_ker, N_ker,
     M_invariant!, N_invariant!,
-    M_invariant, N_invariant,
-    pre_M_invariant!, pre_N_invariant!,
-    solve_pre!, solve!
+    solve!
 
 
 
