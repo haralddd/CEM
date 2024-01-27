@@ -23,8 +23,7 @@ mdrcs_incoh1 = Vector{Vector{Float64}}(undef, length(data_dir))
 mdrcs_incoh2 = Vector{Vector{Float64}}(undef, length(data_dir))
 
 for i in eachindex(data_dir)
-    mdrcs_incoh1[i] = read_Float64_binary(joinpath("data/", data_dir[i], "θ0.0_mdrc_incoh.bin"))
-    mdrcs_incoh2[i] = read_Float64_binary(joinpath("data/", data_dir[i], "θ34.05_mdrc_incoh.bin"))
+    mdrcs_incoh[i] = read_Float64_binary(joinpath("data/", data_dir[i], "θ0.0_mdrc_incoh.bin"))
 end
 
 function save_plot(mdrc_p, mdrc_s, θs, θ0, title)

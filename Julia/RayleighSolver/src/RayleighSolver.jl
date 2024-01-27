@@ -2,6 +2,8 @@ module RayleighSolver
 
 using LinearAlgebra
 using FFTW
+using Base.Threads
+LinearAlgebra.BLAS.set_num_threads(1)
 
 include("setup.jl")
 include("solver.jl")
@@ -21,7 +23,7 @@ export
     α, α0,
     M_ker, N_ker,
     M_invariant!, N_invariant!,
-    solve!
+    solve!, run_threaded
 
 
 
