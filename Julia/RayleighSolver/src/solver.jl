@@ -40,7 +40,7 @@ function M_invariant!(M::Array{ComplexF64,3}, rp::RayleighParams)::Nothing
             p = ps[i]
             for j in eachindex(qs)
                 q = qs[j]
-                M[i, j, n] = M_ker(p, q, κ, α(p, εμ), α0(q), n)
+                M[i, j, n] = M_ker(p, q, κ, α(p, εμ), α0(q), n - 1)
             end
         end
     end
@@ -58,7 +58,7 @@ function N_invariant!(N::Matrix{ComplexF64}, rp::RayleighParams, k::Float64)::No
     for n in axes(N, 2)
         for i in eachindex(ps)
             p = ps[i]
-            N[i, n] = N_ker(p, k, κ, α(p, εμ), α0(k), n)
+            N[i, n] = N_ker(p, k, κ, α(p, εμ), α0(k), n - 1)
         end
     end
     return nothing

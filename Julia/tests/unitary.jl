@@ -36,10 +36,10 @@ function test_unitarity(; surf_t::SurfType=flat, ε=2.25, μ=1.0, ν::Polarizati
         # Pre-calculate the invariant parts of the M and N matrices
         M_pre = Array{ComplexF64,3}(undef, length(rp.ps), length(rp.qs), rp.Ni + 1)
         N_pre = Matrix{ComplexF64}(undef, length(rp.ps), rp.Ni + 1)
-        pre_M_invariant!(M_pre, rp)
-        pre_N_invariant!(N_pre, rp, k)
+        M_invariant!(M_pre, rp)
+        N_invariant!(N_pre, rp, k)
 
-        solve_pre!(sp, rp, M_pre, N_pre, ki)
+        solve!(sp, rp, M_pre, N_pre, ki)
         res[i] = unitary(sp.Npk, rp, k)
     end
     return ims, res

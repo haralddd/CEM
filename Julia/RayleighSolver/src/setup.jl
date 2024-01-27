@@ -99,6 +99,7 @@ function params_as_string(rp::RayleighParams)
         "ε=$(rp.ε)\n" *
         "μ=$(rp.μ)\n" *
         "λ=$(rp.λ)\n" *
+        "ω=$(rp.ω)\n" *
         "Q=$(rp.Q)\n" *
         "Nq=$(rp.Nq)\n" *
         "Nx=$(rp.Nx)\n" *

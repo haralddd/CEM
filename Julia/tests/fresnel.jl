@@ -24,8 +24,8 @@ end
 function test_fresnel(; ε=2.25)
     surf_t::SurfType = flat::SurfType
 
-    Δθ = 0.5
-    θs = 0.0:Δθ:90.0-Δθ
+    Δθ = 1.0
+    θs = 0.0:Δθ:90.0
     Nq = 2^10
 
     rp_p = RayleighParams(
@@ -67,9 +67,6 @@ function test_fresnel(; ε=2.25)
     res_s = Vector{Float64}(undef, length(ks))
 
     @time for i in eachindex(ks)
-        # Draw new surface sample
-        generate!(sp_p.ys, rp_p, surf_t)
-        generate!(sp_s.ys, rp_s, surf_t)
 
         # Calculate the invariant part of Npk (depends on k)
         N_invariant!(Npk_p_pre, rp_p, ks[i])
@@ -79,36 +76,42 @@ function test_fresnel(; ε=2.25)
         solve!(sp_p, rp_p, Mpk_p_pre, Npk_p_pre, kis[i])
         solve!(sp_s, rp_s, Mpk_s_pre, Npk_s_pre, kis[i])
 
-        res_p[i] = (sp_p.Npk .|> abs |> maximum) ./ 2π
-        res_s[i] = (sp_s.Npk .|> abs |> maximum) ./ 2π
+        res_p[i] = (sp_p.Npk .|> abs2 |> maximum)
+        res_s[i] = (sp_s.Npk .|> abs2 |> maximum)
     end
+
+    return res_p, res_s, θs
+end
+
+
+function plot_fresnel(; ε=2.25, title="glass")
+
+    res_p, res_s, θs = test_fresnel(ε=ε)
 
     fig1 = Figure(; size=(500, 400))
     ax1 = Axis(fig1[1, 1], xlabel=L"Reflected angle $θ$", ylabel=L"Reflection coefficient $R$")
-    scatter!(ax1, θs, res_p .^ 2, label="p", color=:blue, marker=:circle)
-    scatter!(ax1, θs, res_s .^ 2, label="s", color=:red, marker=:rect)
-    lines!(ax1, θs, Rp.(θs, ε), label="p (Fresnel)", linestyle=:solid, color=(:blue, 0.5))
-    lines!(ax1, θs, Rs.(θs, ε), label="s (Fresnel)", linestyle=:solid, color=(:red, 0.5))
+    scatter!(ax1, θs, res_p, label="p (Numerical)", color=:blue, marker=:circle)
+    scatter!(ax1, θs, res_s, label="s (Numerical)", color=:red, marker=:rect)
+    lines!(ax1, θs, Rp.(θs, ε), label="p (Analytical)", linestyle=:solid, color=:blue)
+    lines!(ax1, θs, Rs.(θs, ε), label="s (Analytical)", linestyle=:solid, color=:red)
     axislegend(ax1; position=:lt)
-    tightlimits!(ax1)
+    limits!(ax1, 0, 90, 0, 1.05)
+
+    # tightlimits!(ax1)
+
+    display(fig1)
 
     # Plot error between 1 and sum of Fresnel coefficients
     fig2 = Figure(; size=(500, 400))
-    ax2 = Axis(fig2[1, 1], xlabel=L"Reflected angle $θ$", ylabel=L"Error, $|1 - R_p + R_s|$")
+    ax2 = Axis(fig2[1, 1], xlabel=L"Reflected angle $θ$", ylabel=L"Absolute error$$")
 
-    lines!(ax2, θs, abs.(1.0 .- (res_p .^ 2 .+ res_s .^ 2)))
+    lines!(ax2, θs, abs.(res_p .- Rp.(θs, ε)), label="p", linestyle=:solid, color=:blue)
+    lines!(ax2, θs, abs.(res_s .- Rs.(θs, ε)), label="s", linestyle=:solid, color=:red)
     tightlimits!(ax2)
-
-    return fig1, fig2
+    display(fig2)
+    save("plots/fresnel_$(title).pdf", fig1)
+    save("plots/fresnel_$(title)_error.pdf", fig2)
 end
 
-fig1, fig2 = test_fresnel(ε=2.25)
-display(fig1)
-display(fig2)
-save("plots/fresnel_glass.pdf", fig1)
-save("plots/fresnel_glass_error.pdf", fig2)
-fig1, fig2 = test_fresnel(ε=-17.5 + 0.48im)
-display(fig1)
-display(fig2)
-save("plots/fresnel_silver.pdf", fig1)
-save("plots/fresnel_silver_error.pdf", fig2)
+plot_fresnel(ε=2.25, title="glass")
+plot_fresnel(ε=-17.5 + 0.48im, title="silver")
