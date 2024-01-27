@@ -97,3 +97,94 @@ function solve!(sp::SurfPreAlloc, rp::RayleighParams,
     sp.Npk .= sp.Mpq \ sp.Npk
     return nothing
 end
+
+function MDRC_prefactor(k, q, L)::Float64
+    return 1 / (2π * L) * α0(q) / α0(k)
+end
+
+function run_threaded(rp; θ=10.0, N_ens::Int=10, surf_t::SurfType=gaussian)
+
+    # Calc the invariant part of Mpk
+    display("Calculating invariant parts of Mpk")
+    Mpk_pre = Array{ComplexF64,3}(undef, length(rp.ps), length(rp.qs), rp.Ni + 1)
+    @time M_invariant!(Mpk_pre, rp)
+
+    # Check for NaNs and Infs
+    nan_idxs = findall(isnan.(Mpk_pre))
+    inf_idxs = findall(isinf.(Mpk_pre))
+    @assert length(nan_idxs) == 0 "Mpk_pre has NaNs at indices $nan_idxs"
+    @assert length(inf_idxs) == 0 "Mpk_pre has Infs at indices $inf_idxs"
+
+    #### First angle
+    ki = searchsortedfirst(rp.qs, sind(θ), rev=true)
+    k = rp.qs[ki]
+
+    display("Calculating invariant parts of Npk")
+    Npk_pre = Matrix{ComplexF64}(undef, length(rp.ps), rp.Ni + 1)
+    @time N_invariant!(Npk_pre, rp, k)
+
+    nan_idxs = findall(isnan.(Npk_pre))
+    inf_idxs = findall(isinf.(Npk_pre))
+    @assert length(nan_idxs) == 0 "Npk_pre has NaNs at indices $nan_idxs"
+    @assert length(inf_idxs) == 0 "Npk_pre has Infs at indices $inf_idxs"
+
+    # Reduced q-vector indices
+    qis = findall(q -> q > -1 && q < 1, rp.qs)
+    display("Solving for θ0, N: $N_ens")
+
+    # Vector of atomic variables to accumulate results
+    coh_re = [Atomic{Float64}(0.0) for _ in qis]
+    coh_im = [Atomic{Float64}(0.0) for _ in qis]
+    inc = [Atomic{Float64}(0.0) for _ in qis]
+
+    # Write safe preallocation of surface structs
+    T = nthreads()
+    sps = [SurfPreAlloc(rp, surf_t) for _ in 1:T]
+
+    @time @threads for t in 1:T
+        # Get local variables
+        sp = sps[t] # Surface prealloc struct is mutated in place
+
+        coh_local = Vector{ComplexF64}(undef, length(qis)) # Accumulate coherent part
+        inc_local = Vector{Float64}(undef, length(qis)) # Accumulate term to subtract from coherent part
+
+        blk = N_ens ÷ T + (t <= N_ens % T ? 1 : 0) # Number of realizations to solve for in this thread
+
+        for _ in 1:blk # Distribute workload of N_ens over threads
+            generate!(sp.ys, rp, surf_t)
+            solve!(sp, rp, Mpk_pre, Npk_pre, ki)
+
+            # Add to local variables
+            coh_local .+= sp.Npk[qis]
+            inc_local .+= abs2.(sp.Npk[qis]) # First accumulate the term to subtract from the coherent part
+        end
+
+        # Critical section could be better here
+        for i in eachindex(coh_re)
+            atomic_add!(coh_re[i], real(coh_local[i]))
+        end
+        for i in eachindex(coh_im)
+            atomic_add!(coh_im[i], imag(coh_local[i]))
+        end
+        for i in eachindex(inc)
+            atomic_add!(inc[i], inc_local[i])
+        end
+    end
+
+    # Take mean and find incoherent part
+    coh = Vector{Float64}(undef, length(qis))
+    incoh = Vector{Float64}(undef, length(qis))
+
+    for (i, qi) in enumerate(qis)
+
+        coh[i] = ((coh_re[i][])^2 + (coh_im[i][])^2) / N_ens
+        incoh[i] = coh[i] - (inc[i][] / N_ens)
+
+        pre = MDRC_prefactor(k, rp.qs[qi], L)
+
+        coh[i] *= pre
+        incoh[i] *= pre
+
+    end
+    return coh, incoh
+end
