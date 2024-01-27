@@ -1,7 +1,8 @@
 name = "RayleighSolver"
-uuid = "1ee57240-739e-4663-abfc-34146bc60ca7"
+uuid = "c3a28dba-1096-457d-b2c5-9a4c1738991e"
 authors = ["haralg <haralbbj@stud.ntnu.no>"]
 version = "0.1.0"
 
 [deps]
 FFTW = "7a1cc6ca-52ef-59f5-83cd-3a7055c09341"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"

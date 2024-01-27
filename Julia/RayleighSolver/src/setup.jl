@@ -8,8 +8,6 @@
 # rough surfaces one can get multiple scattering events.
 =#
 
-using FFTW
-
 const c0 = 299_792_458.0 # [m/s], Speed of light in vacuum
 
 @enum Polarization p s
@@ -120,7 +118,7 @@ function gaussian_surface_gen(rp::RayleighParams)
 
     xs = rp.xs
     N = length(xs)
-    ks = -rp.Q:rp.Δq:rp.Q
+    # ks = -rp.Q:rp.Δq:rp.Q
 
     Z = rp.δ .* randn(Float64, N) |> complex
     F = Wg.(xs, rp.a)
@@ -134,7 +132,21 @@ function single_bump_gen(rp::RayleighParams)
     return rp.δ * exp.((-0.5 / rp.a^2) * rp.xs .^ 2)
 end
 
+
 @enum SurfType flat gaussian singlebump
+function generate!(ys::Vector{Float64}, rp::RayleighParams, surf_t::SurfType)
+    # Generates the surface heights and overwrites ys
+
+    if surf_t == singlebump
+        ys .= single_bump_gen(rp)
+    elseif surf_t == gaussian
+        ys .= gaussian_surface_gen(rp) .|> real
+    elseif surf_t == flat
+        ys .= ones(size(rp.xs)) # Flat surface
+    end
+    return nothing
+end
+
 struct SurfPreAlloc
     #=
         SurfPreAlloc is a struct which contains all
@@ -145,7 +157,6 @@ struct SurfPreAlloc
     # Preallocated steps in the calculations for a given surface
     Mpq::Matrix{ComplexF64}  # Matrix of the Mpq coefficients (A)
     Npk::Vector{ComplexF64}  # Vector of the Npk coefficients (b)
-    R::Vector{ComplexF64}    # Reflection coefficient
     Fys::Vector{ComplexF64}  # Fourier transform of surface heights, prealloc
     sFys::Vector{ComplexF64} # Shifted Fourier transform of surface heights, prealloc
     ys::Vector{Float64}  # Surface heights
@@ -153,21 +164,15 @@ struct SurfPreAlloc
     function SurfPreAlloc(rp::RayleighParams, surf_t::SurfType)
         xs = rp.xs
 
-        if surf_t == singlebump
-            ys = single_bump_gen(rp)
-        elseif surf_t == gaussian
-            ys = gaussian_surface_gen(rp) .|> real
-        elseif surf_t == flat
-            ys = ones(size(xs)) # Flat surface
-        end
+        ys = similar(xs, Float64)
 
+        generate!(ys, rp, surf_t)
         Fys = similar(ys, ComplexF64)
         sFys = similar(Fys)
         Mpq = Matrix{ComplexF64}(undef, rp.Nq + 1, rp.Nq + 1)
         Npk = Vector{ComplexF64}(undef, rp.Nq + 1)
-        R = similar(Npk)
 
-        new(Mpq, Npk, R, Fys, sFys, ys)
+        new(Mpq, Npk, Fys, sFys, ys)
     end
 end
 
