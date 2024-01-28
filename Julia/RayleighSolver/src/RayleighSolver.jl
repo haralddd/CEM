@@ -2,28 +2,32 @@ module RayleighSolver
 
 using LinearAlgebra
 using FFTW
-using Base.Threads
-LinearAlgebra.BLAS.set_num_threads(1)
+import Base.parse
+import Base.string
 
 include("setup.jl")
 include("solver.jl")
 
 export
-    # Setup functions
+    ## Setup
+    # Enums and helper functions
     Polarization, p, s,
-    polarization_from_string,
+    SurfType, flat, gaussian, singlebump, rect,
+    polarization_from_string, surftype_from_string,
+
+    # Structs used in computations
     RayleighParams,
-    params_as_string,
-    SurfPreAlloc,
-    SurfType, flat, gaussian, singlebump,
-    generate!,
+    as_string, parse, SurfPreAlloc,
+    flat_gen!, single_bump_gen!, gaussian_gen!, rect_gen!,
+    surfgen_func_selector!,
+    save_solver_config, load_solver_config, make_solver_config,
 
 
-    # Solver functions
+    ## Solver
     α, α0,
     M_ker, N_ker,
     M_invariant!, N_invariant!,
-    solve!, run_threaded
+    solve!, solve_ensemble
 
 
 

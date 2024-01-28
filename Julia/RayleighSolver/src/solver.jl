@@ -28,45 +28,40 @@ end
 
 function M_invariant!(M::Array{ComplexF64,3}, rp::RayleighParams)::Nothing
     # Calculate the surface invariant part of the Mpq matrix
-    # Invariant under surface change), but NOT incident angle θ0
+    # Invariant under surface change and incident angle θ0
 
     ps = rp.ps
     qs = rp.qs
     κ = rp.ν == p ? rp.ε : rp.μ
     εμ = rp.ε * rp.μ
 
-    for n in axes(M, 3)
-        for i in eachindex(ps)
-            p = ps[i]
-            for j in eachindex(qs)
-                q = qs[j]
-                M[i, j, n] = M_ker(p, q, κ, α(p, εμ), α0(q), n - 1)
-            end
-        end
+    @inbounds for n in axes(M, 3), j in axes(M, 2), i in axes(M, 1)
+        p = ps[i]
+        q = qs[j]
+        M[i, j, n] = M_ker(p, q, κ, α(p, εμ), α0(q), n - 1)
     end
     return nothing
 end
 
-function N_invariant!(N::Matrix{ComplexF64}, rp::RayleighParams, k::Float64)::Nothing
+function N_invariant!(N::Array{ComplexF64,3}, rp::RayleighParams)::Nothing
     # Calculate the surface invariant part of the Npk vector
     # Invariant under surface change, but NOT incident angle θ0
-    # Input k must be the nearest value in qs for correct results
+    # Input ks must be the nearest value in qs for correct results
     ps = rp.ps
+    qs = rp.qs
     κ = rp.ν == p ? rp.ε : rp.μ
     εμ = rp.ε * rp.μ
 
-    for n in axes(N, 2)
-        for i in eachindex(ps)
-            p = ps[i]
-            N[i, n] = N_ker(p, k, κ, α(p, εμ), α0(k), n - 1)
-        end
+    @inbounds for n in axes(N, 3), (j, kj) in enumerate(rp.kis), i in axes(N, 1)
+        p = ps[i]
+        k = qs[kj]
+        N[i, j, n] = N_ker(p, k, κ, α(p, εμ), α0(k), n - 1)
     end
     return nothing
 end
 
 function solve!(sp::SurfPreAlloc, rp::RayleighParams,
-    M_pre::Array{ComplexF64,3}, N_pre::Matrix{ComplexF64},
-    ki::Int)::Nothing
+    M_pre::Array{ComplexF64,3}, N_pre::Array{ComplexF64,3})::Nothing
 
     # Calculates the preallocated surface integral
     # sp is the preallocated surface struct, containing the preallocated output
@@ -85,16 +80,19 @@ function solve!(sp::SurfPreAlloc, rp::RayleighParams,
         rp.FT * sp.Fys # In place FFT
         fftshift!(sp.sFys, sp.Fys)
 
-        for i in axes(sp.Mpq, 1), j in axes(sp.Mpq, 2)
+        for j in axes(sp.Mpq, 2), i in axes(sp.Mpq, 1)
             sp.Mpq[i, j] += M_pre[i, j, n] * sp.sFys[i+j-1]
         end
 
-        for i in eachindex(sp.Npk)
-            sp.Npk[i] -= N_pre[i, n] * sp.sFys[i+ki-1]
+        for (j, kj) in enumerate(rp.kis), i in axes(sp.Npk, 1)
+            sp.Npk[i, j] -= N_pre[i, j, n] * sp.sFys[i+kj-1]
         end
     end
 
-    sp.Npk .= sp.Mpq \ sp.Npk
+    for j in eachindex(rp.kis)
+        sp.Npk[:, j] .= sp.Mpq \ sp.Npk[:, j]
+    end
+
     return nothing
 end
 
@@ -102,7 +100,7 @@ function MDRC_prefactor(k, q, L)::Float64
     return 1 / (2π * L) * α0(q) / α0(k)
 end
 
-function run_threaded(rp; θ=10.0, N_ens::Int=10, surf_t::SurfType=gaussian)
+function solve_ensemble(rp::RayleighParams, sp::SurfPreAlloc, surf_generator!::Function, N_ens::Int)
 
     # Calc the invariant part of Mpk
     display("Calculating invariant parts of Mpk")
@@ -120,8 +118,8 @@ function run_threaded(rp; θ=10.0, N_ens::Int=10, surf_t::SurfType=gaussian)
     k = rp.qs[ki]
 
     display("Calculating invariant parts of Npk")
-    Npk_pre = Matrix{ComplexF64}(undef, length(rp.ps), rp.Ni + 1)
-    @time N_invariant!(Npk_pre, rp, k)
+    Npk_pre = Array{ComplexF64}(undef, length(rp.ps), length(rp.ks), rp.Ni + 1)
+    @time N_invariant!(Npk_pre, rp)
 
     nan_idxs = findall(isnan.(Npk_pre))
     inf_idxs = findall(isinf.(Npk_pre))
@@ -132,59 +130,21 @@ function run_threaded(rp; θ=10.0, N_ens::Int=10, surf_t::SurfType=gaussian)
     qis = findall(q -> q > -1 && q < 1, rp.qs)
     display("Solving for θ0, N: $N_ens")
 
-    # Vector of atomic variables to accumulate results
-    coh_re = [Atomic{Float64}(0.0) for _ in qis]
-    coh_im = [Atomic{Float64}(0.0) for _ in qis]
-    inc = [Atomic{Float64}(0.0) for _ in qis]
+    # Choose the surface type function
+    coh = zeros(ComplexF64, length(qis))
+    incoh = zeros(Float64, length(qis))
 
-    # Write safe preallocation of surface structs
-    T = nthreads()
-    sps = [SurfPreAlloc(rp, surf_t) for _ in 1:T]
+    @time for _ in 1:N_ens
+        surf_generator!(sp.ys)
+        solve!(sp, rp, Mpk_pre, Npk_pre)
 
-    @time @threads for t in 1:T
-        # Get local variables
-        sp = sps[t] # Surface prealloc struct is mutated in place
-
-        coh_local = Vector{ComplexF64}(undef, length(qis)) # Accumulate coherent part
-        inc_local = Vector{Float64}(undef, length(qis)) # Accumulate term to subtract from coherent part
-
-        blk = N_ens ÷ T + (t <= N_ens % T ? 1 : 0) # Number of realizations to solve for in this thread
-
-        for _ in 1:blk # Distribute workload of N_ens over threads
-            generate!(sp.ys, rp, surf_t)
-            solve!(sp, rp, Mpk_pre, Npk_pre, ki)
-
-            # Add to local variables
-            coh_local .+= sp.Npk[qis]
-            inc_local .+= abs2.(sp.Npk[qis]) # First accumulate the term to subtract from the coherent part
-        end
-
-        # Critical section could be better here
-        for i in eachindex(coh_re)
-            atomic_add!(coh_re[i], real(coh_local[i]))
-        end
-        for i in eachindex(coh_im)
-            atomic_add!(coh_im[i], imag(coh_local[i]))
-        end
-        for i in eachindex(inc)
-            atomic_add!(inc[i], inc_local[i])
-        end
+        # Add to local variables
+        coh += sp.Npk[qis]
+        incoh += abs2.(sp.Npk[qis])
     end
 
-    # Take mean and find incoherent part
-    coh = Vector{Float64}(undef, length(qis))
-    incoh = Vector{Float64}(undef, length(qis))
-
-    for (i, qi) in enumerate(qis)
-
-        coh[i] = ((coh_re[i][])^2 + (coh_im[i][])^2) / N_ens
-        incoh[i] = coh[i] - (inc[i][] / N_ens)
-
-        pre = MDRC_prefactor(k, rp.qs[qi], L)
-
-        coh[i] *= pre
-        incoh[i] *= pre
-
-    end
+    coh .= abs2.(coh ./ N_ens)
+    incoh .= MDRC_prefactor.(k, rp.qs[qis], rp.Lx) .* (incoh ./ N_ens .- coh)
+    coh .*= MDRC_prefactor.(k, k, rp.Lx)
     return coh, incoh
 end
