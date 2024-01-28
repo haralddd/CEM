@@ -1,6 +1,6 @@
 using CairoMakie
 using LaTeXStrings
-
+CairoMakie.activate!(type="svg")
 function read_ComplexF64_binary(fn, Nq)
     open(fn, "r") do io
         data = reshape(reinterpret(ComplexF64, read(io)), Nq, :)
@@ -19,57 +19,51 @@ data_dir = readdir("data")
 popat!(data_dir, findfirst(isequal("data-processed"), data_dir))
 display(data_dir)
 
-mdrcs_incoh1 = Vector{Vector{Float64}}(undef, length(data_dir))
-mdrcs_incoh2 = Vector{Vector{Float64}}(undef, length(data_dir))
+mdrcs_incoh = Vector{Vector{Float64}}(undef, length(data_dir))
 
 for i in eachindex(data_dir)
-    mdrcs_incoh[i] = read_Float64_binary(joinpath("data/", data_dir[i], "θ0.0_mdrc_incoh.bin"))
+    mdrcs_incoh[i] = read_Float64_binary(joinpath("data/", data_dir[i], "incoh.bin"))
 end
 
-function save_plot(mdrc_p, mdrc_s, θs, θ0, title)
-    fig = Figure(; size=(500, 400))
-    ax = Axis(fig[1, 1], xlabel=L"$\theta_s$ [deg]", ylabel=L"$$MDRC")
-    lines!(ax,
-        θs, mdrc_p,
-        label="p-polarization",
-        color=:blue,
-        linestyle=:solid,
-        linewidth=1)
-    lines!(ax,
-        θs, mdrc_s,
-        label="s-polarization",
-        color=:red,
-        linestyle=:solid,
-        linewidth=1)
-    # Incidence angle
-    lines!(ax,
-        [θ0, θ0],
-        [0, maximum([mdrc_p; mdrc_s])],
-        label=L"\pm\theta_0",
-        color=(:black, 0.5),
-        linestyle=:dot,
-        linewidth=1)
-    lines!(ax,
-        [-θ0, -θ0],
-        [0, maximum([mdrc_p; mdrc_s])],
-        color=(:black, 0.5),
-        linestyle=:dot,
-        linewidth=1)
 
-    axislegend()
-    tightlimits!(ax)
-    display(fig)
-    save("plots/mdrc_$title.pdf", fig)
-end
 
-save_plot(mdrcs_incoh1[1], mdrcs_incoh1[2], range(-90, 90, length=length(mdrcs_incoh1[1])), 0, "ε2.25_μ1.0_θ0.0")
-save_plot(mdrcs_incoh2[1], mdrcs_incoh2[2], range(-90, 90, length=length(mdrcs_incoh2[1])), 34.05, "ε2.25_μ1.0_θ34.05")
+cvec = mdrcs_incoh[1]
+θs = range(-90, 90, length=length(cvec))
+θ0 = 10.0
 
-save_plot(mdrcs_incoh1[3], mdrcs_incoh1[4], range(-90, 90, length=length(mdrcs_incoh1[1])), 0, "ε-17.5+0.48im_μ1.0_θ0.0")
-save_plot(mdrcs_incoh2[3], mdrcs_incoh2[4], range(-90, 90, length=length(mdrcs_incoh2[1])), 34.05, "ε-17.5+0.48im_μ1.0_θ34.05")
+fig = Figure(fontsize=24)
+ax = Axis(fig[1, 1], xlabel=L"$\theta_s$ [deg]", ylabel=L"Incoh. MDRC $\left[10^{-8}\right]$")
+pad = 1.1
+scale = 10^8
+ylim = pad * maximum(cvec) * scale
+lines!(ax,
+    θs, scale .* cvec,
+    color=:red,
+    linestyle=:solid,
+    linewidth=1)
+# Incidence angle
+lines!(ax,
+    [θ0, θ0],
+    [0, ylim],
+    label=L"$\pm$%$θ0",
+    color=:black,
+    linestyle=:dot,
+    linewidth=2)
+lines!(ax,
+    [-θ0, -θ0],
+    [0, ylim],
+    color=:black,
+    linestyle=:dot,
+    linewidth=2)
 
-save_plot(mdrcs_incoh1[5], mdrcs_incoh1[6], range(-90, 90, length=length(mdrcs_incoh1[1])), 0, "ε1.0_μ-5.0+1.0im_θ0.0")
-save_plot(mdrcs_incoh2[5], mdrcs_incoh2[6], range(-90, 90, length=length(mdrcs_incoh2[1])), 34.05, "ε1.0_μ-5.0+1.0im_θ34.05")
+axislegend()
+# tightlimits!(ax))
+limits!(ax, -90, 90, 0, ylim)
+display(fig)
 
-save_plot(mdrcs_incoh1[7], mdrcs_incoh1[8], range(-90, 90, length=length(mdrcs_incoh1[1])), 0, "ε1.0+1.0im_μ-5.0_θ0.0")
-save_plot(mdrcs_incoh2[7], mdrcs_incoh2[8], range(-90, 90, length=length(mdrcs_incoh2[1])), 34.05, "ε1.0+1.0im_μ-5.0_θ34.05")
+save("plots/mdrc_incoh_ε-7.5+0.24i_p-type.pdf", fig)
+
+# Check coh
+coh = read_Float64_binary("data/2024-01-27T20:54:33.506/coh.bin")
+θs = range(-90, 90, length=length(coh))
+lines(θs, coh)
