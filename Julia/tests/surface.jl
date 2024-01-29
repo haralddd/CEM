@@ -35,13 +35,18 @@ function col_map(f, A)
     return out
 end
 
-function mean_slope(ys::Matrix{Float64}, Δx::Float64)
+function mean_slope(ys::Vector{Float64}, Δx::Float64)
+    # Mean slope of the surface, s
+    return d1o2(ys, Δx) |> x -> sqrt(mean(x .^ 2))
+end
+
+function mean_slope_all(ys::Matrix{Float64}, Δx::Float64)
     # Mean slope of the surface, s
     return sqrt.(mean(col_map(y -> d1o2(y, Δx) .^ 2, ys)))
 end
 
-function mean_slope_int(g::Function, ks::Vector{Float64}, rp::RayleighParams)
-    return rp.δ * sqrt(rp.Δq / 2π * sum(ks .^ 2 .* g.(ks, rp.a)))
+function mean_slope_int(g::Function, ks::Vector{Float64}, Δq, δ, a)
+    return δ * sqrt(Δq / 2π * sum(ks .^ 2 .* g.(ks, a)))
 
 end
 
@@ -50,70 +55,186 @@ function mean_dist(g::Function, ks::Vector{Float64}, a::Float64)
     return π * sqrt(sum(ks .^ 2 .* g.(ks, a)) / (sum(ks .^ 4 .* g.(ks, a))))
 end
 
-function surf_distr()
+function test_gaussian()
     L = 20.0e-6
     δ = 100.0e-9
     a = 100.0e-9
     Nq = 2^10
     ε = -20.0 + 0.48im
     Ni = 10
+
+    δ1 = δ
+    δ2 = δ * 3
+    a1 = a
+    a2 = a * 7
+    L1 = L
+    L2 = L * 3
+    Nq1 = Nq
+    Nq2 = Nq * 2
+
+    surf1 = RayleighSolver.Surface(gaussian, [δ1, a1])
+    surf2 = RayleighSolver.Surface(gaussian, [δ2, a2])
+
     rp1 = RayleighParams(
         ν=p,
-        Nq=Nq,
+        Nq=Nq1,
         ε=ε,
         Ni=Ni,
-        L=L,
-        δ=δ,
-        a=a,
+        L=L1,
+        surf=surf1,
     )
     rp2 = RayleighParams(
         ν=s,
-        Nq=2Nq,
+        Nq=Nq2,
         ε=ε,
         Ni=Ni,
-        L=3L,
-        δ=5δ,
-        a=7a,
+        L=L2,
+        surf=surf2,
     )
     N = 10000
-    ys1 = Matrix{Float64}(undef, length(rp1.xs), N)
-    ys2 = Matrix{Float64}(undef, length(rp2.xs), N)
-    for n in 1:N
-        ys1[:, n] = SurfPreAlloc(rp1, gaussian).ys
-        ys2[:, n] = SurfPreAlloc(rp2, gaussian).ys
+    generate1! = surfgen_func_selector!(rp1)
+    generate2! = surfgen_func_selector!(rp2)
+
+    sp1 = SurfPreAlloc(rp1)
+    sp2 = SurfPreAlloc(rp2)
+
+    rms1 = zeros(N)
+    rms2 = zeros(N)
+
+    slope1 = zeros(N)
+    slope2 = zeros(N)
+    for i in 1:N
+        generate1!(sp1.ys)
+        generate2!(sp2.ys)
+        rms1[i] = sqrt(mean(sp1.ys .^ 2))
+        rms2[i] = sqrt(mean(sp2.ys .^ 2))
+
+        slope1[i] = mean_slope(sp1.ys, rp1.Δx)
+        slope2[i] = mean_slope(sp2.ys, rp2.Δx)
     end
 
     Qs1 = -rp1.Q:rp1.Δq:rp1.Q |> collect
     Qs2 = -rp2.Q:rp2.Δq:rp2.Q |> collect
 
+    #=
     display("Surface function and spectrum:")
-    g1 = gg.(Qs1, rp1.a)
-    W1 = rp1.FT * Wg.(rp1.xs, rp1.a) |> fftshift .|> abs
+    a1s = rp1.surf.surf_params[2]
+    a2s = rp2.surf.surf_params[2]
+    δ1s = rp1.surf.surf_params[1]
+    δ2s = rp2.surf.surf_params[1]
+    g1 = gg.(Qs1, a1s)
+    W1 = rp1.FT * Wg.(rp1.xs, a1s) |> fftshift .|> abs
 
     plot(Qs1, W1, label="𝔽{W}(k)")
     plot!(Qs1, g1, label="g(k)") |> display
+    =#
+
 
     display("--- Mean slope, s ---")
-    display("Analytical = $(√2 * rp1.δ / rp1.a)")
-    display("Analytical scaled = $(√2 * rp2.δ / rp2.a)")
-    display("Numerical = $(mean_slope(ys1, rp1.Δx))")
-    display("Numerical scaled: = $(mean_slope(ys2, rp2.Δx))")
-    display("Integral = $(mean_slope_int(gg, Qs1, rp1))")
-    display("Integral scaled = $(mean_slope_int(gg, Qs2, rp2))")
+    display("Analytical = $(√2 * δ1 / a1)")
+    display("Analytical scaled = $(√2 * δ2 / a2)")
+    display("Ens Numerical = $(mean(slope1))")
+    display("Ens Numerical scaled: = $(mean(slope2))")
 
+    #=
     display("--- Mean peak-valley distance, ⟨D⟩ ---")
-    display("Analytical = $(π/√6 * rp1.a)")
-    display("Analytical scaled = $(π/√6 * rp2.a)")
-    display("Numerical = $(mean_dist(gg, Qs1, rp1.a))")
-    display("Numerical scaled = $(mean_dist(gg, Qs2, rp2.a))")
+    display("Analytical = $(π/√6 * a1)")
+    display("Analytical scaled = $(π/√6 * a2)")
+    display("Numerical = $(mean_dist(gg, Qs1, a1))")
+    display("Numerical scaled = $(mean_dist(gg, Qs2, a2))")
+    =#
 
+    scale = rp1.ω / c0
+    # scale = 1
     display("--- RMS height ---")
-    display("Input = $(rp1.δ)")
-    display("Input scaled = $(rp2.δ)")
-    display("Result = $(.√(mean(ys1 .^ 2)))")
-    display("Result scaled = $(.√(mean(ys2 .^ 2)))")
-
-
+    display("Input = $(δ1)")
+    display("Input scaled = $(δ2)")
+    display("Result = $(mean(rms1) / scale)")
+    display("Result scaled = $(mean(rms2) / scale)")
 end
 
-surf_distr()
+test_gaussian()
+
+function test_rect()
+    L = 20.0e-6
+    δ = 100.0e-9
+    Nq = 2^10
+    ε = -20.0 + 0.48im
+    Ni = 10
+
+    δ1 = δ
+    δ2 = δ * 3
+    km1 = 0.8
+    km2 = 0.7
+    kp1 = 1.2
+    kp2 = 1.3
+    L1 = L
+    L2 = L * 3
+    Nq1 = Nq
+    Nq2 = Nq * 2
+
+    surf1 = RayleighSolver.Surface(rect, [δ1, km1, kp1])
+    surf2 = RayleighSolver.Surface(rect, [δ2, km2, kp2])
+
+    rp1 = RayleighParams(
+        ν=p,
+        Nq=Nq1,
+        ε=ε,
+        Ni=Ni,
+        L=L1,
+        surf=surf1,
+    )
+    rp2 = RayleighParams(
+        ν=s,
+        Nq=Nq2,
+        ε=ε,
+        Ni=Ni,
+        L=L2,
+        surf=surf2,
+    )
+    N = 1
+    generate1! = surfgen_func_selector!(rp1)
+    generate2! = surfgen_func_selector!(rp2)
+
+    sp1 = SurfPreAlloc(rp1)
+    sp2 = SurfPreAlloc(rp2)
+
+    rms1 = zeros(N)
+    rms2 = zeros(N)
+
+    slope1 = zeros(N)
+    slope2 = zeros(N)
+
+    for i in 1:N
+        generate1!(sp1.ys)
+        generate2!(sp2.ys)
+
+        rms1[i] = sqrt(mean(sp1.ys .^ 2))
+        rms2[i] = sqrt(mean(sp2.ys .^ 2))
+
+        slope1[i] = mean_slope(sp1.ys, rp1.Δx)
+        slope2[i] = mean_slope(sp2.ys, rp2.Δx)
+    end
+
+
+
+    display("--- Mean slope, s ---")
+
+    slope = (δ, km, kp) -> δ / √3 * √(kp^2 + kp * km + km^2)
+
+    scale = rp1.ω / c0
+    display("Analytical = $(slope(δ1, km1, kp1))")
+    display("Analytical scaled = $(slope(δ2, km2, kp2))")
+    display("Ens Numerical = $(mean(slope1) / scale)")
+    display("Ens Numerical scaled: = $(mean(slope2) / scale)")
+
+    # scale = 1
+    display("--- RMS height ---")
+    display("Input = $(δ1)")
+    display("Input scaled = $(δ2)")
+    display("Result = $(mean(rms1) / scale)")
+    display("Result scaled = $(mean(rms2) / scale)")
+end
+
+
+test_rect()

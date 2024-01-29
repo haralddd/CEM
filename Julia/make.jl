@@ -1,3 +1,7 @@
+#=
+For command line use
+=#
+
 push!(LOAD_PATH, "Julia/RayleighSolver/")
 using RayleighSolver
 

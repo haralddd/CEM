@@ -15,6 +15,7 @@ function read_Float64_binary(fn)
     end
 end
 # Read from data folder and config.txt
+#=
 data_dir = readdir("data")
 popat!(data_dir, findfirst(isequal("data-processed"), data_dir))
 display(data_dir)
@@ -24,10 +25,8 @@ mdrcs_incoh = Vector{Vector{Float64}}(undef, length(data_dir))
 for i in eachindex(data_dir)
     mdrcs_incoh[i] = read_Float64_binary(joinpath("data/", data_dir[i], "incoh.bin"))
 end
+=#
 
-
-
-cvec = mdrcs_incoh[1]
 θs = range(-90, 90, length=length(cvec))
 θ0 = 10.0
 
@@ -62,8 +61,3 @@ limits!(ax, -90, 90, 0, ylim)
 display(fig)
 
 save("plots/mdrc_incoh_ε-7.5+0.24i_p-type.pdf", fig)
-
-# Check coh
-coh = read_Float64_binary("data/2024-01-27T20:54:33.506/coh.bin")
-θs = range(-90, 90, length=length(coh))
-lines(θs, coh)

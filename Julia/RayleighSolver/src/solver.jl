@@ -100,51 +100,51 @@ function MDRC_prefactor(k, q, L)::Float64
     return 1 / (2π * L) * α0(q) / α0(k)
 end
 
-function solve_ensemble(rp::RayleighParams, sp::SurfPreAlloc, surf_generator!::Function, N_ens::Int)
+function solve_MDRC!(rp::RayleighParams, sp::SurfPreAlloc, surf_generator!::Function, N_ens::Int)
+    # Solve the Rayleigh problem for a given RayleighParams struct
+    # sp is the preallocated surface struct, containing the preallocated output, this is mutated in place
+    # rp is the RayleighParams struct, containing the constant parameters for the calculation
+    # surf_generator! is a function that generates the surface sp.ys for each iteration
+    # N_ens is the number of ensemble averages to perform
+    # returns the coherent and incoherent MDRC
 
     # Calc the invariant part of Mpk
     display("Calculating invariant parts of Mpk")
     Mpk_pre = Array{ComplexF64,3}(undef, length(rp.ps), length(rp.qs), rp.Ni + 1)
+    Npk_pre = Array{ComplexF64,3}(undef, length(rp.ps), length(rp.kis), rp.Ni + 1)
+
     @time M_invariant!(Mpk_pre, rp)
-
-    # Check for NaNs and Infs
-    nan_idxs = findall(isnan.(Mpk_pre))
-    inf_idxs = findall(isinf.(Mpk_pre))
-    @assert length(nan_idxs) == 0 "Mpk_pre has NaNs at indices $nan_idxs"
-    @assert length(inf_idxs) == 0 "Mpk_pre has Infs at indices $inf_idxs"
-
-    #### First angle
-    ki = searchsortedfirst(rp.qs, sind(θ), rev=true)
-    k = rp.qs[ki]
-
-    display("Calculating invariant parts of Npk")
-    Npk_pre = Array{ComplexF64}(undef, length(rp.ps), length(rp.ks), rp.Ni + 1)
     @time N_invariant!(Npk_pre, rp)
 
-    nan_idxs = findall(isnan.(Npk_pre))
-    inf_idxs = findall(isinf.(Npk_pre))
-    @assert length(nan_idxs) == 0 "Npk_pre has NaNs at indices $nan_idxs"
-    @assert length(inf_idxs) == 0 "Npk_pre has Infs at indices $inf_idxs"
+    @assert all(isfinite.(Mpk_pre))
+    @assert all(isfinite.(Npk_pre))
 
     # Reduced q-vector indices
     qis = findall(q -> q > -1 && q < 1, rp.qs)
     display("Solving for θ0, N: $N_ens")
 
     # Choose the surface type function
-    coh = zeros(ComplexF64, length(qis))
-    incoh = zeros(Float64, length(qis))
+    coh = zeros(ComplexF64, (length(qis), length(rp.kis)))
+    incoh = zeros(Float64, (length(qis), length(rp.kis)))
 
     @time for _ in 1:N_ens
         surf_generator!(sp.ys)
         solve!(sp, rp, Mpk_pre, Npk_pre)
 
         # Add to local variables
-        coh += sp.Npk[qis]
-        incoh += abs2.(sp.Npk[qis])
+        coh += sp.Npk[qis, :]
+        incoh += abs2.(sp.Npk[qis, :])
     end
 
-    coh .= abs2.(coh ./ N_ens)
-    incoh .= MDRC_prefactor.(k, rp.qs[qis], rp.Lx) .* (incoh ./ N_ens .- coh)
-    coh .*= MDRC_prefactor.(k, k, rp.Lx)
-    return coh, incoh
+    display("Largest value of coh: $(maximum(abs2.(coh)))")
+    display("Largest value of incoh: $(maximum(abs.(incoh)))")
+    display("If these are too large, floating point errors may occur")
+
+    coh_res = abs2.(coh ./ N_ens)
+    for (i, ki) in enumerate(rp.kis)
+        A = MDRC_prefactor.(rp.qs[ki], rp.qs[qis], rp.Lx)
+        incoh[:, i] .= A .* (incoh[:, i] ./ N_ens .- coh_res[:, i])
+        coh_res[:, i] .*= A
+    end
+    return coh_res, incoh
 end
