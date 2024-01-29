@@ -229,16 +229,26 @@ end
 #### O'Donnel rectangular correlation function for surface generation
 H(x::Float64)::Float64 = (x > 0.0 ? 1.0 : 0.0) # Heaviside step function
 
-Wr(x, km, kp) = (sin(kp * x) - sin(km * x)) / ((kp - km) * x)
+Wr(x, km, kp) = (sin(kp * x) - sin(km * x)) / ((kp - km) * x) # Handle when x = 0 in rect_gen!
+
 gr(k, km, kp) = π / (kp - km) * (H(kp - k) * H(k - km) + H(kp - k) * H(-k - km))
 
-function rect_gen!(ys::Vector{Float64}, Qs::Vector{Float64}, FT::FFTW.cFFTWPlan{ComplexF64,-1,true,1,Tuple{Int64}},
+function rect_gen!(ys::Vector{Float64}, xs::Vector{Float64}, FT::FFTW.cFFTWPlan{ComplexF64,-1,true,1,Tuple{Int64}},
     δ::Float64, km::Float64, kp::Float64)::Nothing
     # Overwrites ys with a surface defined by the
     # rectangular West-O'Donnel correlation function
     # δ is the RMS height in unit of c/ω
-    Z = δ .* randn(Float64, length(Qs)) |> complex
-    ys .= (FT \ ((FT * Z) .* sqrt.(gr.(Qs, km, kp)))) |> real
+    Z = δ .* randn(Float64, length(ys)) |> complex
+
+    # xs → 0.0 is a special case, so we handle it separately
+    zr = ceil(Int64, length(xs) / 2)
+
+    corr = Vector{ComplexF64}(undef, length(xs))
+    corr[zr] = 1.0 # From Taylor series around x = 0
+    corr[zr+1:end] .= Wr.(xs[zr+1:end], km, kp)
+    corr[1:zr-1] .= Wr.(xs[1:zr-1], km, kp)
+
+    ys .= FT \ ((FT * Z) .* sqrt.(FT * corr)) .|> real
     return nothing
 end
 
@@ -246,13 +256,13 @@ end
 Wg(x, a) = exp(-x^2 / a^2)
 gg(k, a) = √π * a * exp(-(a * k / 2.0)^2)
 
-function gaussian_gen!(ys::Vector{Float64}, Qs::Vector{Float64}, FT::FFTW.cFFTWPlan{ComplexF64,-1,true,1,Tuple{Int64}},
+function gaussian_gen!(ys::Vector{Float64}, xs::Vector{Float64}, FT::FFTW.cFFTWPlan{ComplexF64,-1,true,1,Tuple{Int64}},
     δ::Float64, a::Float64)::Nothing
     # Overwrites ys with a surface defined by
     # the Gaussian correlation function
 
     Z = δ .* randn(Float64, length(ys)) |> complex
-    ys .= FT \ ((FT * Z) .* sqrt.(gg.(Qs, a))) .|> real
+    ys .= FT \ ((FT * Z) .* sqrt.(FT * Wg.(xs, a))) .|> real
     return nothing
 end
 
@@ -303,11 +313,11 @@ function surfgen_func_selector!(rp::RayleighParams)::Function
     # Returns a function which overwrites sp.ys for each call
     surf_t = rp.surf.surf_t
     if surf_t == rect
-        Qs = -rp.Q:rp.Δq:rp.Q
-        return (ys) -> rect_gen!(ys, Qs, rp.FT, rp.surf.surf_params...)
+        # Qs = -rp.Q:rp.Δq:rp.Q |> collect
+        return (ys) -> rect_gen!(ys, rp.xs, rp.FT, rp.surf.surf_params...)
     elseif surf_t == gaussian
-        Qs = -rp.Q:rp.Δq:rp.Q
-        return (ys) -> gaussian_gen!(ys, Qs, rp.FT, rp.surf.surf_params...)
+        # Qs = -rp.Q:rp.Δq:rp.Q |> collect
+        return (ys) -> gaussian_gen!(ys, rp.xs, rp.FT, rp.surf.surf_params...)
     elseif surf_t == singlebump
         return (ys) -> single_bump_gen!(ys, rp.xs, rp.surf.surf_params...)
     else

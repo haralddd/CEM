@@ -11,12 +11,14 @@ include("solver.jl")
 export
     ## Setup
     # Enums and helper functions
+    c0,
     Polarization, p, s,
     SurfType, flat, gaussian, singlebump, rect,
     polarization_from_string, surftype_from_string,
+    Wg, gg, Wr, gr,
 
     # Structs used in computations
-    RayleighParams,
+    Surface, RayleighParams,
     as_string, parse, SurfPreAlloc,
     flat_gen!, single_bump_gen!, gaussian_gen!, rect_gen!,
     surfgen_func_selector!,
@@ -27,7 +29,7 @@ export
     α, α0,
     M_ker, N_ker,
     M_invariant!, N_invariant!,
-    solve!, solve_ensemble
+    solve!, solve_MDRC!
 
 
 
