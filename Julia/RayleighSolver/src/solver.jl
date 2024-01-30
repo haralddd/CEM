@@ -121,21 +121,24 @@ function solve_MDRC!(rp::RayleighParams, sp::SurfPreAlloc, surf_generator!::Func
 
     # Reduced q-vector indices
     qis = findall(q -> q > -1 && q < 1, rp.qs)
-    display("Solving for θ0, N: $N_ens")
+    display("Solving for R, N: $N_ens")
 
     # Choose the surface type function
-    coh = zeros(ComplexF64, (length(qis), length(rp.kis)))
-    incoh = zeros(Float64, (length(qis), length(rp.kis)))
+    res = zeros(ComplexF64, (length(qis), length(rp.kis), N_ens))
 
-    @time for _ in 1:N_ens
+    @time for n in 1:N_ens
         surf_generator!(sp.ys)
         solve!(sp, rp, Mpk_pre, Npk_pre)
 
         # Add to local variables
-        coh += sp.Npk[qis, :]
-        incoh += abs2.(sp.Npk[qis, :])
+        for j in eachindex(rp.kis)
+            for (i, qi) in enumerate(qis)
+                res[i, j, n] = sp.Npk[qi, j]
+            end
+        end
     end
 
+    #=
     display("Largest value of coh: $(maximum(abs2.(coh)))")
     display("Largest value of incoh: $(maximum(abs.(incoh)))")
     display("If these are too large, floating point errors may occur")
@@ -146,5 +149,21 @@ function solve_MDRC!(rp::RayleighParams, sp::SurfPreAlloc, surf_generator!::Func
         incoh[:, i] .= A .* (incoh[:, i] ./ N_ens .- coh_res[:, i])
         coh_res[:, i] .*= A
     end
-    return coh_res, incoh
+    =#
+
+    coh = zeros(Float64, (length(qis), length(rp.kis)))
+    incoh = zeros(Float64, (length(qis), length(rp.kis)))
+
+    for (j, k) in enumerate(rp.ks)
+        for (i, q) in enumerate(rp.qs[qis])
+            prefactor = α0(q)^2 / (α0(k))
+            coh[i, j] = prefactor * abs2.(mean(res[i, j, :]))
+            incoh[i, j] = prefactor * mean(abs2.(res[i, j, :])) - coh[i, j]
+        end
+    end
+
+    # Since q is defined reversed in the RayleighParams struct, we need to reverse the output
+    reverse!(coh, dims=1)
+    reverse!(incoh, dims=1)
+    return coh, incoh
 end

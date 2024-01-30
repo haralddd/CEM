@@ -12,7 +12,7 @@ function unitary(R, rp, k)
     return sum
 end
 
-function test_unitarity(; surf_t::SurfType=flat, ε=2.25, μ=1.0, ν::Polarization=p)
+function test_unitarity_plot(; surf_t::SurfType=flat, ε=2.25, μ=1.0, ν::Polarization=p)
     θ0 = 45.0
     L = 10.0e-6
     ims = range(1e-1im, 1e-4im, length=50)
@@ -46,9 +46,9 @@ function test_unitarity(; surf_t::SurfType=flat, ε=2.25, μ=1.0, ν::Polarizati
 end
 
 display("Running unitarity simulations for p")
-ims_p, res_p = test_unitarity(surf_t=flat, ε=-20, μ=1, ν=p)
+ims_p, res_p = test_unitarity_plot(surf_t=flat, ε=-20, μ=1, ν=p)
 display("Running unitarity simulations for s")
-ims_s, res_s = test_unitarity(surf_t=flat, ε=1, μ=-20, ν=s)
+ims_s, res_s = test_unitarity_plot(surf_t=flat, ε=1, μ=-20, ν=s)
 
 fig = Figure(; size=(500, 400))
 ax = Axis(fig[1, 1], xlabel=L"Im$(\varepsilon)$", ylabel=L"$$Scattered intensity")

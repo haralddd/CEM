@@ -3,7 +3,6 @@ using RayleighSolver
 using Statistics
 using CairoMakie
 using LaTeXStrings
-using FFTW
 
 
 function d1o2(x, Δx)
@@ -57,7 +56,7 @@ end
 
 function test_gaussian()
     L = 20.0e-6
-    δ = 100.0e-9
+    δ = 10.0e-9
     a = 100.0e-9
     Nq = 2^10
     ε = -20.0 + 0.48im
@@ -151,13 +150,26 @@ function test_gaussian()
     display("Input scaled = $(δ2)")
     display("Result = $(mean(rms1) / scale)")
     display("Result scaled = $(mean(rms2) / scale)")
+
+
+    figscale = 1e6
+    fig = Figure(fontsize=24)
+    ax = Axis(fig[1, 1], xlabel=L"x [μm]$$", ylabel=L"y [μm]$$")
+    lines!(ax, rp1.xs ./ scale * figscale, sp1.ys ./ scale * figscale,
+        linestyle=:solid,
+        linewidth=1)
+
+    ylims!(ax, -5 * δ1 * figscale, 5 * δ1 * figscale)
+
+    display(fig)
+    save("plots/test_gaussian.pdf", fig)
 end
 
 test_gaussian()
 
 function test_rect()
     L = 20.0e-6
-    δ = 100.0e-9
+    δ = 10.0e-9
     Nq = 2^10
     ε = -20.0 + 0.48im
     Ni = 10
@@ -192,7 +204,7 @@ function test_rect()
         L=L2,
         surf=surf2,
     )
-    N = 1
+    N = 10_000
     generate1! = surfgen_func_selector!(rp1)
     generate2! = surfgen_func_selector!(rp2)
 
@@ -223,10 +235,10 @@ function test_rect()
     slope = (δ, km, kp) -> δ / √3 * √(kp^2 + kp * km + km^2)
 
     scale = rp1.ω / c0
-    display("Analytical = $(slope(δ1, km1, kp1))")
-    display("Analytical scaled = $(slope(δ2, km2, kp2))")
-    display("Ens Numerical = $(mean(slope1) / scale)")
-    display("Ens Numerical scaled: = $(mean(slope2) / scale)")
+    display("Analytical = $(slope(δ1, km1, kp1)*scale)")
+    display("Analytical scaled = $(slope(δ2, km2, kp2)*scale)")
+    display("Ens Numerical = $(mean(slope1))")
+    display("Ens Numerical scaled: = $(mean(slope2))")
 
     # scale = 1
     display("--- RMS height ---")
@@ -234,7 +246,37 @@ function test_rect()
     display("Input scaled = $(δ2)")
     display("Result = $(mean(rms1) / scale)")
     display("Result scaled = $(mean(rms2) / scale)")
+
+
+    display(rp1.Lx / scale)
+    display(rp2.Lx / scale)
+
+    figscale = 1e6
+    fig = Figure(fontsize=24)
+    ax = Axis(fig[1, 1], xlabel=L"$$x", ylabel=L"$$y")
+    lines!(ax, rp1.xs ./ scale * figscale, sp1.ys ./ scale * figscale,
+        linestyle=:solid,
+        linewidth=1)
+
+    ylims!(ax, -5 * δ1 * figscale, 5 * δ1 * figscale)
+
+    display(fig)
+    save("plots/test_rect.pdf", fig)
 end
 
-
 test_rect()
+
+
+function test_file_load()
+
+    rp, sp, generator! = load_solver_config("input/rect_silver_p")
+
+    generator!(sp.ys)
+    scale = rp.ω / c0
+
+    display(rp.surf.surf_params / scale)
+    display(√(mean(sp.ys .^ 2)) / scale)
+
+end
+
+test_file_load()
