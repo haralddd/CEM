@@ -138,7 +138,8 @@ struct RayleighParams
         Δx = Lx / Nx
         xs = -Lx/2:Δx:Lx/2
 
-        kis = [searchsortedfirst(qs, k, rev=true) for k in ks]
+        kis = [searchsortedfirst(qs, k, rev=true) for k in ks] |> collect
+        ks = qs[kis]
 
         new(plan_fft!(similar(xs, ComplexF64)),
             xs, ps, qs, ks, kis,
@@ -189,7 +190,6 @@ function parse(::Type{RayleighParams}, str::String)::RayleighParams
     end
 
     surf_params = dict["surf_params"]
-    display(surf_params)
     if surf_params == "Float64[]"
         surf_params = Vector{Float64}()
     else
@@ -362,7 +362,7 @@ function make_solver_config()::Tuple{RayleighParams,SurfPreAlloc,Function}
 
     print("λ [nm] (=632.8): ")
     in = readline()
-    λ = parse(Float64, in == "" ? "600" : in) * 1e-9
+    λ = parse(Float64, in == "" ? "632.8" : in) * 1e-9
 
     print("Q [multiple of ω/c] (=4): ")
     in = readline()
@@ -395,7 +395,7 @@ function make_solver_config()::Tuple{RayleighParams,SurfPreAlloc,Function}
     if surf_t == rect
         print("δ [nm] (=5.0): ")
         in = readline()
-        δ = parse(Float64, in == "" ? "5.0" : in) * λ
+        δ = parse(Float64, in == "" ? "5.0" : in) * 1e-9
 
         print("km [scaled to ω/c] (=0.8): ")
         in = readline()
@@ -409,11 +409,11 @@ function make_solver_config()::Tuple{RayleighParams,SurfPreAlloc,Function}
     elseif surf_t == gaussian || surf_t == singlebump
         print("δ [nm] (=5.0): ")
         in = readline()
-        δ = parse(Float64, in == "" ? "5.0" : in) * λ
+        δ = parse(Float64, in == "" ? "5.0" : in) * 1e-9
 
-        print("a [multiple of λ] (=1.0): ")
+        print("a [nm] (=1.0): ")
         in = readline()
-        a = parse(Float64, in == "" ? "1.0" : in) * λ
+        a = parse(Float64, in == "" ? "1.0" : in) * 1e-9
 
         surf_params = [δ, a]
     else

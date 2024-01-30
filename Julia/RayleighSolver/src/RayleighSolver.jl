@@ -2,6 +2,7 @@ module RayleighSolver
 
 using LinearAlgebra
 using FFTW
+using Statistics
 import Base.parse
 import Base.string
 

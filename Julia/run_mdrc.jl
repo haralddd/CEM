@@ -4,6 +4,7 @@ using RayleighSolver
 using Dates
 using CairoMakie
 using LaTeXStrings
+using Statistics
 
 function setup_dir(str="data")
     display("Adding suffix to dir")
@@ -13,12 +14,27 @@ function setup_dir(str="data")
     return str
 end
 
-function plot_mdrc(coh, incoh, θ0s=[0, 10, 20], name="simonsen_fig18_p")
+function save_data(coh, incoh, path)
+    # Save data
+    for i in axes(incoh, 2)
+        open(path * "/coh$i.bin", "w") do io
+            write(io, coh)
+        end
+        open(path * "/incoh$i.bin", "w") do io
+            write(io, incoh)
+        end
+    end
+    display("Saved data to $path")
+end
+
+function plot_mdrc(; coh, incoh, θ0s=[0, 10, 20], colors=[:red, :blue, :green], name="simonsen_fig18_p")
     θs = range(-90, 90, length=size(incoh, 1))
 
     fig = Figure(fontsize=24)
     ax = Axis(fig[1, 1], xlabel=L"$\theta_s$ [deg]", ylabel=L"Incoh. MDRC $$")
-    ylim = maximum(incoh)
+    ymean = mean(incoh)
+    ymax = maximum(incoh)
+    ylim = 1.1ymax > 2.0 * ymean ? 1.1ymax : 2.0 * ymean
     for i in axes(incoh, 2)
         θ0 = θ0s[i]
         y = incoh[:, i]
@@ -26,19 +42,20 @@ function plot_mdrc(coh, incoh, θ0s=[0, 10, 20], name="simonsen_fig18_p")
             θs, y,
             label=L"$\theta_0=$%$θ0",
             linestyle=:solid,
-            linewidth=1)
+            linewidth=1,
+            color=colors[i])
         lines!(ax,
             [θ0, θ0],
             [0, ylim],
             color=:black,
             linestyle=:dot,
-            linewidth=2)
+            linewidth=1)
         lines!(ax,
             [-θ0, -θ0],
             [0, ylim],
             color=:black,
             linestyle=:dot,
-            linewidth=2)
+            linewidth=1)
 
     end
     axislegend()
@@ -74,44 +91,82 @@ function cmd_line_run()
     end
     coh, incoh = solve_MDRC!(rp, sp, generator!, N_ens)
 
-    # Save data
-    for i in axes(incoh, 2)
-        open(run_dir * "/coh$i.bin", "w") do io
-            write(io, coh)
-        end
-        open(run_dir * "/incoh$i.bin", "w") do io
-            write(io, incoh)
-        end
-    end
-    display("Saved data to $run_dir")
+    save_data(coh, incoh, run_dir)
 end
 
-
-function predefined_run()
+function run_mdrc_silver()
     display("Running for p")
-    rp, sp, generator! = load_solver_config("input/simonsen_fig18_p.txt")
+    rp, sp, generator! = load_solver_config("input/silver_rect_p")
 
-    coh, incoh = solve_MDRC!(rp, sp, generator!, 10000)
+    N = 10_000
+
+    coh, incoh = solve_MDRC!(rp, sp, generator!, N)
+    qis = findall(q -> q > -1 && q < 1, rp.qs)
+
+    unit = zeros(size(coh, 2))
+    for (i, qi) in enumerate(qis)
+        unit[:] += (incoh[i, :] + coh[i, :]) / α0(rp.qs[qi])
+    end
+    display(unit)
+
     display("Plotting for p")
-    plot_mdrc(coh, incoh, [0, 10, 20], "simonsen_fig18_p")
+    plot_mdrc(; coh=coh, incoh=incoh, name="silver_rect_p")
+
 
     display("Running for s")
-    rp, sp, generator! = load_solver_config("input/simonsen_fig18_s.txt")
+    rp, sp, generator! = load_solver_config("input/silver_rect_s")
 
-    coh, incoh = solve_MDRC!(rp, sp, generator!, 10000)
-    plot_mdrc(coh, incoh, [0, 10, 20], "simonsen_fig18_s")
+    coh, incoh = solve_MDRC!(rp, sp, generator!, N)
+
+    unit = zeros(size(coh, 2))
+    for (i, qi) in enumerate(qis)
+        unit[:] += (incoh[i, :] + coh[i, :]) / α0(rp.qs[qi])
+    end
+    display(unit)
+
+
+    plot_mdrc(; coh=coh, incoh=incoh, name="silver_rect_s")
+    display("Done and saved plots")
+end
+
+function run_mdrc_magnetic()
+    N = 10_000
+
+    display("Running for magnetic p gaussian")
+    rp, sp, generator! = load_solver_config("input/magnetic_p")
+    coh, incoh = solve_MDRC!(rp, sp, generator!, N)
+    plot_mdrc(; coh=coh, incoh=incoh, name="magnetic_p_gaussian")
+
+
+    display("Running for magnetic s gaussian")
+    rp, sp, generator! = load_solver_config("input/magnetic_s")
+    coh, incoh = solve_MDRC!(rp, sp, generator!, N)
+    plot_mdrc(; coh=coh, incoh=incoh, name="magnetic_s_gaussian")
+
+    display("Running for magnetic p rect")
+    rp, sp, generator! = load_solver_config("input/magnetic_p_rect")
+    coh, incoh = solve_MDRC!(rp, sp, generator!, N)
+    plot_mdrc(; coh=coh, incoh=incoh, name="magnetic_p_rect")
+
+    display("Running for magnetic s rect")
+    rp, sp, generator! = load_solver_config("input/magnetic_s_rect")
+    coh, incoh = solve_MDRC!(rp, sp, generator!, N)
+    plot_mdrc(; coh=coh, incoh=incoh, name="magnetic_s_rect")
+
     display("Done and saved plots")
 end
 
 if abspath(PROGRAM_FILE) == @__FILE__
-    print("Load a config [y] or run as defined in code [any]? ")
+    print("Load a config [y], run silver [silver], or run magnetic [magnetic]? ")
     in = readline()
     if in == "y"
         cmd_line_run()
+    elseif in == "silver"
+        run_mdrc_silver()
+    elseif in == "magnetic"
+        run_mdrc_magnetic()
     else
-        predefined_run()
+        println("Invalid input")
     end
-else
-    predefined_run()
 end
 
