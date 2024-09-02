@@ -1,37 +1,51 @@
+"""Implements optical scattering under the reduced Rayleigh equations
+Effectively solves Maxwell's equations for a singularly polarized wave
+on a partially symmetric rough surface. Satisfying the boundary conditions
+
+The reduced Rayleigh equations are a set of coupled integral equations
+which assume that far field scattering conditions (singular direction, up/down in 1D)
+can be used all the way down to the rough surface boundary even though for strongly
+rough surfaces one can get multiple scattering events.
+"""
 module RayleighSolver
 
 using LinearAlgebra
 using FFTW
 using Statistics
+using Random: Xoshiro
+using JLD2, FileIO
 import Base.parse
-import Base.string
+import Base.show
+import Base.display
+import Base.convert
 
+include("simulation_prealloc.jl")
+include("surface.jl")
 include("setup.jl")
+include("surface_generator.jl")
+include("utils.jl")
 include("solver.jl")
+# From simulation_prealloc.jl
+export SimulationPreAlloc
 
-export
-    ## Setup
-    # Enums and helper functions
-    c0,
-    Polarization, p, s,
-    SurfType, flat, gaussian, singlebump, rect,
-    polarization_from_string, surftype_from_string,
-    Wg, gg, Wr, gr,
+# From surface.jl
+export SurfaceParams, FlatSurfaceParams, GaussianSurfaceParams, SingleBumpSurfaceParams, RectSurfaceParams
+export scale
 
-    # Structs used in computations
-    Surface, RayleighParams,
-    as_string, parse, SurfPreAlloc,
-    flat_gen!, single_bump_gen!, gaussian_gen!, rect_gen!,
-    surfgen_func_selector!,
-    save_solver_config, load_solver_config, make_solver_config,
+# From setup.jl
+export RayleighParams, Polarization
+export c0, p, s
+export get_angles
 
+# From surface_generator.jl
+export generate!
 
-    ## Solver
-    α, α0,
-    M_ker, N_ker,
-    M_invariant!, N_invariant!,
-    solve!, solve_MDRC!
+# From solver.jl
+export solve!, solve_MDRC!
 
-
+# From utils.jl
+export config_creation_prompt, config_default_creation
+export save_to, load_rp_struct, load_rp_desc
+export parse, show, display, convert # Overloaded base methods for most objects
 
 end # module RayleighSolver
