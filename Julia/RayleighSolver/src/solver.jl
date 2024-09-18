@@ -114,21 +114,32 @@ function solve!(sp::SimulationPreAlloc, rp::RayleighParams,
     sp.Npk .= 0.0
 
     for n in axes(M_pre, 3)
-        sp.Fys .= sp.ys .^ (n - 1)
-        rp.FFT * sp.Fys # In place FFT
-        fftshift!(sp.sFys, sp.Fys)
+        display("1")
+        @time for i in eachindex(sp.Fys)
+            sp.Fys[i] = sp.ys[i] ^ (n - 1)
+        end
 
-        for j in axes(sp.Mpq, 2), i in axes(sp.Mpq, 1)
+        display("2")
+        @time rp.FFT * sp.Fys # In place FFT
+
+        display("3")
+        @time fftshift!(sp.sFys, sp.Fys)
+
+        display("4")
+        @time for j in axes(sp.Mpq, 2), i in axes(sp.Mpq, 1)
             sp.Mpq[i, j] += M_pre[i, j, n] * sp.sFys[i+j-1]
         end
 
-        for (j, kj) in enumerate(rp.kis), i in axes(sp.Npk, 1)
+        display("5")
+        @time for (j, kj) in enumerate(rp.kis), i in axes(sp.Npk, 1)
             sp.Npk[i, j] -= N_pre[i, j, n] * sp.sFys[i+kj-1]
         end
     end
 
-    for j in eachindex(rp.kis)
-        sp.Npk[:, j] .= sp.Mpq \ sp.Npk[:, j]
+    display("6")
+    bunchkaufman!(sp.Mpq)
+    @time for j in eachindex(rp.kis)
+        ldiv!(sp.Mpq, sp.Npk[:, j])
     end
 
     return nothing
@@ -175,8 +186,8 @@ function solve_MDRC!(rp::RayleighParams, sp::SimulationPreAlloc, N_ens::Int)
     #     solve!(my_sp, rp, Mpk_pre, Npk_pre)
     for n in 1:N_ens
 
-        @time generate!(sp, rp)
-        @time solve!(sp, rp, Mpk_pre, Npk_pre)
+        generate!(sp, rp)
+        solve!(sp, rp, Mpk_pre, Npk_pre)
 
         # Add to local variables
         for j in eachindex(rp.kis)
