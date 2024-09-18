@@ -5,7 +5,7 @@ using Plots
 function test_solve(surf::T) where T<:SurfaceParams
     rp, sp = default_params_for_surface_testing(surf)
 
-    M = 100
+    M = 10
     qs, coh, incoh = solve_MDRC!(rp, sp, M)
     plt_coh = plot(qs, coh, yscale=:log10, title="$surf coherent MDRC")
     plt_incoh = plot(qs, incoh, yscale=:log10, title="$surf incoherent MDRC")
