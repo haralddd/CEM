@@ -159,17 +159,24 @@ function solve_MDRC!(rp::RayleighParams, sp::SimulationPreAlloc, N_ens::Int)
 
     # Reduced q-vector indices
     qis = findall(q -> q > -1 && q < 1, rp.qs)
+    qs_reduced = rp.qs[qis]
     @info "Solving for R, N: $N_ens"
 
-    # Choose the surface type function
-    res = zeros(ComplexF64, (length(qis), length(rp.kis), N_ens))
 
-    
-    @show @time generate!(sp, rp)
+    @show thr_sz = Threads.nthreads()
 
-    @time for n in 1:N_ens
-        generate!(sp, rp)
-        solve!(sp, rp, Mpk_pre, Npk_pre)
+    sp_vec = [deepcopy(sp) for _ in 1:thr_sz]
+    res = zeros(ComplexF64, length(qis), length(rp.kis), N_ens)
+    @time begin
+    # Threads.@threads for n in 1:N_ens
+    #     tid = Threads.threadid()
+    #     my_sp = sp_vec[tid]
+    #     generate!(my_sp, rp)
+    #     solve!(my_sp, rp, Mpk_pre, Npk_pre)
+    for n in 1:N_ens
+
+        @time generate!(sp, rp)
+        @time solve!(sp, rp, Mpk_pre, Npk_pre)
 
         # Add to local variables
         for j in eachindex(rp.kis)
@@ -178,12 +185,13 @@ function solve_MDRC!(rp::RayleighParams, sp::SimulationPreAlloc, N_ens::Int)
             end
         end
     end
+    end # time
 
     coh = zeros(Float64, (length(qis), length(rp.kis)))
     incoh = zeros(Float64, (length(qis), length(rp.kis)))
 
     for (j, k) in enumerate(rp.ks)
-        for (i, q) in enumerate(rp.qs[qis])
+        for (i, q) in enumerate(qs_reduced)
             prefactor = abs2(alpha0(q)) / abs(alpha0(k))
             coh[i, j] = prefactor * abs2.(mean(res[i, j, :]))
             incoh[i, j] = prefactor * mean(abs2.(res[i, j, :])) - coh[i, j]
@@ -193,5 +201,5 @@ function solve_MDRC!(rp::RayleighParams, sp::SimulationPreAlloc, N_ens::Int)
     # Since q is defined reversed in the RayleighParams struct, we need to reverse the output
     reverse!(coh, dims=1)
     reverse!(incoh, dims=1)
-    return coh, incoh
+    return qs_reduced, coh, incoh
 end
