@@ -3,15 +3,39 @@
 "O'Donnel rectangular correlation function for surface generation"
 H(x::Float64)::Float64 = (x > 0.0 ? 1.0 : 0.0)
 Wr(x::Float64, km::Float64, kp::Float64)::Float64 = (sin(kp * x) - sin(km * x)) / ((kp - km) * x) # Handle when x = 0 in rect_gen!
-gr(k::Float64, km::Float64, kp::Float64)::Float64 = π / (kp - km) * (H(kp - k) * H(k - km) + H(kp - k) * H(-k - km))
 
 "Gaussian correlation function for surface generation"
-Wg(x::Float64, a::Float64)::Float64 = exp(-x^2 / a^2)
+Wg(x::Float64, a::Float64)::Float64 = exp(-(x / a)^2)
 gg(k::Float64, a::Float64)::Float64 = √π * a * exp(-(a * k / 2.0)^2)
 
+function correlation(k::Float64, surf::GaussianSurfaceParams)::Float64
+    a = surf.a
+    return √π * a * exp(-(a * k / 2.0)^2)
+end
+function correlation(k::Float64, surf::RectSurfaceParams)::Float64
+    kp = surf.kp
+    km = surf.km
+    return π / (kp - km) * (H(kp - k) * H(k - km) + H(kp + k) * H(-k - km))
+end
 
-function generate_impl!(::Type{T}, sp::SimulationPreAlloc, rp::RayleighParams)::Nothing where {T<:SurfaceParams}
-    @error "generate_impl! not implemented for $(typeof(T))"
+"""
+Generic Fourier filtering function, requires correlation(k, rp.surf::T) to be implemented
+"""
+function generate_impl!(::Type{T}, sp::SimulationPreAlloc, rp::RayleighParams)::Nothing where T<:SurfaceParams
+    d = rp.surf.d
+    ks = rp.xks
+
+    # Generate random phases
+    randn!(rp.rng, sp.ys)
+    sp.Z .= d * sp.ys
+    rp.FFT * sp.Z # In place FFT
+
+    # Square root of correlation
+    sp.ys .= sqrt.(correlation.(ks, Ref(rp.surf)) / rp.dx)
+    sp.Z .= sp.Z .* sp.ys # Filter
+    rp.FFT \ sp.Z # Inverse FFT
+    sp.ys .= real.(sp.Z)
+
     return nothing
 end
 
@@ -20,43 +44,21 @@ function generate_impl!(::Type{FlatSurfaceParams}, sp::SimulationPreAlloc, rp::R
     return nothing
 end
 
-function generate_impl!(::Type{GaussianSurfaceParams}, sp::SimulationPreAlloc, rp::RayleighParams)::Nothing
-    surf = rp.surf
-    δ = surf.d
-    a = surf.a
-    sp.Z .= δ * randn(rp.rng, Float64, length(sp.ys)) |> complex
-    sp.ys .= rp.FFT \ ((rp.FFT * sp.Z) .* sqrt.(rp.FFT * Wg.(rp.xs, a))) .|> real
-    return nothing
-end
-
 function generate_impl!(::Type{SingleBumpSurfaceParams}, sp::SimulationPreAlloc, rp::RayleighParams)::Nothing
     surf = rp.surf
     δ = surf.d
     a = surf.a
 
-    sp.ys .= δ * exp.((-0.5 / a^2) * rp.xs .^ 2)
+    sp.ys .= δ * exp.((-0.5 * rp.xs / a) .^ 2)
     return nothing
 end
 
-function generate_impl!(::Type{RectSurfaceParams}, sp::SimulationPreAlloc, rp::RayleighParams)::Nothing
-    surf = rp.surf
-    δ = surf.d
-    km = surf.km
-    kp = surf.kp
 
-    sp.Z .= δ * randn(rp.rng, Float64, length(sp.ys)) |> complex
-    zr = ceil(Int64, length(rp.xs) / 2)
+"""
+Generates an instance of the surface of given type, defined in `rp::RayleighParams`
+Write the generated surface directly to the sp.ys array
 
-    corr = Vector{ComplexF64}(undef, length(rp.xs))
-    corr[zr] = 1.0 # From Taylor series around x = 0
-    corr[zr+1:end] .= gr.(rp.xs[zr+1:end], km, kp)
-    corr[1:zr-1] .= gr.(rp.xs[1:zr-1], km, kp)
-
-    sp.ys .= rp.FFT \ ((rp.FFT * sp.Z) .* sqrt.(rp.FFT * corr)) .|> real
-    return nothing
-end
-
-# Surface generation dispatch
+"""
 function generate!(sp::SimulationPreAlloc, rp::RayleighParams)::Nothing
     generate_impl!(typeof(rp.surf), sp, rp)
     return nothing

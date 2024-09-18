@@ -190,7 +190,7 @@ end
 
 
 "For debug purposes, mostly"
-function config_default_creation()::Tuple{RayleighParams,SimulationPreAlloc}
+function default_config_creation()::Tuple{RayleighParams,SimulationPreAlloc}
     rp = RayleighParams(
         nu=p,
         eps=ComplexF64(2.25),
@@ -199,14 +199,36 @@ function config_default_creation()::Tuple{RayleighParams,SimulationPreAlloc}
         Q=4,
         Nq=1024,
         ks=[0.0, 45.0, 90.0],
-        L=1.0e-5,
+        L=10.0e-6,
         Ni=10,
-        surf=GaussianSurfaceParams(5.0e-9, 1.0e-9)
+        surf=GaussianSurfaceParams(30.0e-9, 100.0e-9),
+        rescale=true
     )
 
     sp = SimulationPreAlloc(rp.Nq, length(rp.ks))
 
     return rp, sp
+end
+
+function default_params_for_surface_testing(surf::T)::Tuple{RayleighParams, SimulationPreAlloc} where {T<:SurfaceParams}
+    rp = RayleighParams(
+        nu=p,
+        eps=ComplexF64(2.25),
+        mu=ComplexF64(1.0),
+        lambda=632.8e-9,
+        Q=4,
+        Nq=1024,
+        ks=[sind(10.0), sind(20.0), sind(30.0)],
+        L=10.0e-6,
+        Ni=10,
+        surf=surf,
+        rescale=true
+    )
+
+    sp = SimulationPreAlloc(rp.Nq, length(rp.ks))
+
+    return rp, sp
+
 end
 
 

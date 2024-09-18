@@ -29,7 +29,7 @@ struct SimulationPreAlloc
         sFys = similar(Fys)
         Mpq = Matrix{ComplexF64}(undef, Nq, Nq)
         Npk = Matrix{ComplexF64}(undef, Nq, Nk)
-        Z = similar(ys)
+        Z = similar(Fys)
 
         new(Mpq, Npk, Fys, sFys, Z, ys)
     end

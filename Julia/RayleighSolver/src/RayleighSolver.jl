@@ -12,7 +12,7 @@ module RayleighSolver
 using LinearAlgebra
 using FFTW
 using Statistics
-using Random: Xoshiro
+using Random: Xoshiro, randn!
 using JLD2, FileIO
 import Base.parse
 import Base.show
@@ -33,18 +33,18 @@ export SurfaceParams, FlatSurfaceParams, GaussianSurfaceParams, SingleBumpSurfac
 export scale
 
 # From setup.jl
-export RayleighParams, Polarization
-export c0, p, s
-export get_angles
+export Polarization, p, s
+export Scale, real, natural
+export RayleighParams, c0, get_angles, scaled_params, get_scale
 
 # From surface_generator.jl
-export generate!
+export generate!, correlation
 
 # From solver.jl
 export solve!, solve_MDRC!
 
 # From utils.jl
-export config_creation_prompt, config_default_creation
+export config_creation_prompt, default_config_creation, default_params_for_surface_testing
 export save_to, load_rp_struct, load_rp_desc
 export parse, show, display, convert # Overloaded base methods for most objects
 
