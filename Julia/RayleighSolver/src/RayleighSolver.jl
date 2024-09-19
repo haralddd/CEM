@@ -41,7 +41,7 @@ export RayleighParams, c0, get_angles, scaled_params, get_scale
 export generate!, correlation
 
 # From solver.jl
-export solve!, solve_MDRC!
+export solve!, solve_MDRC!, precalc, alpha, alpha0
 
 # From utils.jl
 export config_creation_prompt, default_config_creation, default_params_for_surface_testing

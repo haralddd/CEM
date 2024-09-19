@@ -114,32 +114,25 @@ function solve!(sp::SimulationPreAlloc, rp::RayleighParams,
     sp.Npk .= 0.0
 
     for n in axes(M_pre, 3)
-        display("1")
-        @time for i in eachindex(sp.Fys)
+        for i in eachindex(sp.Fys)
             sp.Fys[i] = sp.ys[i] ^ (n - 1)
         end
 
-        display("2")
-        @time rp.FFT * sp.Fys # In place FFT
+        rp.FFT * sp.Fys # In place FFT
 
-        display("3")
-        @time fftshift!(sp.sFys, sp.Fys)
+        fftshift!(sp.sFys, sp.Fys)
 
-        display("4")
-        @time for j in axes(sp.Mpq, 2), i in axes(sp.Mpq, 1)
+        for j in axes(sp.Mpq, 2), i in axes(sp.Mpq, 1)
             sp.Mpq[i, j] += M_pre[i, j, n] * sp.sFys[i+j-1]
         end
 
-        display("5")
-        @time for (j, kj) in enumerate(rp.kis), i in axes(sp.Npk, 1)
+        for (j, kj) in enumerate(rp.kis), i in axes(sp.Npk, 1)
             sp.Npk[i, j] -= N_pre[i, j, n] * sp.sFys[i+kj-1]
         end
     end
-
-    display("6")
-    bunchkaufman!(sp.Mpq)
+    
     @time for j in eachindex(rp.kis)
-        ldiv!(sp.Mpq, sp.Npk[:, j])
+        sp.Npk[:, j] .= sp.Mpq \ sp.Npk[:, j]
     end
 
     return nothing
@@ -147,6 +140,16 @@ end
 
 function MDRC_prefactor(k::Float64, q::Float64, L::Float64)::Float64
     return 1 / (2π * L) * alpha0(q) / alpha0(k)
+end
+
+function precalc(rp)
+    Mpk_pre = Array{ComplexF64,3}(undef, length(rp.ps), length(rp.qs), rp.Ni + 1)
+    Npk_pre = Array{ComplexF64,3}(undef, length(rp.ps), length(rp.kis), rp.Ni + 1)
+
+    M_invariant!(Mpk_pre, rp)
+    N_invariant!(Npk_pre, rp)
+
+    return Mpk_pre, Npk_pre
 end
 
 function solve_MDRC!(rp::RayleighParams, sp::SimulationPreAlloc, N_ens::Int)
@@ -159,11 +162,7 @@ function solve_MDRC!(rp::RayleighParams, sp::SimulationPreAlloc, N_ens::Int)
 
     # Calc the invariant part of Mpk
     @info "Calculating invariant parts of Mpk"
-    Mpk_pre = Array{ComplexF64,3}(undef, length(rp.ps), length(rp.qs), rp.Ni + 1)
-    Npk_pre = Array{ComplexF64,3}(undef, length(rp.ps), length(rp.kis), rp.Ni + 1)
-
-    @time M_invariant!(Mpk_pre, rp)
-    @time N_invariant!(Npk_pre, rp)
+    @time Mpk_pre, Npk_pre = precalc(rp)
 
     @assert all(isfinite.(Mpk_pre))
     @assert all(isfinite.(Npk_pre))
