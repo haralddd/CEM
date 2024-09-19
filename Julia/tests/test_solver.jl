@@ -6,19 +6,28 @@ using LinearAlgebra
 
 function test_reciprocity()
     surf = GaussianSurfaceParams(30.0e-9, 100.0e-9)
+    Q = 4
+    Nq = 2*4096+1
+    valid_qs = LinRange(-Q/2, Q/2, Nq)
+    mid = Nq÷2 + 1
+    ks = [valid_qs[mid - mid÷3], valid_qs[mid - mid÷4], valid_qs[mid + mid÷4], valid_qs[mid + mid÷3]]
+    display(ks)
+    @assert ks[1] == -ks[end]
+    @assert ks[2] == -ks[end-1]
     rp = RayleighParams(
         nu=p,
         eps=ComplexF64(2.25),
         mu=ComplexF64(1.0),
         lambda=632.8e-9,
         Q=4,
-        Nq=1024,
-        ks=[sind(-20.0), sind(-10.0), sind(10.0), sind(20.0)],
+        Nq=Nq,
+        ks=ks,
         L=10.0e-6,
         Ni=10,
         surf=surf,
         rescale=true
     )
+    display(rp.ks)
     sp = SimulationPreAlloc(rp.Nq, length(rp.ks))
     generate!(sp, rp)
     @time Mpk_pre, Npk_pre = precalc(rp)
@@ -29,19 +38,19 @@ function test_reciprocity()
     solve!(sp, rp, Mpk_pre, Npk_pre)
 
     pre(q, k) = √((alpha0(q))/(alpha0(k)))
-    a1 = pre.(rp.qs, rp.ks[1]) .* sp.Npk[:, 1]
-    a2 = pre.(rp.qs, rp.ks[2]) .* sp.Npk[:, 2]
+    a1 = pre.(reverse(rp.qs), rp.ks[1]) .* reverse(sp.Npk[:, 1])
+    a2 = pre.(reverse(rp.qs), rp.ks[2]) .* reverse(sp.Npk[:, 2])
     a3 = pre.(rp.qs, rp.ks[3]) .* sp.Npk[:, 3]
     a4 = pre.(rp.qs, rp.ks[4]) .* sp.Npk[:, 4]
 
-    plt1 = plot(log10.(abs.(real.(a1) .- real.(a4))), label="log real Δ, θ = -20, 20")
-    plot!(log10.(abs.(imag.(a1) .- imag.(a4))), label="log imag Δ, θ = -20, 20")
 
-    plt2 = plot(log10.(abs.(real.(a2) .- real.(a3))), label="log real Δ, θ = -10, 10")
-    plot!(log10.(abs.(imag.(a2) .- imag.(a3))), label="log imag Δ, θ = -10, 10")
+    plt1 = plot(log10.(abs.(a1 .- a4)), label="error log10, k = $(ks[1]), $(ks[4])")
+
+    plt2 = plot(log10.(abs.(a2 .- a3)), label="error log10, S($(ks[1])|-q) - S($(ks[4])|q)")
 
 
-    plot(plt1, plt2, layout=(2, 1), size=(800, 800))
+    plt = plot(plt1, plt2, layout=(2, 1), size=(800, 800))
+    display(plt)
 end
 
 function test_solve(surf::T) where T<:SurfaceParams
