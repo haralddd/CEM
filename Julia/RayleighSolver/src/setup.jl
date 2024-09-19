@@ -109,10 +109,10 @@ struct RayleighParams{SurfType<:SurfaceParams}
         xks = fftfreq(Nx, 2pi / dx)
     
         ps = -Q/2:dq:Q/2
-        qs = Q/2:-dq:-Q/2
+        qs = -Q/2:dq:Q/2
     
     
-        kis = [searchsortedfirst(qs, k, rev=true) for k in ks] |> collect
+        kis = [searchsortedfirst(qs, k) for k in ks] |> collect
         ks = qs[kis]
     
         seed = seed == -1 ? rand(0:typemax(Int)) : seed
