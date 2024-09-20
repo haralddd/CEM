@@ -15,10 +15,10 @@ Note that all members are uninitialized, and must be initialized after making th
 - `Z::Vector{ComplexF64}`: Preallocated computation step in surface generation
 - `ys::Vector{Float64}`: Surface heights
 """
-struct SimulationPreAlloc
+mutable struct SimulationPreAlloc
     Mpq::Matrix{ComplexF64}
     Npk::Matrix{ComplexF64}
-    sol::Matrix{ComplexF64}
+    FM::LU{ComplexF64, Matrix{ComplexF64}, Vector{Int64}}
     Fys::Vector{ComplexF64}
     sFys::Vector{ComplexF64}
     Z::Vector{ComplexF64}
@@ -30,9 +30,9 @@ struct SimulationPreAlloc
         sFys = similar(Fys)
         Mpq = Matrix{ComplexF64}(undef, Nq, Nq)
         Npk = Matrix{ComplexF64}(undef, Nq, Nk)
-        sol = similar(Npk)
+        FM = lu(Mpq; check=false)
         Z = similar(Fys)
 
-        new(Mpq, Npk, sol, Fys, sFys, Z, ys)
+        new(Mpq, Npk, FM, Fys, sFys, Z, ys)
     end
 end

@@ -198,7 +198,7 @@ function default_config_creation()::Tuple{RayleighParams,SimulationPreAlloc}
         lambda=632.8e-9,
         Q=4,
         Nq=1024,
-        ks=[0.0, 45.0, 90.0],
+        ks=[sind(10.0), sind(20.0), sind(30.0)],
         L=10.0e-6,
         Ni=10,
         surf=GaussianSurfaceParams(30.0e-9, 100.0e-9),
