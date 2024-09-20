@@ -112,8 +112,12 @@ function solve!(sp::SimulationPreAlloc, rp::RayleighParams,
 
     sp.Mpq .= 0.0
     sp.Npk .= 0.0
+    # To access the the Fourier transform of the surface integral
+    # we must access the pattern ζ(p-q), so make a reverse index range
+    qidxs = reverse(axes(sp.Mpq, 2))
+    kidxs = reverse(rp.kis)
 
-    for n in axes(M_pre, 3)
+    for n in reverse(axes(M_pre, 3)) # Reverse because prefactors vanish at higher powers of ´n´
         for i in eachindex(sp.Fys)
             sp.Fys[i] = sp.ys[i] ^ (n - 1)
         end
@@ -122,17 +126,23 @@ function solve!(sp::SimulationPreAlloc, rp::RayleighParams,
 
         fftshift!(sp.sFys, sp.Fys)
 
-        for j in axes(sp.Mpq, 2), i in axes(sp.Mpq, 1)
-            sp.Mpq[i, j] += M_pre[i, j, n] * sp.sFys[i+j-1]
+        for (j, qj) in enumerate(qidxs)
+            for i in axes(sp.Mpq, 1)
+                sp.Mpq[i, j] += M_pre[i, j, n] * sp.sFys[i+qj-1]
+            end
         end
 
-        for (j, kj) in enumerate(rp.kis), i in axes(sp.Npk, 1)
-            sp.Npk[i, j] -= N_pre[i, j, n] * sp.sFys[i+kj-1]
+        for (j, kj) in enumerate(kidxs)
+            for i in axes(sp.Npk, 1)
+                sp.Npk[i, j] -= N_pre[i, j, n] * sp.sFys[i+kj-1]
+            end
         end
     end
+
+    sp.FM = lu!(sp.Mpq)
     
-    @time for j in eachindex(rp.kis)
-        sp.Npk[:, j] .= sp.Mpq \ sp.Npk[:, j]
+    for j in eachindex(rp.kis)
+        ldiv!(sp.FM, sp.Npk[:, j])
     end
 
     return nothing
@@ -208,8 +218,5 @@ function solve_MDRC!(rp::RayleighParams, sp::SimulationPreAlloc, N_ens::Int)
         end
     end
 
-    # Since q is defined reversed in the RayleighParams struct, we need to reverse the output
-    reverse!(coh, dims=1)
-    reverse!(incoh, dims=1)
     return qs_reduced, coh, incoh
 end

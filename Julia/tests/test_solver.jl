@@ -7,13 +7,12 @@ using LinearAlgebra
 function test_reciprocity()
     surf = GaussianSurfaceParams(30.0e-9, 100.0e-9)
     Q = 4
-    Nq = 2*4096+1
+    Nq = 2048+1
     valid_qs = LinRange(-Q/2, Q/2, Nq)
-    mid = Nq÷2 + 1
-    ks = [valid_qs[mid - mid÷3], valid_qs[mid - mid÷4], valid_qs[mid + mid÷4], valid_qs[mid + mid÷3]]
-    display(ks)
-    @assert ks[1] == -ks[end]
-    @assert ks[2] == -ks[end-1]
+    valid_ks = valid_qs[-1.0 .< valid_qs .< 1.0]
+    @show length(valid_ks)
+    # valid_ks = valid_ks[valid_ks .!= 0.0]
+    @assert all(valid_ks .== .-reverse(valid_ks))
     rp = RayleighParams(
         nu=p,
         eps=ComplexF64(2.25),
@@ -21,14 +20,20 @@ function test_reciprocity()
         lambda=632.8e-9,
         Q=4,
         Nq=Nq,
-        ks=ks,
+        ks=valid_ks,
         L=10.0e-6,
         Ni=10,
         surf=surf,
         rescale=true
     )
-    display(rp.ks)
     sp = SimulationPreAlloc(rp.Nq, length(rp.ks))
+
+    ks = rp.ks
+    qs = rp.qs
+    Nk = length(ks)
+    rev_ks = reverse(ks)
+    @assert all(ks .== .-rev_ks)
+
     generate!(sp, rp)
     @time Mpk_pre, Npk_pre = precalc(rp)
 
@@ -38,43 +43,65 @@ function test_reciprocity()
     solve!(sp, rp, Mpk_pre, Npk_pre)
 
     pre(q, k) = √((alpha0(q))/(alpha0(k)))
-    a1 = pre.(reverse(rp.qs), rp.ks[1]) .* reverse(sp.Npk[:, 1])
-    a2 = pre.(reverse(rp.qs), rp.ks[2]) .* reverse(sp.Npk[:, 2])
-    a3 = pre.(rp.qs, rp.ks[3]) .* sp.Npk[:, 3]
-    a4 = pre.(rp.qs, rp.ks[4]) .* sp.Npk[:, 4]
 
+    Δ = Matrix{Float64}(undef, Nk, Nk)
 
-    plt1 = plot(log10.(abs.(a1 .- a4)), label="error log10, k = $(ks[1]), $(ks[4])")
+    rev_idx(idx, N) = N - idx + 1
 
-    plt2 = plot(log10.(abs.(a2 .- a3)), label="error log10, S($(ks[1])|-q) - S($(ks[4])|q)")
+    for (i, ki) in enumerate(rp.kis)
+        for (j, kj) in enumerate(rp.kis)
+            q = ks[i]
+            k = ks[j]
+            i_rev = rev_idx(i, Nk)
+            kj_rev = rev_idx(kj, Nq)
+            @assert q == -ks[i_rev] "q=$(q) != -ks[i_rev]=$(-ks[i_rev])"
+            @assert k == -qs[kj_rev] "k=$(k) != -qs[kj_rev]=$(-qs[kj_rev])"
 
+            Sqk = pre(q, k) * sp.Npk[ki, j]
+            Skq = pre(-k, -q) * sp.Npk[kj_rev, i_rev]
 
-    plt = plot(plt1, plt2, layout=(2, 1), size=(800, 800))
-    display(plt)
+            Δ[i, j] = abs(Sqk - Skq)
+        end
+    end
+
+    heatmap(ks, ks, log10.(Δ), size=(800, 800))
+    display("Reciprocity, maximum error: $(maximum(Δ))")
 end
 
-function test_solve(surf::T) where T<:SurfaceParams
+function test_hermitian()
+    rp, sp = default_config_creation()
+    M = 1
+    @time qs, coh, incoh = solve_MDRC!(rp, sp, M)
+
+    M = sp.Mpq
+    Mt = M'
+    hm1 = heatmap(log10.(abs2.(M)))
+
+    hm2 = heatmap(log10.(abs2.(sp.FM.U)))
+    hm3 = heatmap(log10.(abs2.(sp.FM.L)))
+
+    plt = plot(hm1,hm2,hm3, size=(800,1200), layout=(3,1))
+    display(plt)
+
+    return all(M .== Mt)
+
+end
+
+function test_solver_surf(surf::T) where T<:SurfaceParams
     rp, sp = default_params_for_surface_testing(surf)
 
-    M = 10
-    qs, coh, incoh = solve_MDRC!(rp, sp, M)
+    M = 100
+    @time qs, coh, incoh = solve_MDRC!(rp, sp, M)
 
-    # Should satisfy reciprocity
-
-
-    hm = heatmap(log10.(abs.(real.(sp.Mpq))))
-    hm2 = heatmap(log10.(abs.(imag.(sp.Mpq))))
-    plt_coh = plot(qs, coh, yscale=:log10, title="$surf coherent MDRC")
-    plt_incoh = plot(qs, incoh, yscale=:log10, title="$surf incoherent MDRC")
-    return plot(plt_coh, plt_incoh, hm, hm2, layout=(2, 2))
+    plt_coh = plot(qs, coh, yscale=:log10, title="$(typeof(surf))\nCoherent MDRC")
+    plt_incoh = plot(qs, incoh, yscale=:log10, title="$(typeof(surf))\nIncoherent MDRC")
+    return plot(plt_coh, plt_incoh, layout=(1, 2))
 end
 
 
 
 function test_solver()
-    plt1 = test_solve(GaussianSurfaceParams(30.0e-9, 100.0e-9))
-    plot(plt1, size=(800, 800))
-
-    # plt2 = test_solve(RectSurfaceParams(30.0e-9, 0.82, 1.97))
-    # plot(plt1, plt2, layout=(2, 1), size=(800, 800))
+    plt1 = test_solver_surf(GaussianSurfaceParams(30.0e-9, 100.0e-9))
+    plt2 = test_solver_surf(RectSurfaceParams(30.0e-9, 0.82, 1.97))
+    plot(plt1, plt2, layout=(2, 1), size=(800, 800))
 end
