@@ -15,6 +15,6 @@
 
 # Run complete solver tests
 include("test_solver.jl")
-# test_reciprocity()
+test_reciprocity()
 # test_hermitian()
-test_solver()
+# test_solver()
