@@ -111,9 +111,6 @@ struct RayleighParams{SurfType<:SurfaceParams}
         ps = -Q/2:dq:Q/2
         qs = -Q/2:dq:Q/2
     
-        display(qs)
-    
-        @show ks
         kis = [searchsortedfirst(qs, k) for k in ks] |> collect
         ks = qs[kis]
     

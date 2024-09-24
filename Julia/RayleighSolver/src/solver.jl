@@ -139,11 +139,7 @@ function solve!(sp::SimulationPreAlloc, rp::RayleighParams,
         end
     end
 
-    sp.FM = lu!(sp.Mpq)
-    
-    for j in eachindex(rp.kis)
-        ldiv!(sp.FM, sp.Npk[:, j])
-    end
+    LinearAlgebra.LAPACK.gesv!(sp.Mpq, sp.Npk)
 
     return nothing
 end
@@ -184,6 +180,7 @@ function solve_MDRC!(rp::RayleighParams, sp::SimulationPreAlloc, N_ens::Int)
 
 
     @show thr_sz = Threads.nthreads()
+    LinearAlgebra.BLAS.set_num_threads(thr_sz)
 
     sp_vec = [deepcopy(sp) for _ in 1:thr_sz]
     res = zeros(ComplexF64, length(qis), length(rp.kis), N_ens)

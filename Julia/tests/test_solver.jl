@@ -64,7 +64,8 @@ function test_reciprocity()
         end
     end
 
-    heatmap(ks, ks, log10.(Δ), size=(800, 800))
+    hm = heatmap(ks, ks, log10.(Δ), size=(800, 800))
+    display(hm)
     display("Reciprocity, maximum error: $(maximum(Δ))")
 end
 
@@ -79,6 +80,10 @@ function test_hermitian()
 
     hm2 = heatmap(log10.(abs2.(sp.FM.U)))
     hm3 = heatmap(log10.(abs2.(sp.FM.L)))
+    A = sp.FM.L * sp.FM.U
+
+    S = svd(A)
+    hm4 = heatmap(log10.S)
 
     plt = plot(hm1,hm2,hm3, size=(800,1200), layout=(3,1))
     display(plt)
