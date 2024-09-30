@@ -24,7 +24,7 @@ include("surface.jl")
 include("setup.jl")
 include("surface_generator.jl")
 include("utils.jl")
-include("solver.jl")
+include("solver_isotropic.jl")
 # From simulation_prealloc.jl
 export SimulationPreAlloc
 
