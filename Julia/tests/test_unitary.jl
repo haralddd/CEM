@@ -21,7 +21,7 @@ function test_unitarity_plot(; surf_t::SurfType=flat, ε=2.25, μ=1.0, ν::Polar
     for i in eachindex(ims)
         display("$i")
         im = ims[i]
-        rp = RayleighParams(
+        rp = SimParams(
             ν=ν,
             Nq=2^10,
             ε=ε + (ν == p ? im : 0),

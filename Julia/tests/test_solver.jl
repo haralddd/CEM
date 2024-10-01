@@ -2,21 +2,17 @@ push!(LOAD_PATH, "$(@__DIR__)/../RayleighSolver/")
 using RayleighSolver
 using Plots
 using LinearAlgebra
-
+using ProfileView
+using BenchmarkTools
 
 function test_reciprocity()
-    surf = GaussianSurfaceParams(30.0e-9, 100.0e-9)
+    surf = GaussianSurface(30.0e-9, 100.0e-9)
     Q = 4
     Nq = 2048+1
     valid_qs = LinRange(-Q/2, Q/2, Nq)
     valid_ks = valid_qs[-1.0 .< valid_qs .< 1.0]
-    @show length(valid_ks)
-    # valid_ks = valid_ks[valid_ks .!= 0.0]
     @assert all(valid_ks .== .-reverse(valid_ks))
-    rp = RayleighParams(
-        nu=p,
-        eps=ComplexF64(2.25),
-        mu=ComplexF64(1.0),
+    rp = SimParams(
         lambda=632.8e-9,
         Q=4,
         Nq=Nq,
@@ -26,7 +22,7 @@ function test_reciprocity()
         surf=surf,
         rescale=true
     )
-    sp = SimulationPreAlloc(rp.Nq, length(rp.ks))
+    sp = SimPrealloc(rp.Nq, length(rp.ks))
 
     ks = rp.ks
     qs = rp.qs
@@ -34,13 +30,14 @@ function test_reciprocity()
     rev_ks = reverse(ks)
     @assert all(ks .== .-rev_ks)
 
-    generate!(sp, rp)
-    @time Mpk_pre, Npk_pre = precalc(rp)
+    @info "generate_surface!"
+    @time generate_surface!(sp, rp)
 
-    @assert all(isfinite.(Mpk_pre))
-    @assert all(isfinite.(Npk_pre))
+    @info "SimPreCompute"
+    @time pc = SimPreCompute(rp)
+    validate(pc)
 
-    solve!(sp, rp, Mpk_pre, Npk_pre)
+    @time solve!(sp, rp, pc)
 
     pre(q, k) = √((alpha0(q))/(alpha0(k)))
 
@@ -69,30 +66,17 @@ function test_reciprocity()
     display("Reciprocity, maximum error: $(maximum(Δ))")
 end
 
-function test_hermitian()
-    rp, sp = default_config_creation()
+function test_symmetry_isotropic()
+    sp, rp = default_config_creation()
     M = 1
-    @time qs, coh, incoh = solve_MDRC!(rp, sp, M)
+    @time solve_MDRC!(sp, rp, 1)
 
     M = sp.Mpq
-    Mt = M'
-    hm1 = heatmap(log10.(abs2.(M)))
-
-    hm2 = heatmap(log10.(abs2.(sp.FM.U)))
-    hm3 = heatmap(log10.(abs2.(sp.FM.L)))
-    A = sp.FM.L * sp.FM.U
-
-    S = svd(A)
-    hm4 = heatmap(log10.S)
-
-    plt = plot(hm1,hm2,hm3, size=(800,1200), layout=(3,1))
-    display(plt)
-
-    return all(M .== Mt)
-
+    hm = heatmap(log10.(abs2.(M)), size=(800,800))
+    display(hm)
 end
 
-function test_solver_surf(surf::T) where T<:SurfaceParams
+function test_solver_surf(surf::T) where T<:RandomSurface
     rp, sp = default_params_for_surface_testing(surf)
 
     M = 100
@@ -103,10 +87,15 @@ function test_solver_surf(surf::T) where T<:SurfaceParams
     return plot(plt_coh, plt_incoh, layout=(1, 2))
 end
 
-
-
 function test_solver()
-    plt1 = test_solver_surf(GaussianSurfaceParams(30.0e-9, 100.0e-9))
-    plt2 = test_solver_surf(RectSurfaceParams(30.0e-9, 0.82, 1.97))
+    plt1 = test_solver_surf(GaussianSurface(30.0e-9, 100.0e-9))
+    plt2 = test_solver_surf(RectangularSurface(30.0e-9, 0.82, 1.97))
     plot(plt1, plt2, layout=(2, 1), size=(800, 800))
+end
+
+function profile_solver_components()
+    surf = GaussianSurface(30.0e-9, 100.0e-9)
+    sp, rp = default_params_for_surface_testing(surf)
+    pc = SimPreCompute(rp)
+    solve!(sp, rp, pc)
 end
