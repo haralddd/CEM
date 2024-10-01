@@ -19,33 +19,35 @@ import Base.show
 import Base.display
 import Base.convert
 
-include("simulation_prealloc.jl")
-include("surface.jl")
-include("setup.jl")
-include("surface_generator.jl")
-include("utils.jl")
-include("solver_isotropic.jl")
-# From simulation_prealloc.jl
-export SimulationPreAlloc
+include("Material.jl")
+export Material, Vacuum, Isotropic, UniaxialCrystal
+export _A, ptilde, alpha, alpha0
 
-# From surface.jl
-export SurfaceParams, FlatSurfaceParams, GaussianSurfaceParams, SingleBumpSurfaceParams, RectSurfaceParams
+include("RandomSurface.jl")
+export RandomSurface, FlatSurface, GaussianSurface
+export SingleBumpSurface, RectangularSurface
 export scale
 
-# From setup.jl
-export Polarization, p, s
-export Scale, real, natural
-export RayleighParams, c0, get_angles, scaled_params, get_scale
+include("SimPrealloc.jl")
+export SimPrealloc
 
-# From surface_generator.jl
-export generate!, correlation
+include("SimParams.jl")
+export Polarization, PolarizationP, PolarizationS
+export SimParams
+export get_angles, get_scale, get_scaled_params
 
-# From solver.jl
-export solve!, solve_MDRC!, precalc, alpha, alpha0
+include("SimPreCompute.jl")
+export SimPreCompute, validate
 
-# From utils.jl
-export config_creation_prompt, default_config_creation, default_params_for_surface_testing
-export save_to, load_rp_struct, load_rp_desc
-export parse, show, display, convert # Overloaded base methods for most objects
+include("random_surface_generator.jl")
+export generate_surface!
 
+include("utils.jl")
+export show, display, parse, convert
+export save_to, load_rp_desc, load_rp_struct
+export surface_prompt, config_creation_prompt, default_config_creation
+export default_params_for_surface_testing
+
+include("solver.jl")
+export solve!, MDRC_prefactor, solve_MDRC!
 end # module RayleighSolver

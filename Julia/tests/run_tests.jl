@@ -1,9 +1,11 @@
 
-
+ENV["JULIA_DEBUG"] = Main
 # # Run surface tests
-# include("test_surface.jl")
+include("test_surface.jl")
 # test_gaussian()
 # test_rect()
+profile_gaussian_surfacegen()
+profile_rectangular_surfacegen()
 
 # # Run fresnel tests
 # include("test_fresnel.jl")
@@ -15,6 +17,7 @@
 
 # Run complete solver tests
 include("test_solver.jl")
-test_reciprocity()
-# test_hermitian()
-# test_solver()
+# test_reciprocity()
+# test_symmetry_isotropic()
+# test_solver() 
+profile_solver_components()

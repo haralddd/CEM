@@ -2,21 +2,23 @@ push!(LOAD_PATH, "$(@__DIR__)/../RayleighSolver/")
 using RayleighSolver
 using Statistics
 using Peaks
+using ProfileView
+using BenchmarkTools
 
 
 
-analytical_slope(::T) where T<:SurfaceParams = @error "Analytical slope not implemented for $T"
-analytical_slope(surf::GaussianSurfaceParams) = √2 * surf.d / surf.a
-function analytical_slope(surf::RectSurfaceParams)
+analytical_slope(::T) where T<:RandomSurface = @error "Analytical slope not implemented for $T"
+analytical_slope(surf::GaussianSurface) = √2 * surf.d / surf.a
+function analytical_slope(surf::RectangularSurface)
     d = surf.d
     kp = surf.kp
     km = surf.km
     return d / √3 * √(kp^2 + kp*km + km^2)
 end
 
-analytical_dist(::T) where T<:SurfaceParams = @error "Analytical distance not implemented for $T"
-analytical_dist(surf::GaussianSurfaceParams) = π / √6 * surf.a
-function analytical_dist(surf::RectSurfaceParams)
+analytical_dist(::T) where T<:RandomSurface = @error "Analytical distance not implemented for $T"
+analytical_dist(surf::GaussianSurface) = π / √6 * surf.a
+function analytical_dist(surf::RectangularSurface)
     kp = surf.kp
     km = surf.km
     return π * √(5/3 * (kp^3 - km^3) / (kp^5 - km^5) )
@@ -80,7 +82,7 @@ function mean_peak_valley_dist(xs::Vector{Float64}, ys::Vector{Float64})
     return acc / (length(peaks) + length(valleys))
 end
 
-function test_surf(surf::T) where T <:SurfaceParams
+function test_surf(surf::T) where T <:RandomSurface
     M = 10000
     rp, sp = default_params_for_surface_testing(surf)
 
@@ -130,5 +132,27 @@ function test_surf(surf::T) where T <:SurfaceParams
     println("Numerical  = $(mean(rms))")
 end
 
-test_gaussian() = test_surf(GaussianSurfaceParams(30.0e-9, 100.0e-9))
-test_rect() = test_surf(RectSurfaceParams(30.0e-9, 0.82, 1.97))
+test_gaussian() = test_surf(GaussianSurface(30.0e-9, 100.0e-9))
+test_rect() = test_surf(RectangularSurface(30.0e-9, 0.82, 1.97))
+
+function profile_gaussian_surfacegen()
+    rp, sp = default_params_for_surface_testing(GaussianSurface(30.0e-9, 100.0e-9))
+    function loop_de_loop(sp, rp)
+        for _ in 1:1000
+            generate_surface!(sp, rp)
+        end
+    end
+    @btime generate_surface!($sp, $rp)
+    ProfileView.@profview loop_de_loop(sp, rp)
+end
+
+function profile_rectangular_surfacegen()
+    rp, sp = default_params_for_surface_testing(RectangularSurface(30.0e-9, 0.82, 1.97))
+    function loop_de_loop(sp, rp)
+        for _ in 1:1000
+            generate_surface!(sp, rp)
+        end
+    end
+    @btime generate_surface!($sp, $rp)
+    ProfileView.@profview loop_de_loop(sp, rp)
+end
