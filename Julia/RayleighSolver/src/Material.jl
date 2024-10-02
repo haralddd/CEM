@@ -16,13 +16,13 @@ end
 
 struct UniaxialCrystal <: Material
     eps_perp::ComplexF64
-    mu_perp::ComplexF64
     eps_para::ComplexF64
+    mu_perp::ComplexF64
     mu_para::ComplexF64
 end
 
 function _A(cr::UniaxialCrystal)::ComplexF64
-    return √((cr.mu.para*cr.eps.para)/(cr.mu.perp*cr.eps.perp))
+    return √((cr.mu_para*cr.eps_para)/(cr.mu_perp*cr.eps_perp))
 end
 
 """
@@ -43,7 +43,7 @@ function alpha(q::Float64, material::Isotropic)::ComplexF64
 end
 function alpha(q::Float64, material::UniaxialCrystal)::ComplexF64
     A = _A(material)
-    με = material.mu.perp*material.eps.perp
+    με = material.mu_perp*material.eps_perp
     return A * sqrt(με - q^2)
 end
 

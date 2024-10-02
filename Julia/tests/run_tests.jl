@@ -1,5 +1,4 @@
 
-ENV["JULIA_DEBUG"] = Main
 # # Run surface tests
 include("test_surface.jl")
 # test_gaussian()
@@ -20,4 +19,5 @@ include("test_solver.jl")
 # test_reciprocity()
 # test_symmetry_isotropic()
 # test_solver() 
-profile_solver_components()
+# profile_solver_components()
+test_crystal_precompute()

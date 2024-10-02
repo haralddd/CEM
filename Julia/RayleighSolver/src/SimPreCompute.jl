@@ -41,19 +41,19 @@ function M_invariant!(M::Array{ComplexF64,3}, params::SimParams{_S,Nu,Vacuum,Iso
     below = params.below
     kappa = typeof(Nu) == PolarizationP ? below.eps : below.mu
 
-    function _M_iso_ker(p::Float64, q::Float64, alpha::ComplexF64, alpha0::ComplexF64, n::Int)::ComplexF64
-        da = alpha - alpha0
+    function _M_iso_ker(p::Float64, q::Float64, n::Int)::ComplexF64
+        a0 = alpha(q, above)
+        a = alpha(p, below)
+        da = a - a0
         return _pre(n) / factorial(n) * (
             (p + kappa * q) * (p - q) * da^(-1) +
-            (alpha + kappa * alpha0))*da^n
+            (a + kappa * a0))*da^n
     end
 
     @inbounds for n in axes(M, 3), j in axes(M, 2), i in axes(M, 1)
         p = ps[i]
         q = qs[j]
-        a0 = alpha(q, above)
-        a = alpha(p, below)
-        M[i, j, n] = _M_iso_ker(p, q, a, a0, n - 1)
+        M[i, j, n] = _M_iso_ker(p, q, n - 1)
     end
     return nothing
 end
@@ -68,56 +68,118 @@ function N_invariant!(N::Array{ComplexF64,3}, params::SimParams{_S,Nu,Vacuum,Iso
     
     kappa = typeof(Nu) == PolarizationP ? below.eps : below.mu
 
-    function _N_iso_ker(p::Float64, k::Float64, alpha::ComplexF64, alpha0::ComplexF64, n::Int)::ComplexF64
-        da = alpha + alpha0
+    function _N_iso_ker(p::Float64, k::Float64, n::Int)::ComplexF64
+        a0 = alpha(k, above)
+        a = alpha(p, below)
+        da = a + a0
         return _pre(n) / factorial(n) * (
             (p + kappa * k) * (p - k) * da^(n - 1) +
-            (alpha - kappa * alpha0) * da^n
+            (a - kappa * a0) * da^n
         )
     end
 
     @inbounds for n in axes(N, 3), (j, kj) in enumerate(kis), i in axes(N, 1)
         p = ps[i]
         k = qs[kj]
-        a0 = alpha(k, above) 
-        a = alpha(p, below)
-        N[i, j, n] = _N_iso_ker(p, k, a, a0, n - 1)
+        N[i, j, n] = _N_iso_ker(p, k, n - 1)
     end
     return nothing
 end
 
-function M_invariant!(M::Array{ComplexF64,3}, params::SimParams{_S,Nu,UniaxialCrystal,UniaxialCrystal})::Nothing where {_S,Nu}
+"Bnu ≡ μ∥/μ⟂ for nu=p and ε∥/ε⟂ for nu=s"
+function ptilde(q::Float64, p::Float64, kmt::ComplexF64)::ComplexF64
+    return √(
+        (1 - kmt) * q^2 + kmt * p^2
+    )
+end
+
+function M_invariant!(M::Array{ComplexF64,3}, params::SimParams{_S,Nu,UniaxialCrystal,UniaxialCrystal})::Nothing where {_S,Nu<:Polarization}
 
     ps = params.ps
     qs = params.qs
-    above = params.above
-    below = params.below
-    A = _A(below)
-    B = _B(below)
-    kappa = typeof(Nu) == PolarizationP ? below.eps : below.mu
+    above::UniaxialCrystal = params.above
+    below::UniaxialCrystal = params.below
+    if typeof(Nu) == PolarizationP
+        # k = κ     p/m = ±     pa/pe = ∥/⟂
+        kmpa = below.eps_para
+        kmpe = below.eps_perp
+        kppa = above.eps_para
+        kppe = above.eps_perp
+        kmt = below.mu_para / below.mu_perp # kappa minus tilde, used in ptilde
+        Bpe = kmpe / kppe
+        Bpa = kmpa / kppa
+    else
+        kmpa = below.mu_para
+        kmpe = below.mu_perp
+        kppa = above.mu_para
+        kppe = above.mu_perp
+        kmt = below.eps_para / below.eps_perp
+        Bpe = kmpe / kppe
+        Bpa = kmpa / kppa
+    end
 
-    function _M_uni_ker(p::Float64, q::Float64, alpha::ComplexF64, A::Float64, B::Float64, n::Int)::ComplexF64
-        da = alpha - alpha
-        return _pre(n) / factorial(n) * (
-            (p + kappa * q) * (p - q) * da^(-1) +
-            (alpha + kappa * alpha) * da^n
-        )
+    function _M_uni_ker(p::Float64, q::Float64, n::Int)::ComplexF64
+        pt = ptilde(q,p,kmt)
+        a = alpha(p, below)
+        a0 = alpha(q, above)
+        da = a - a0
+        return _pre(n) / factorial(n) * kmpa * (
+            (pt + Bpe * q) * (pt - q) * da^(-1) +
+            kmpe * (a + Bpa * a0)
+        ) * da^n
     end
 
     @inbounds for n in axes(M, 3), j in axes(M, 2), i in axes(M, 1)
         p = ps[i]
         q = qs[j]
-        a = alpha(q, above)
-        M[i, j, n] = _M_iso_ker(p, q, a, A, B, n - 1)
+        M[i, j, n] = _M_uni_ker(p, q, n - 1)
     end
     return nothing
 end
 
+function N_invariant!(N::Array{ComplexF64,3}, params::SimParams{_S,Nu,UniaxialCrystal,UniaxialCrystal})::Nothing where {_S,Nu<:Polarization}
 
-function ptilde(q::Float64, p::Float64, Bν::ComplexF64)::ComplexF64
-    return √(
-        (1 - Bν) * q^2 + Bν * p^2
-    )
+    ps = params.ps
+    qs = params.qs
+    kis = params.kis
+    above::UniaxialCrystal = params.above
+    below::UniaxialCrystal = params.below
+    if typeof(Nu) == PolarizationP
+        # k = κ     p/m = ±     pa/pe = ∥/⟂
+        kmpa = below.eps_para
+        kmpe = below.eps_perp
+        kppa = above.eps_para
+        kppe = above.eps_perp
+        kmt = below.mu_para / below.mu_perp # kappa minus tilde, used in ptilde
+        Bpe = kmpe / kppe
+        Bpa = kmpa / kppa
+    else
+        kmpa = below.mu_para
+        kmpe = below.mu_perp
+        kppa = above.mu_para
+        kppe = above.mu_perp
+        kmt = below.eps_para / below.eps_perp
+        Bpe = kmpe / kppe
+        Bpa = kmpa / kppa
+    end
+
+    function _N_uni_ker(p::Float64, k::Float64, n::Int)::ComplexF64
+        pt = ptilde(k,p,kmt)
+        a0 = alpha(k, above)
+        a = alpha(p, below)
+        da = a + a0
+        return _pre(n) / factorial(n) * kmpa * (
+            (pt + Bpe * k) * (pt - k) * da^(- 1) +
+            kmpe * (a - Bpa * a0)
+        ) * da^n
+    end
+
+    @inbounds for n in axes(N, 3), (j, kj) in enumerate(kis), i in axes(N, 1)
+        p = ps[i]
+        k = qs[kj]
+        N[i, j, n] = _N_uni_ker(p, k, n - 1)
+    end
+    return nothing
 end
 
 function M_invariant(rp::SimParams{_S,Nu,A,B})::Array{ComplexF64,3} where {_S,Nu,A,B}
