@@ -23,15 +23,15 @@ end
     generate_surface!(sp::SimPrealloc, parameters::SimParams{SurfT,_P,_MA,_MB})
 
 Generate random surface of the given type and overwrites sp.ys in-place
-Reverts to generic Fourier filtering function, which requires correlation(k, rp.surf::T) to be implemented
+Reverts to generic Fourier filtering function, which requires correlation(k, spa.surf::T) to be implemented
 """ 
-function generate_surface!(sp::SimPrealloc, rp::SimParams{SurfT,_P,_MA,_MB})::Nothing where {SurfT <: RandomSurface, _P, _MA, _MB}
-    d = rp.surf.d
-    xks = rp.xks
-    rng = rp.rng
-    FFT = rp.FFT
-    IFFT = rp.IFFT
-    A = 1/sqrt(rp.dx)
+function generate_surface!(sp::SimPrealloc, spa::SimParams{SurfT,_P,_MA,_MB})::Nothing where {SurfT <: RandomSurface, _P, _MA, _MB}
+    d = spa.surf.d
+    xks = spa.xks
+    rng = spa.rng
+    FFT = spa.FFT
+    IFFT = spa.IFFT
+    A = 1/sqrt(spa.dx)
 
     ys = sp.ys
     Z = sp.Z
@@ -43,7 +43,7 @@ function generate_surface!(sp::SimPrealloc, rp::SimParams{SurfT,_P,_MA,_MB})::No
     end
     FFT * Z # In place FFT
     @inbounds for i in eachindex(ys)
-        ys[i] = sqrt(correlation(xks[i], rp.surf))*A
+        ys[i] = sqrt(correlation(xks[i], spa.surf))*A
         Z[i] = Z[i] * ys[i] # Filter the numbers in Fourier space
     end
     IFFT * Z # in place Inverse FFT
@@ -57,11 +57,11 @@ function generate_surface!(sp::SimPrealloc, ::SimParams{FlatSurface,_P,_MA,_MB})
     sp.ys .= 0.0
     return nothing
 end
-function generate_surface!(sp::SimPrealloc, rp::SimParams{SingleBumpSurface,_P,_MA,_MB})::Nothing where {_P,_MA,_MB}
-    surf = rp.surf
+function generate_surface!(sp::SimPrealloc, spa::SimParams{SingleBumpSurface,_P,_MA,_MB})::Nothing where {_P,_MA,_MB}
+    surf = spa.surf
     δ = surf.d
     a = surf.a
 
-    sp.ys .= δ * exp.((-0.5 * rp.xs / a) .^ 2)
+    sp.ys .= δ * exp.((-0.5 * spa.xs / a) .^ 2)
     return nothing
 end

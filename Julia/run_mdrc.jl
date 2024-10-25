@@ -1,30 +1,13 @@
 # using MKL
-push!(LOAD_PATH, "Julia/RayleighSolver/")
+push!(LOAD_PATH, "$(@__DIR__)/RayleighSolver/")
 using RayleighSolver
 using Dates
 using CairoMakie
 using LaTeXStrings
 using Statistics
 
-function setup_dir(str="data")
-    display("Adding suffix to dir")
-    str *= "_" * Dates.format(now(), "yyyy-mm-ddTHH:MM:SS")
-    mkdir(str)
-    display("New dir: \"$str\"")
-    return str
-end
-
-function save_data(coh, incoh, path)
-    # Save data
-    for i in axes(incoh, 2)
-        open(path * "/coh$i.bin", "w") do io
-            write(io, coh)
-        end
-        open(path * "/incoh$i.bin", "w") do io
-            write(io, incoh)
-        end
-    end
-    display("Saved data to $path")
+function timestamp_suffix(str="data")
+    return str * "_" * Dates.format(now(), "yyyy-mm-ddTHH:MM:SS")
 end
 
 function plot_mdrc(; coh, incoh, θ0s=[0, 10, 20], colors=[:red, :blue, :green], name="simonsen_fig18_p")
@@ -32,9 +15,9 @@ function plot_mdrc(; coh, incoh, θ0s=[0, 10, 20], colors=[:red, :blue, :green],
 
     fig = Figure(fontsize=24)
     ax = Axis(fig[1, 1], xlabel=L"$\theta_s$ [deg]", ylabel=L"Incoh. MDRC $$")
-    ymean = mean(incoh)
-    ymax = maximum(incoh)
-    ylim = 1.1ymax > 2.0 * ymean ? 1.1ymax : 2.0 * ymean
+    # ymean = mean(incoh)
+    # ymax = maximum(incoh)
+    # ylim = 1.1ymax > 2.0 * ymean ? 1.1ymax : 2.0 * ymean
     for i in axes(incoh, 2)
         θ0 = θ0s[i]
         y = incoh[:, i]
@@ -44,68 +27,81 @@ function plot_mdrc(; coh, incoh, θ0s=[0, 10, 20], colors=[:red, :blue, :green],
             linestyle=:solid,
             linewidth=1,
             color=colors[i])
-        lines!(ax,
-            [θ0, θ0],
-            [0, ylim],
-            color=:black,
-            linestyle=:dot,
-            linewidth=1)
-        lines!(ax,
-            [-θ0, -θ0],
-            [0, ylim],
-            color=:black,
+        vlines!(ax,
+            [-θ0, θ0],
+            color=colors[i],
             linestyle=:dot,
             linewidth=1)
 
     end
     axislegend()
-    limits!(ax, -90, 90, 0, ylim)
+
+    mkpath("plots")
+    save("plots/$name.pdf", fig)
+    println("Saved plot to plots/$name.pdf")
     display(fig)
 
-    save("plots/$name.pdf", fig)
 end
 
 function cmd_line_run()
     println("Running as script...")
-    print("Make new run configuration [y] or load existing [any]? ")
-    in = readline()
-    if in == "y"
-        rp, sp, generator! = make_solver_config()
+    print("Make new run configuration [=y] or load existing [n]? ")
+    input = readline()
+    input = input == "" ? "y" : input
+    if input == "y"
+        spa = config_creation_prompt()
     else
-        print("Enter config file name [./input/{config.txt}]: ")
-        name = readline()
-        rp, sp, generator! = load_solver_config("input/" * (name == "" ? "example.txt" : name))
+        files = readdir("input")
+        println("Choose config file to load [Int64] (=1): ")
+        for i in eachindex(files)
+            println("[$i] $(files[i])")
+        end
+        input = readline()
+        input = input == "" ? "1" : input
+        spa = load_spa_config("input/" * files[parse(Int64, input)])
     end
+    print("Enter output label [string] (=\"default\"): ")
+    input = readline()
+    outlabel = input == "" ? "default" : input
 
-    print("Enter save data directory [./data/{simulation_name}] (=$name): ")
-    in = readline()
-    run_dir = "data/" * (in == "" ? name : in)
-    run_dir = setup_dir(run_dir)
-    save_solver_config(run_dir * "/config.txt", rp)
+    print("Do you want timestamp suffix? [y|n] (=y): ")
+    input = readline()
+    input = input == "" ? "y" : input
+    outlabel = input == "y" ? timestamp_suffix(outlabel) : outlabel
+    outpath = "data/" * outlabel * ".jld2"
+    save_spa_config(outpath, spa)
+    println("Saved config to $outpath")
 
-    print("Enter number of ensemble averages [100]: ")
-    in = readline()
-    N_ens = parse(Int, in == "" ? "100" : in)
-    open(run_dir * "/N_ens.bin.int64", "w") do io
-        write(io, N_ens)
+    print("Enter number of ensembles to run (=100): ")
+    input = readline()
+    N_ens = parse(Int, input == "" ? "100" : input)
+    save(outpath, "N_ens", N_ens)
+
+    sp = SimPrealloc(spa)
+    coh, incoh = solve_MDRC!(sp, spa, N_ens)
+    save_mdrc_data(outpath, coh, incoh)
+    println("Done and saved data to $outpath")
+
+    print("Save plots? [y|n] (=y): ")
+    input = readline()
+    input = input == "" ? "y" : input
+    if input == "y"
+        plot_mdrc(; coh=coh, incoh=incoh, name=outlabel)
     end
-    coh, incoh = solve_MDRC!(rp, sp, generator!, N_ens)
-
-    save_data(coh, incoh, run_dir)
 end
 
 function run_mdrc_silver()
     display("Running for p")
-    rp, sp, generator! = load_solver_config("input/silver_rect_p")
+    spa, sp, generator! = load_solver_config("input/silver_rect_p")
 
     N = 10_000
 
-    coh, incoh = solve_MDRC!(rp, sp, generator!, N)
-    qis = findall(q -> q > -1 && q < 1, rp.qs)
+    coh, incoh = solve_MDRC!(spa, sp, generator!, N)
+    qis = findall(q -> q > -1 && q < 1, spa.qs)
 
     unit = zeros(size(coh, 2))
     for (i, qi) in enumerate(qis)
-        unit[:] += (incoh[i, :] + coh[i, :]) / α0(rp.qs[qi])
+        unit[:] += (incoh[i, :] + coh[i, :]) / α0(spa.qs[qi])
     end
     display(unit)
 
@@ -114,13 +110,13 @@ function run_mdrc_silver()
 
 
     display("Running for s")
-    rp, sp, generator! = load_solver_config("input/silver_rect_s")
+    spa, sp, generator! = load_solver_config("input/silver_rect_s")
 
-    coh, incoh = solve_MDRC!(rp, sp, generator!, N)
+    coh, incoh = solve_MDRC!(spa, sp, generator!, N)
 
     unit = zeros(size(coh, 2))
     for (i, qi) in enumerate(qis)
-        unit[:] += (incoh[i, :] + coh[i, :]) / α0(rp.qs[qi])
+        unit[:] += (incoh[i, :] + coh[i, :]) / α0(spa.qs[qi])
     end
     display(unit)
 
@@ -133,37 +129,39 @@ function run_mdrc_magnetic()
     N = 10_000
 
     display("Running for magnetic p gaussian")
-    rp, sp, generator! = load_solver_config("input/magnetic_p")
-    coh, incoh = solve_MDRC!(rp, sp, generator!, N)
+    spa, sp, generator! = load_solver_config("input/magnetic_p")
+    coh, incoh = solve_MDRC!(spa, sp, generator!, N)
     plot_mdrc(; coh=coh, incoh=incoh, name="magnetic_p_gaussian")
 
 
     display("Running for magnetic s gaussian")
-    rp, sp, generator! = load_solver_config("input/magnetic_s")
-    coh, incoh = solve_MDRC!(rp, sp, generator!, N)
+    spa, sp, generator! = load_solver_config("input/magnetic_s")
+    coh, incoh = solve_MDRC!(spa, sp, generator!, N)
     plot_mdrc(; coh=coh, incoh=incoh, name="magnetic_s_gaussian")
 
     display("Running for magnetic p rect")
-    rp, sp, generator! = load_solver_config("input/magnetic_p_rect")
-    coh, incoh = solve_MDRC!(rp, sp, generator!, N)
+    spa, sp, generator! = load_solver_config("input/magnetic_p_rect")
+    coh, incoh = solve_MDRC!(spa, sp, generator!, N)
     plot_mdrc(; coh=coh, incoh=incoh, name="magnetic_p_rect")
 
     display("Running for magnetic s rect")
-    rp, sp, generator! = load_solver_config("input/magnetic_s_rect")
-    coh, incoh = solve_MDRC!(rp, sp, generator!, N)
+    spa, sp, generator! = load_solver_config("input/magnetic_s_rect")
+    coh, incoh = solve_MDRC!(spa, sp, generator!, N)
     plot_mdrc(; coh=coh, incoh=incoh, name="magnetic_s_rect")
 
     display("Done and saved plots")
 end
 
 if abspath(PROGRAM_FILE) == @__FILE__
-    print("Load a config [y], run silver [silver], or run magnetic [magnetic]? ")
-    in = readline()
-    if in == "y"
+    print("Custom config [=y], run silver [silver], or run magnetic [magnetic]? ")
+
+    input = readline()
+    input = input == "" ? "y" : input
+    if input == "y"
         cmd_line_run()
-    elseif in == "silver"
+    elseif input == "silver"
         run_mdrc_silver()
-    elseif in == "magnetic"
+    elseif input == "magnetic"
         run_mdrc_magnetic()
     else
         println("Invalid input")

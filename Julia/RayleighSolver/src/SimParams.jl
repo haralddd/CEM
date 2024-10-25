@@ -11,6 +11,7 @@ abstract type Polarization end
 struct PolarizationP <: Polarization end
 struct PolarizationS <: Polarization end
 
+
 """
     SimParams{SurfT<:RandomSurface, PolarizationT<:Polarization, Above<:Material, Below<:Material}(
 
@@ -84,7 +85,7 @@ function SimParams{ST,PT,AT,BT}(;
     Q=4,
     Nq=127,
     ks=[sind(10.0)],
-    L=10.0e-6,
+    Lx=10.0e-6,
     Ni=10,
     surf::ST = FlatSurface(),
     above::AT = Vacuum(),
@@ -101,15 +102,15 @@ function SimParams{ST,PT,AT,BT}(;
     omega = c0 * K
 
     # Assertions and warnings
-    @assert L / lambda > 10.0 "Surface length must be much larger than the wavelength, L >> lambda, but is L:$L and lambda:$lambda."
+    @assert Lx / lambda > 10.0 "Surface length must be much larger than the wavelength, L >> lambda, but is L:$L and lambda:$lambda."
     @assert Q > 2 "Q must be greater than 2, but is $Q. 4 is recommended."
     @assert Nq > 2 "Nq must be greater than 2, but is $Nq."
 
     if rescale
-        Lx = L * omega / c0
+        Lx = Lx * omega / c0
         new_surf = scale(surf, omega / c0)
     else
-        Lx = L
+        Lx = Lx
         new_surf = surf
     end
     Nx = 2 * Nq
@@ -125,7 +126,7 @@ function SimParams{ST,PT,AT,BT}(;
     kis = [searchsortedfirst(qs, k) for k in ks] |> collect
     ks = qs[kis]
 
-    seed = seed == -1 ? rand(0:typemax(Int)) : seed
+    seed = seed < 0 ? rand(0:typemax(Int)) : seed
     SimParams{ST,PT,AT,BT}(plan_fft!(similar(xs, ComplexF64)), plan_ifft!(similar(xs, ComplexF64)),
         xs, xks, ps, qs, ks, kis,
         above, below, lambda, omega,
@@ -161,39 +162,32 @@ function SimParams(;
     )
 end
 
-# function SimParams(serial_file::String)::SimParams
-#     open(serial_file, "r") do io
-#         obj = deserialize(io)
-#         return obj
-#     end
-# end
-
 """
-    get_angles(rp::SimParams)::Vector{Float64}
+    get_angles(spa::SimParams)::Vector{Float64}
 
-Returns the incident angles of `rp` in degrees.
+Returns the incident angles of `spa` in degrees.
 """
-function get_angles(rp::SimParams)::Vector{Float64}
-    return asind.(rp.qs[rp.kis])
+function get_angles(spa::SimParams)::Vector{Float64}
+    return asind.(spa.qs[spa.kis])
 end
 
-function get_scale(rp::SimParams)::Float64
-    return rp.omega / c0
+function get_scale(spa::SimParams)::Float64
+    return spa.omega / c0
 end
 
-function get_scaled_params(rp::SimParams)::Dict
-    s = get_scale(rp)
+function get_scaled_params(spa::SimParams)::Dict
+    s = get_scale(spa)
     return Dict(
-        :nu => rp.nu,
-        :eps => rp.eps,
-        :mu => rp.mu,
-        :lambda => rp.lambda,
-        :omega => rp.omega,
-        :Q => rp.Q,
-        :ks => rp.ks * s,
-        :Nq => rp.Nq,
-        :Lx => rp.Lx / s,
-        :Ni => rp.Ni,
-        :surf => scale(rp.surf, 1 / s),
+        :nu => spa.nu,
+        :eps => spa.eps,
+        :mu => spa.mu,
+        :lambda => spa.lambda,
+        :omega => spa.omega,
+        :Q => spa.Q,
+        :ks => spa.ks * s,
+        :Nq => spa.Nq,
+        :Lx => spa.Lx / s,
+        :Ni => spa.Ni,
+        :surf => scale(spa.surf, 1 / s),
     )
 end

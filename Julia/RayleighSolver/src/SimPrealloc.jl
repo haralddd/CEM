@@ -35,4 +35,7 @@ mutable struct SimPrealloc
 
         new(Mpq, Npk, FM, Fys, sFys, Z, ys)
     end
+    function SimPrealloc(spa::SimParams)
+        SimPrealloc(spa.Nq, length(spa.ks))
+    end
 end

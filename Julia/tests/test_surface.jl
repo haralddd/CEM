@@ -80,18 +80,18 @@ end
 
 function test_surf(surf::T) where T <:RandomSurface
     M = 10000
-    rp, sp = default_params_for_surface_testing(surf)
+    spa, sp = default_params_for_surface_testing(surf)
 
-    dx = rp.dx
-    xs = rp.xs
-    d = rp.surf.d
+    dx = spa.dx
+    xs = spa.xs
+    d = spa.surf.d
 
     means = zeros(M)
     rms = zeros(M)
     slopes = zeros(M)
     dists = zeros(M)
     for i in 1:M
-        generate!(sp, rp)
+        generate!(sp, spa)
         means[i] = mean(sp.ys)
         rms[i] = sqrt(mean(sp.ys .^ 2))
         slopes[i] = mean_slope(sp.ys, dx)
@@ -114,12 +114,12 @@ function test_surf(surf::T) where T <:RandomSurface
 
     println()
     println_header("Ensemble mean slope, s:")
-    println("Analytical = $(analytical_slope(rp.surf))")
+    println("Analytical = $(analytical_slope(spa.surf))")
     println("Numerical = $(mean(slopes))")
 
     println()
     println_header("Ensemble mean peak-valley distance, ⟨D⟩:")
-    println("Analytical = $(analytical_dist(rp.surf))")
+    println("Analytical = $(analytical_dist(spa.surf))")
     println("Numerical = $(mean(dists))")
 
     println()
