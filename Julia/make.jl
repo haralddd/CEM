@@ -8,12 +8,10 @@ push!(LOAD_PATH, "$(@__DIR__)/RayleighSolver/")
 using RayleighSolver
 
 if (abspath(PROGRAM_FILE) == @__FILE__)
-    rp, sp = config_creation_prompt()
+    spa, sp = config_creation_prompt()
 else
-    rp, sp = config_default_creation()
-    save_to(rp, "input/default")
+    spa, sp = config_default_creation()
+    save_to(spa, "input/default")
     display(load_rp_struct("input/default.jld2"))
     # display(load_rp_desc("input/default.jld2"))
 end
-
-using Statistics

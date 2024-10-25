@@ -10,7 +10,7 @@ function test_reciprocity()
     valid_qs = LinRange(-Q/2, Q/2, Nq)
     valid_ks = valid_qs[-1.0 .< valid_qs .< 1.0]
     @assert all(valid_ks .== .-reverse(valid_ks))
-    rp = SimParams(
+    spa = SimParams(
         lambda=632.8e-9,
         Q=4,
         Nq=Nq,
@@ -20,22 +20,22 @@ function test_reciprocity()
         surf=surf,
         rescale=true
     )
-    sp = SimPrealloc(rp.Nq, length(rp.ks))
+    sp = SimPrealloc(spa.Nq, length(spa.ks))
 
-    ks = rp.ks
-    qs = rp.qs
+    ks = spa.ks
+    qs = spa.qs
     Nk = length(ks)
     rev_ks = reverse(ks)
     @assert all(ks .== .-rev_ks)
 
     @info "generate_surface!"
-    @time generate_surface!(sp, rp)
+    @time generate_surface!(sp, spa)
 
     @info "SimPreCompute"
-    @time pc = SimPreCompute(rp)
+    @time pc = SimPreCompute(spa)
     validate(pc)
 
-    @time solve!(sp, rp, pc)
+    @time solve!(sp, spa, pc)
 
     pre(q, k) = √((alpha0(q))/(alpha0(k)))
 
@@ -43,8 +43,8 @@ function test_reciprocity()
 
     rev_idx(idx, N) = N - idx + 1
 
-    for (i, ki) in enumerate(rp.kis)
-        for (j, kj) in enumerate(rp.kis)
+    for (i, ki) in enumerate(spa.kis)
+        for (j, kj) in enumerate(spa.kis)
             q = ks[i]
             k = ks[j]
             i_rev = rev_idx(i, Nk)
@@ -65,9 +65,9 @@ function test_reciprocity()
 end
 
 function test_symmetry_isotropic()
-    sp, rp = default_config_creation()
+    sp, spa = default_config_creation()
     M = 1
-    @time solve_MDRC!(sp, rp, 1)
+    @time solve_MDRC!(sp, spa, 1)
 
     M = sp.Mpq
     hm = heatmap(log10.(abs2.(M)), size=(800,800))
@@ -75,10 +75,10 @@ function test_symmetry_isotropic()
 end
 
 function test_solver_surf(surf::T) where T<:RandomSurface
-    rp, sp = default_params_for_surface_testing(surf)
+    spa, sp = default_params_for_surface_testing(surf)
 
     M = 100
-    @time qs, coh, incoh = solve_MDRC!(rp, sp, M)
+    @time qs, coh, incoh = solve_MDRC!(spa, sp, M)
 
     plt_coh = plot(qs, coh, yscale=:log10, title="$(typeof(surf))\nCoherent MDRC")
     plt_incoh = plot(qs, incoh, yscale=:log10, title="$(typeof(surf))\nIncoherent MDRC")

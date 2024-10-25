@@ -28,13 +28,13 @@ export RandomSurface, FlatSurface, GaussianSurface
 export SingleBumpSurface, RectangularSurface
 export scale
 
-include("SimPrealloc.jl")
-export SimPrealloc
-
 include("SimParams.jl")
 export Polarization, PolarizationP, PolarizationS
 export SimParams
 export get_angles, get_scale, get_scaled_params
+
+include("SimPrealloc.jl")
+export SimPrealloc
 
 include("SimPreCompute.jl")
 export SimPreCompute, validate
@@ -44,7 +44,7 @@ export generate_surface!
 
 include("utils.jl")
 export show, display, parse, convert
-export save_to, load_rp_desc, load_rp_struct
+export save_spa_config, load_spa_config, load_mdrc_data, save_mdrc_data
 export surface_prompt, config_creation_prompt, default_config_creation
 export default_params_for_surface_testing
 
