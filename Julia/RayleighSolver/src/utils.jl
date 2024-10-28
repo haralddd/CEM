@@ -3,9 +3,6 @@ Base.show(io::IO, ::FlatSurface) = print(io, "FlatSurface()")
 Base.show(io::IO, s::GaussianSurface) = print(io, "GaussianSurface(d=$(s.d), a=$(s.a))")
 Base.show(io::IO, s::SingleBumpSurface) = print(io, "SingleBumpSurface(d=$(s.d), a=$(s.a))")
 Base.show(io::IO, s::RectangularSurface) = print(io, "RectangularSurface(d=$(s.d), km=$(s.km), kp=$(s.kp))")
-Base.show(spa::SimParams) = print("SimParams($(["\n\t$(k)=$(v)" for (k, v) in scaled_params(spa)]...)\n)")
-
-Base.display(spa::SimParams) = Base.show(spa)
 
 Base.show(io::IO, ::PT) where {PT<:Polarization} = print(io, "$PT")
 Base.show(io::IO, ::Material) = print(io, "Material")
@@ -75,9 +72,24 @@ function Base.convert(::Type{SimParams}, dict::Dict)::SimParams
     )
 end
 
-function save_spa_config(file::String, spa::SimParams)
+function get_scaled_params(spa::SimParams)::Dict
+    s = spa.omega / c0
+    dict = convert(Dict, spa)
+    dict[:Lx] = spa.Lx / s
+    dict[:surf] = scale(spa.surf, 1 / s)
+    return dict
+end
+
+Base.show(spa::SimParams) = print("SimParams($(["\n\t$(k)=$(v)" for (k, v) in get_scaled_params(spa)]...)\n)")
+Base.display(spa::SimParams) = Base.show(spa)
+
+function save_spa_config(file::String, spa::SimParams; override::Dict=Dict())
+    dict = convert(Dict, spa)
+    for (k, v) in override
+        dict[k] = v
+    end
     file = split(file, '.')[end] != "jld2" ? file*".jld2" : file
-    save(file, "config", convert(Dict, spa))
+    save(file, "config", dict)
 end
 
 function load_spa_config(file::String)::SimParams
@@ -93,6 +105,16 @@ end
 function load_mdrc_data(file::String)
     file = split(file, '.')[end] != "jld2" ? file*".jld2" : file
     return load(file)["coh"], load(file)["incoh"]
+end
+
+function save_ensemble_iters(file::String, iters)
+    file = split(file, '.')[end] != "jld2" ? file*".jld2" : file
+    save(file, "iters", iters)
+end
+
+function load_ensemble_iters(file::String)
+    file = split(file, '.')[end] != "jld2" ? file*".jld2" : file
+    return load(file)["iters"]
 end
 
 function interface_prompt()
@@ -244,7 +266,9 @@ function config_creation_prompt()::SimParams
         print("Filename [default.jld2]: ")
         input = readline()
         input = input == "" ? "default.jld2" : input
-        save_spa_config("input/" * input, spa)
+        save_spa_config("input/" * input, spa,
+            override=Dict(:seed => seed) # Override the seed to generate random seed using the input
+            )
     end
 
     return spa

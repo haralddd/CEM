@@ -2,6 +2,6 @@
 .vscode
 Manifest.toml
 *.csv
-data
+output
 plots
 */cmake-build-debug
