@@ -44,7 +44,9 @@ export generate_surface!
 
 include("utils.jl")
 export show, display, parse, convert
-export save_spa_config, load_spa_config, load_mdrc_data, save_mdrc_data
+export save_spa_config, load_spa_config
+export save_mdrc_data, load_mdrc_data
+export save_ensemble_iters, load_ensemble_iters
 export surface_prompt, config_creation_prompt, default_config_creation
 export default_params_for_surface_testing
 

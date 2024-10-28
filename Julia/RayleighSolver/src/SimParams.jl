@@ -161,33 +161,3 @@ function SimParams(;
         rescale=rescale
     )
 end
-
-"""
-    get_angles(spa::SimParams)::Vector{Float64}
-
-Returns the incident angles of `spa` in degrees.
-"""
-function get_angles(spa::SimParams)::Vector{Float64}
-    return asind.(spa.qs[spa.kis])
-end
-
-function get_scale(spa::SimParams)::Float64
-    return spa.omega / c0
-end
-
-function get_scaled_params(spa::SimParams)::Dict
-    s = get_scale(spa)
-    return Dict(
-        :nu => spa.nu,
-        :eps => spa.eps,
-        :mu => spa.mu,
-        :lambda => spa.lambda,
-        :omega => spa.omega,
-        :Q => spa.Q,
-        :ks => spa.ks * s,
-        :Nq => spa.Nq,
-        :Lx => spa.Lx / s,
-        :Ni => spa.Ni,
-        :surf => scale(spa.surf, 1 / s),
-    )
-end
