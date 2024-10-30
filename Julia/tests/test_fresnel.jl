@@ -52,8 +52,8 @@ function test_fresnel(; input="silver")
     generator_s!(sp_s.ys)
 
     # Solve for R
-    @time solve!(sp_p, rp_p, Mpk_p_pre, Npk_p_pre)
-    @time solve!(sp_s, rp_s, Mpk_s_pre, Npk_s_pre)
+    @time solve_single!(sp_p, rp_p, Mpk_p_pre, Npk_p_pre)
+    @time solve_single!(sp_s, rp_s, Mpk_s_pre, Npk_s_pre)
 
     res_p = [sp_p.Npk[:, i] .|> abs2 |> maximum for i in eachindex(rp_p.kis)]
     res_s = [sp_s.Npk[:, i] .|> abs2 |> maximum for i in eachindex(rp_s.kis)]

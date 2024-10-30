@@ -1,17 +1,21 @@
 
 struct SimOutput
     qs::Vector{Float64}
-    coherent::Matrix{ComplexF64}
-    incoherent::Matrix{ComplexF64}
+    qis::Vector{Int}
+    coherent::Matrix{Float64}
+    incoherent::Matrix{Float64}
 
     function SimOutput(spa::SimParams)
         # Reduced q-vector indices
-        qis = findall(q -> q > -1 && q < 1, spa.qs)
-        new_qs = spa.qs[qis]
+        new_qis = findall(q -> q > -1 && q < 1, spa.qs)
+        new_qs = spa.qs[new_qis]
 
         coh = zeros(Float64, (length(new_qs), length(spa.kis)))
         incoh = zeros(Float64, (length(new_qs), length(spa.kis)))
-        new(coh, incoh, new_qs)
+        new(new_qs, new_qis, coh, incoh)
+    end
+    function SimOutput(qs, coh, incoh)
+        new(qs, coh, incoh)
     end
 end
 
@@ -23,18 +27,24 @@ struct SolverData
     iters::Int64
 
     function SolverData(spa::SimParams, iters::Int64)
-        sp = SimPrealloc(spa)
-        out = SimOutput(spa)
+        sp, (sp_stats...) = @timed SimPrealloc(spa)
+        out, (out_stats...) = @timed SimOutput(spa)
+        pc, (pc_stats...) = @timed SimPreCompute(spa)
 
-        pc = SimPreCompute(spa)
+        precomp_stats = @timed precompute!(pc, spa)
         validate(pc)
+
+        @debug "SimOutput stats: $out_stats"
+        @debug "SimPrealloc stats: $sp_stats"
+        @debug "SimPreCompute stats: $pc_stats"
+        @debug "precompute! stats: $precomp_stats"
 
         return new(spa, pc, sp, out, iters)
     end
 end
 
 """
-    function solve!(data::SolverData)::Nothing
+    function solve_single!(data::SolverData)::Nothing
 
 Calculates the preallocated surface integral.
 Matrix Mpqn is preallocated and contains the invariant parts of the Mpq matrix.
@@ -45,7 +55,7 @@ Overwrites sp.Mpq with the LU factorization in the linear solution process.
 # Arguments:
 - `data`: [`SolverData`](@ref) - Contains the parameters, preallocated steps, output
 """
-function solve!(data::SolverData)::Nothing
+function solve_single!(data::SolverData)::Nothing
 
     spa = data.spa
     pc = data.pc
@@ -116,33 +126,39 @@ function solve_MDRC!(data::SolverData)
     sp = data.sp
     spa = data.spa
     iters = data.iters
-    qs_reduced = data.out.qs
-    valid_qis = findall(q -> q > -1 && q < 1, spa.qs)
+    valid_qis = data.out.qis
+    valid_qs = data.out.qs
     coh = data.out.coherent
     incoh = data.out.incoherent
 
-    @time begin
+    # function do_iter(data)
+    #     sp = data.sp
+    #     spa = data.spa
+    #     generate_surface!(sp, spa)
+    #     solve_single!(data)
+    #     [abs2.(sp.Npk), sp.Npk]
+    # end
+    # result = mean((_) -> do_iter(data), 1:iters)
+    res = Array{ComplexF64,3}(undef, length(valid_qis), length(spa.kis), iters)
+    begin
         for n in 1:iters
             generate_surface!(sp, spa)
-            solve!(data)
-
-            # Accumulate results
+            solve_single!(data)
             for j in eachindex(spa.kis)
                 for (i, qi) in enumerate(valid_qis)
-                    coh[i, j] += sp.Npk[qi, j]
-                    incoh[i, j] += abs2(sp.Mpq[qi, j])
+                    res[i, j, n] = sp.Npk[qi, j]
                 end
             end
         end
     end # time
 
     for (j, k) in enumerate(spa.ks)
-        for (i, q) in enumerate(qs_reduced)
+        for (i, q) in enumerate(valid_qs)
             prefactor = abs2(alpha0(q)) / abs(alpha0(k))
-            incoh[i, j] = prefactor * mean(abs2.(res[i, j, :])) - coh[i, j]
             coh[i, j] = prefactor * abs2.(mean(res[i, j, :]))
+            incoh[i, j] = prefactor * mean(abs2.(res[i, j, :])) - coh[i, j]
         end
     end
 
-    return qs_reduced, coh, incoh
+    return nothing
 end

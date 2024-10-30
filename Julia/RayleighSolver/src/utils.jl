@@ -80,7 +80,7 @@ function get_scaled_params(spa::SimParams)::Dict
     return dict
 end
 
-Base.show(spa::SimParams) = print("SimParams($(["\n\t$(k)=$(v)" for (k, v) in get_scaled_params(spa)]...)\n)")
+Base.show(spa::SimParams) = println("SimParams($(["\n\t$(k)=$(v)" for (k, v) in get_scaled_params(spa)]...)\n)")
 Base.display(spa::SimParams) = Base.show(spa)
 
 function save_spa_config(file::String, spa::SimParams; override::Dict=Dict())
@@ -88,227 +88,41 @@ function save_spa_config(file::String, spa::SimParams; override::Dict=Dict())
     for (k, v) in override
         dict[k] = v
     end
+
     file = split(file, '.')[end] != "jld2" ? file*".jld2" : file
-    save(file, "config", dict)
+    jldopen(file, "a+") do io 
+        io["spa"] = dict
+    end
+    return
 end
 
 function load_spa_config(file::String)::SimParams
     file = split(file, '.')[end] != "jld2" ? file*".jld2" : file
-    return load(file)["config"]
+    return load(file, "spa")
 end
 
-function save_mdrc_data(file::String, coh, incoh)
+function save_mdrc_data(file::String, out::SimOutput)
     file = split(file, '.')[end] != "jld2" ? file*".jld2" : file
-    save(file, "coh", coh, "incoh", incoh)
+    jldopen(file, "a+") do io
+        io["out"] = out
+    end
+    return
 end
 
-function load_mdrc_data(file::String)
+function load_mdrc_data(file::String)::SimOutput
     file = split(file, '.')[end] != "jld2" ? file*".jld2" : file
-    return load(file)["coh"], load(file)["incoh"]
+    return load(file, "out")
 end
 
 function save_ensemble_iters(file::String, iters)
     file = split(file, '.')[end] != "jld2" ? file*".jld2" : file
-    save(file, "iters", iters)
+    jldopen(file, "a+") do io
+        io["iters"] = iters
+    end
+    return
 end
 
 function load_ensemble_iters(file::String)
     file = split(file, '.')[end] != "jld2" ? file*".jld2" : file
-    return load(file)["iters"]
+    return load(file, "iters")
 end
-
-function interface_prompt()
-    print("Interface type [flat|gaussian|singlebump|rect(West O'Donnell)] (=gaussian): ")
-    input = readline()
-    input = input == "" ? "gaussian" : input
-
-    if input == "rect"
-        print("West O'Donnell RMS height, δ [nm] (=5.0): ")
-        input = readline()
-        d = parse(Float64, input == "" ? "5.0" : input) * 1e-9
-
-        print("West O'Donnell lower cutoff, k- [scaled to omega/c] (=0.8): ")
-        input = readline()
-        km = parse(Float64, input == "" ? "0.8" : input)
-
-        print("West O'Donnell upper cutoff, k+ [scaled to omega/c] (=1.2): ")
-        input = readline()
-        kp = parse(Float64, input == "" ? "1.2" : input)
-
-        return RectangularSurface(d, km, kp)
-    elseif input == "gaussian"
-        print("Gaussian RMS height, δ [nm] (=5.0): ")
-        input = readline()
-        d = parse(Float64, input == "" ? "5.0" : input) * 1e-9
-
-        print("Gaussian correlation length, a [nm] (=1.0): ")
-        input = readline()
-        a = parse(Float64, input == "" ? "1.0" : input) * 1e-9
-
-        return GaussianSurface(d, a)
-    elseif input == "singlebump"
-        print("Single bump RMS height, δ [nm] (=5.0): ")
-        input = readline()
-        d = parse(Float64, input == "" ? "5.0" : input) * 1e-9
-
-        print("Single bump correlation length, a [nm] (=1.0): ")
-        input = readline()
-        a = parse(Float64, input == "" ? "1.0" : input) * 1e-9
-
-        return SingleBumpSurface(d, a)
-    else
-        return FlatSurface()
-    end
-end
-
-function material_prompt()
-    print("Material type [vacuum|isotropic|uniaxialcrystal] (=vacuum): ")
-    input = readline()
-    input = input == "" ? "vacuum" : input
-    if input == "uniaxialcrystal"
-        print("Uniaxial crystal ε⟂ [complex] (=1.0): ")
-        input = readline()
-        eps_perp = parse(ComplexF64, input == "" ? "1.0" : input)
-
-        print("Uniaxial crystal ε∥ [complex] (=1.0): ")
-        input = readline()
-        eps_para = parse(ComplexF64, input == "" ? "1.0" : input)
-
-        print("Uniaxial crystal μ⟂ [complex] (=1.0): ")
-        input = readline()
-        mu_perp = parse(ComplexF64, input == "" ? "1.0" : input)
-
-        print("Uniaxial crystal μ∥ [complex] (=1.0): ")
-        input = readline()
-        mu_para = parse(ComplexF64, input == "" ? "1.0" : input)
-
-        return UniaxialCrystal(eps_perp, eps_para, mu_perp, mu_para)
-    elseif input == "isotropic"
-        print("Isotropic ε [complex] (=1.0): ")
-        input = readline()
-        eps = parse(ComplexF64, input == "" ? "1.0" : input)
-
-        print("Isotropic μ [complex] (=1.0): ")
-        input = readline()
-        mu = parse(ComplexF64, input == "" ? "1.0" : input)
-
-        return Isotropic(eps, mu)
-    end
-
-    return Vacuum()
-end
-
-function config_creation_prompt()::SimParams
-    print("Input for solver parameters input SimParams struct\n")
-    print("Polarization [p|s] (=p): ")
-    input = readline()
-    nu = parse(Polarization, input == "" ? "p" : input)
-
-    print("lambda [nm] (=632.8): ")
-    input = readline()
-    lambda = parse(Float64, input == "" ? "632.8" : input) * 1e-9
-
-    print("Q [multiple of omega/c] (=4): ")
-    input = readline()
-    Q = parse(Int64, input == "" ? "4" : input)
-
-    print("Nq (=1024): ")
-    input = readline()
-    Nq = parse(Int64, input == "" ? "1024" : input)
-
-    print("angles [list of deg \'0,1,2...\' OR range \'0:1:10\' OR \'fresnel\'] (=0:10:20): ")
-    input = readline()
-    if input == "fresnel"
-        angles = 0.0:0.5:90.0
-    elseif contains(input, ':') # Range input
-        from, step, to = parse.(Float64, split(input == "" ? "0:10:20" : input, ':'))
-        angles = from:step:to
-    else
-        angles = parse.(Float64, split(input == "" ? "0, 10, 20" : input, ','))
-    end
-
-    print("Lx [multiple of lambda] (=100): ")
-    input = readline()
-    Lx = parse(Float64, input == "" ? "100" : input) * lambda
-
-    print("Ni (=10): ")
-    input = readline()
-    Ni = parse(Int64, input == "" ? "10" : input)
-
-    surf = interface_prompt()
-
-    println("Material above the interface (+)")
-    above = material_prompt()
-    println("Material below the interface (-)")
-    below = material_prompt()
-
-    print("Seed [Int64 >= 0] (= random seed): ")
-    input = readline()
-    seed = parse(Int64, input == "" ? "-1" : input)
-
-    spa = SimParams{typeof(surf),typeof(nu),typeof(above),typeof(below)}(
-        lambda=lambda,
-        Q=Q,
-        Nq=Nq,
-        ks=sind.(angles),
-        Lx=Lx,
-        Ni=Ni,
-        surf=surf,
-        above=above,
-        below=below,
-        seed=seed,
-        rescale=true,
-    )
-
-    print("Save config as input file? [y|n] (=n): ")
-    input = readline()
-    if input == "y"
-        print("Filename [default.jld2]: ")
-        input = readline()
-        input = input == "" ? "default.jld2" : input
-        save_spa_config("input/" * input, spa,
-            override=Dict(:seed => seed) # Override the seed to generate random seed using the input
-            )
-    end
-
-    return spa
-end
-
-
-"For debug purposes, mostly"
-function default_config_creation()::Tuple{SimPrealloc, SimParams}
-    spa = SimParams(
-        lambda=632.8e-9,
-        Q=4,
-        Nq=1024,
-        ks=[sind(10.0), sind(20.0), sind(30.0)],
-        Lx=10.0e-6,
-        Ni=10,
-        surf=GaussianSurface(30.0e-9, 100.0e-9),
-        rescale=true
-    )
-
-    sp = SimPrealloc(spa.Nq, length(spa.ks))
-
-    return sp, spa
-end
-
-function default_params_for_surface_testing(surf::T)::Tuple{SimPrealloc, SimParams} where {T<:RandomSurface}
-    spa = SimParams(
-        lambda=632.8e-9,
-        Q=4,
-        Nq=1024,
-        ks=[sind(10.0), sind(20.0), sind(30.0)],
-        Lx=10.0e-6,
-        Ni=10,
-        surf=surf,
-        rescale=true
-    )
-
-    sp = SimPrealloc(spa.Nq, length(spa.ks))
-
-    return sp, spa
-
-end
-
-

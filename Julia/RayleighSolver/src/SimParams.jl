@@ -106,6 +106,13 @@ function SimParams{ST,PT,AT,BT}(;
     @assert Q > 2 "Q must be greater than 2, but is $Q. 4 is recommended."
     @assert Nq > 2 "Nq must be greater than 2, but is $Nq."
 
+    if typeof(below) == Isotropic
+        if imag(below.eps) + imag(below.mu) ≈ 0
+            @warn "Material below has no loss, adding small imaginary component to avoid singularities."
+            below = Isotropic(below.eps + 1e-6im, below.mu)
+        end
+    end
+
     if rescale
         Lx = Lx * omega / c0
         new_surf = scale(surf, omega / c0)

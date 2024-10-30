@@ -35,7 +35,7 @@ function test_reciprocity()
     @time pc = SimPreCompute(spa)
     validate(pc)
 
-    @time solve!(sp, spa, pc)
+    @time solve_single!(sp, spa, pc)
 
     pre(q, k) = √((alpha0(q))/(alpha0(k)))
 

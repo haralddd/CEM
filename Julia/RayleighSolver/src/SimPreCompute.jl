@@ -8,8 +8,13 @@ This amounts to the factors which are invariant under surface change
 struct SimPreCompute
     Mpqn::Array{ComplexF64,3}
     Npkn::Array{ComplexF64,3}
-end
 
+    function SimPreCompute(spa::SimParams)::SimPreCompute
+        Mpqn = Array{ComplexF64,3}(undef, length(spa.ps), length(spa.qs), spa.Ni + 1)
+        Npkn = Array{ComplexF64,3}(undef, length(spa.ps), length(spa.kis), spa.Ni + 1)
+        return new(Mpqn, Npkn)
+    end
+end
 
 const prefactors = [-1.0im, -1.0 + 0.0im, 1.0im, 1.0 + 0.0im] # Lookup table
 _pre(n) = prefactors[mod1(n, 4)]
@@ -180,19 +185,10 @@ function N_invariant!(N::Array{ComplexF64,3}, spa::SimParams{_S,Nu,UniaxialCryst
     return nothing
 end
 
-function M_invariant(spa::SimParams{_S,Nu,A,B})::Array{ComplexF64,3} where {_S,Nu,A,B}
-    Mpqn = Array{ComplexF64,3}(undef, length(spa.ps), length(spa.qs), spa.Ni + 1)
-    M_invariant!(Mpqn, spa)
-    return Mpqn
-end
-function N_invariant(spa::SimParams{_S,Nu,A,B})::Array{ComplexF64,3} where {_S,Nu,A,B}
-    Npkn = Array{ComplexF64,3}(undef, length(spa.ps), length(spa.kis), spa.Ni + 1)
-    N_invariant!(Npkn, spa)
-    return Npkn
-end
-
-function SimPreCompute(spa::SimParams)::SimPreCompute
-    return SimPreCompute(M_invariant(spa), N_invariant(spa))
+function precompute!(pc::SimPreCompute, spa::SimParams)::Nothing
+    M_invariant!(pc.Mpqn, spa)
+    N_invariant!(pc.Npkn, spa)
+    return nothing
 end
 
 function validate(pc::SimPreCompute)::Nothing
@@ -200,3 +196,4 @@ function validate(pc::SimPreCompute)::Nothing
     @assert all(isfinite.(pc.Npkn))
     return nothing
 end
+
