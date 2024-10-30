@@ -39,7 +39,7 @@ function test_unitarity_plot(; surf_t::SurfType=flat, ε=2.25, μ=1.0, ν::Polar
         M_invariant!(M_pre, spa)
         N_invariant!(N_pre, spa, k)
 
-        solve!(sp, spa, M_pre, N_pre, ki)
+        solve_single!(sp, spa, M_pre, N_pre, ki)
         res[i] = unitary(sp.Npk, spa, k)
     end
     return ims, res

@@ -31,7 +31,7 @@ function profile_solver_components()
     surf = GaussianSurface(30.0e-9, 100.0e-9)
     sp, spa = default_params_for_surface_testing(surf)
     pc = SimPreCompute(spa)
-    solve!(sp, spa, pc)
+    solve_single!(sp, spa, pc)
 end
 
 function profile_crystal_precompute()
