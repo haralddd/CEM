@@ -44,12 +44,12 @@ export generate_surface!
 
 include("solver.jl")
 export SimOutput, SolverData
-export solve_single!, MDRC_prefactor, solve_MDRC!
+export solve_single!, MDRC_prefactor, solve_MDRC!, precompute!, observe
 
 include("utils.jl")
 export show, display, parse, convert
 export save_spa_config, load_spa_config
-export save_mdrc_data, load_mdrc_data
+export save_solver_data, load_solver_data
 export save_ensemble_iters, load_ensemble_iters
 export surface_prompt, config_creation_prompt, default_config_creation
 export default_params_for_surface_testing

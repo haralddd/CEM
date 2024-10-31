@@ -83,6 +83,9 @@ end
 Base.show(spa::SimParams) = println("SimParams($(["\n\t$(k)=$(v)" for (k, v) in get_scaled_params(spa)]...)\n)")
 Base.display(spa::SimParams) = Base.show(spa)
 
+# Base.show(data::SolverData) = println("SolverData($(["\n\t$(k)=$(v)" for (k, v) in data]...)\n)")
+# Base.display(data::SolverData) = Base.show(data)
+
 function save_spa_config(file::String, spa::SimParams; override::Dict=Dict())
     dict = convert(Dict, spa)
     for (k, v) in override
@@ -101,17 +104,17 @@ function load_spa_config(file::String)::SimParams
     return load(file, "spa")
 end
 
-function save_mdrc_data(file::String, out::SimOutput)
+function save_solver_data(file::String, out::SolverData)
     file = split(file, '.')[end] != "jld2" ? file*".jld2" : file
     jldopen(file, "a+") do io
-        io["out"] = out
+        io["solverdata"] = out
     end
     return
 end
 
-function load_mdrc_data(file::String)::SimOutput
+function load_solver_data(file::String)::SolverData
     file = split(file, '.')[end] != "jld2" ? file*".jld2" : file
-    return load(file, "out")
+    return load(file, "solverdata")
 end
 
 function save_ensemble_iters(file::String, iters)

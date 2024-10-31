@@ -1,5 +1,4 @@
-push!(LOAD_PATH, "$(@__DIR__)/../RayleighSolver/")
-using RayleighSolver
+include("testconfig.jl")
 
 using ProfileView
 using BenchmarkTools
@@ -27,14 +26,43 @@ function profile_rectangular_surfacegen()
     ProfileView.@profview loop_de_loop(sp, spa)
 end
 
-function profile_solver_components()
-    surf = GaussianSurface(30.0e-9, 100.0e-9)
-    sp, spa = default_params_for_surface_testing(surf)
-    pc = SimPreCompute(spa)
-    solve_single!(sp, spa, pc)
+function profile_isotropic_solver()
+
+    @info "Simple glass isotropic:"
+    spa = config_glass_isotropic()
+    data = SolverData(spa, 100)
+    _, (pc_stats...) = @timed precompute!(data)
+    _, (surf_stats...) = @timed generate_surface!(data.sp, data.spa)
+    _, (solve_single_stats...) = @timed solve_single!(data)
+    R = Matrix{ComplexF64}(undef, length(data.out.qis), length(data.spa.kis))
+    _, (obs_stats...) = @timed for n in 1:100
+        for j in eachindex(data.spa.kis)
+            for (i, qi) in enumerate(data.out.qis)
+                R[i, j] = observe(R[i, j], data.sp.Npk[qi, j], n)
+            end
+        end
+    end
+
+    @info "Precomputation: $pc_stats"
+    @info "Surface generation: $surf_stats"
+    @info "Single solve: $solve_single_stats"
+    @info "Observation: $obs_stats"
+
+    @info "Simple silver isotropic"
+    spa = config_silver_isotropic()
+    data = SolverData(spa, 100)
+    _, (pc_stats...) = @timed precompute!(data)
+    _, (surf_stats...) = @timed generate_surface!(data.sp, spa)
+    _, (solve_single_stats...) = @timed solve_single!(data)
+
+    @info "Precomputation: $pc_stats"
+    @info "Surface generation: $surf_stats"
+    @info "Single solve: $solve_single_stats"
 end
 
-function profile_crystal_precompute()
+profile_isotropic_solver()
+
+function profile_crystal_solver()
     ε = 2.25 + 1e-4im
     lambda = 632.8e-9
     Q = 4

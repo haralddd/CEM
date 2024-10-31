@@ -1,8 +1,19 @@
+push!(LOAD_PATH, "$(@__DIR__)/RayleighSolver/")
+using RayleighSolver
+
 using CairoMakie
 using LaTeXStrings
 CairoMakie.activate!(type="svg")
 
+function /(x::AbstractString, y::AbstractString)
+    return joinpath(x, y)
+end
 
+const DEFAULT_PATH = "$(@__DIR__)/"
+const DEFAULT_OUTPUT = DEFAULT_PATH / "output"
+const DEFAULT_PLOTDIR = DEFAULT_PATH / "plots"
+mkpath(DEFAULT_PLOTDIR)
+mkpath(DEFAULT_OUTPUT)
 function custom_plot!(ax, xs, ys, x0, color, shape)
     lines!(ax,
         xs, ys,
@@ -58,4 +69,31 @@ function plot_mdrc(data::SolverData, fname="default", dir="plots")
     end
     axislegend()
     save(joinpath(dir, fname * "_coh.pdf"), fig)
+
+    @info "Saved plots to $(DEFAULT_PLOTDIR / fname)"
+end
+
+function cli_plot(arg)
+    filename = ""
+    arg = ARGS[1]
+    try filename = files[parse(Int64, arg)]
+    catch
+        filename = arg
+    end
+
+    plot_mdrc(load_solver_data(DEFAULT_OUTPUT / filename), filename, DEFAULT_PLOTDIR)
+end
+
+if (abspath(PROGRAM_FILE) == @__FILE__)
+    files = readdir(DEFAULT_OUTPUT)
+    if length(ARGS) < 1
+        println("Usage: julia plot.jl <filename || index>")
+        println("List of output files in $(DEFAULT_OUTPUT):")
+
+        for (idx, file) in enumerate(files)
+            println("$idx: $file")
+        end
+    else
+        cli_plot(ARGS[1])
+    end
 end

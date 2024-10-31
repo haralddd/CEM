@@ -31,16 +31,20 @@ struct SolverData
         out, (out_stats...) = @timed SimOutput(spa)
         pc, (pc_stats...) = @timed SimPreCompute(spa)
 
-        precomp_stats = @timed precompute!(pc, spa)
-        validate(pc)
-
         @debug "SimOutput stats: $out_stats"
         @debug "SimPrealloc stats: $sp_stats"
         @debug "SimPreCompute stats: $pc_stats"
-        @debug "precompute! stats: $precomp_stats"
 
         return new(spa, pc, sp, out, iters)
     end
+end
+
+function precompute!(data::SolverData)::Nothing
+    spa = data.spa
+    pc = data.pc
+    precompute!(pc, spa)
+    validate(pc)
+    return nothing
 end
 
 """
@@ -80,6 +84,7 @@ function solve_single!(data::SolverData)::Nothing
     # we must access the pattern ζ(p-q), so make a reverse index range
     qidxs = reverse(axes(Mpq, 2))
     kidxs = reverse(kis)
+    nidxs = reverse(axes(Mpqn, 3))
 
     @inbounds for n in reverse(axes(Mpqn, 3)) # Reverse because prefactors vanish at higher powers of ´n´
         @inbounds for i in eachindex(Fys)
@@ -103,7 +108,7 @@ function solve_single!(data::SolverData)::Nothing
         end
     end
 
-    Npk, Mpq, _ = LinearAlgebra.LAPACK.gesv!(Mpq, Npk)
+    LinearAlgebra.LAPACK.gesv!(Mpq, Npk)
 
     return nothing
 end
@@ -112,6 +117,11 @@ function MDRC_prefactor(k::Float64, q::Float64, L::Float64)::Float64
     return 1 / (2π * L) * alpha0(q) / alpha0(k)
 end
 
+function observe(observable, value, N)
+    return (observable * (N-1) + value) / N
+end
+
+
 function solve_MDRC!(data::SolverData)
     # Solve the Rayleigh problem for a given SimParams struct
     # sp is the preallocated surface struct, containing the preallocated output, this is mutated in place
@@ -119,6 +129,9 @@ function solve_MDRC!(data::SolverData)
     # surf_generator! is a function that generates the surface sp.ys for each iteration
     # N_ens is the number of ensemble averages to perform
     # returns the coherent and incoherent MDRC
+
+    _, (pc_stats...) = @timed precompute!(data)
+    @debug "Precompute stats: $pc_stats"
 
     thr_sz = Threads.nthreads()
     LinearAlgebra.BLAS.set_num_threads(thr_sz)
@@ -131,34 +144,32 @@ function solve_MDRC!(data::SolverData)
     coh = data.out.coherent
     incoh = data.out.incoherent
 
-    # function do_iter(data)
-    #     sp = data.sp
-    #     spa = data.spa
-    #     generate_surface!(sp, spa)
-    #     solve_single!(data)
-    #     [abs2.(sp.Npk), sp.Npk]
-    # end
-    # result = mean((_) -> do_iter(data), 1:iters)
-    res = Array{ComplexF64,3}(undef, length(valid_qis), length(spa.kis), iters)
-    begin
-        for n in 1:iters
-            generate_surface!(sp, spa)
-            solve_single!(data)
-            for j in eachindex(spa.kis)
-                for (i, qi) in enumerate(valid_qis)
-                    res[i, j, n] = sp.Npk[qi, j]
-                end
+    # Cumulative mean values for coherent and incoherent, ⟨R²⟩ ⟨R⟩²
+    # ⟨R²⟩ can use incoh output (both floats), ⟨R⟩² needs to save the complex values
+    # Iteratively update observable like so: ⟨A⟩ₙ = n/n+1 ⟨A⟩ₙ₋₁ + Aₙ/n+1
+    R = Matrix{ComplexF64}(undef, length(valid_qis), length(spa.kis))
+    _, (mdrc_stats...) = @timed begin
+    for n in 1:iters
+        generate_surface!(sp, spa)
+        solve_single!(data)
+        for j in eachindex(spa.kis)
+            for (i, qi) in enumerate(valid_qis)
+                R[i, j] = observe(R[i, j], sp.Npk[qi, j], n)
+                incoh[i, j] = observe(incoh[i, j], abs2(sp.Npk[qi, j]), n)
             end
         end
-    end # time
+    end
 
     for (j, k) in enumerate(spa.ks)
         for (i, q) in enumerate(valid_qs)
             prefactor = abs2(alpha0(q)) / abs(alpha0(k))
-            coh[i, j] = prefactor * abs2.(mean(res[i, j, :]))
-            incoh[i, j] = prefactor * mean(abs2.(res[i, j, :])) - coh[i, j]
+            coh[i, j] = prefactor * abs2(R[i, j])
+            incoh[i, j] = prefactor * incoh[i, j] - coh[i, j]
         end
     end
+    end # end mdrc_stats
+
+    @debug "MDRC stats: $mdrc_stats"
 
     return nothing
 end
