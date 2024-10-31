@@ -2,6 +2,24 @@ push!(LOAD_PATH, "$(@__DIR__)/../RayleighSolver/")
 using RayleighSolver
 using Plots
 using LinearAlgebra
+using Statistics
+
+function test_observation()
+    N = 10000000
+    A = rand(N)*1.e-6 .+ 1.0
+
+    @info "mean(A) = $(mean(A))"
+
+    observable = 0.0
+    for n in eachindex(A)
+        observable = observe(observable, A[n], n)
+    end
+
+    @info "observable mean: A = $observable"
+    @info "difference: $(observable - mean(A))"
+end
+
+test_observation()
 
 function test_reciprocity()
     surf = GaussianSurface(30.0e-9, 100.0e-9)

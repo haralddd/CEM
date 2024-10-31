@@ -2,7 +2,6 @@
 push!(LOAD_PATH, "$(@__DIR__)/RayleighSolver/")
 using RayleighSolver
 using Dates
-include("plot.jl")
 
 
 function /(x::AbstractString, y::AbstractString)
@@ -12,11 +11,9 @@ end
 const DEFAULT_PATH = "$(@__DIR__)/"
 const DEFAULT_INPUT = DEFAULT_PATH / "input"
 const DEFAULT_OUTPUT = DEFAULT_PATH / "output"
-const DEFAULT_PLOTDIR = DEFAULT_PATH / "plots"
 
 mkpath(DEFAULT_INPUT)
 mkpath(DEFAULT_OUTPUT)
-mkpath(DEFAULT_PLOTDIR)
 
 function timestamp_suffix(str="out")
     return str * "_" * Dates.format(now(), "yyyy-mm-ddTHH:MM:SS")
@@ -173,16 +170,18 @@ function config_creation_prompt(path=DEFAULT_INPUT)::SimParams
         rescale=true,
     )
 
-    print("Save config as input file? [y|n] (=n): ")
+    print("Ensemble iters [Int64 >= 0] (= 1000): ")
     input = readline()
-    if input == "y"
-        print("Filename [default.jld2]: ")
-        input = readline()
-        input = input == "" ? "default.jld2" : input
-        save_spa_config(path / input, spa,
-            override=Dict(:seed => seed) # Override the seed to generate random seed using the input
-        )
-    end
+    iters = parse(Int64, input == "" ? "1000" : input)
+
+
+    print("Save as filename [=\"default.jld2\"]: ")
+    input = readline()
+    input = input == "" ? "default.jld2" : input
+    save_spa_config(path / input, spa,
+        override=Dict(:seed => seed) # Override the seed to generate random seed using the input
+    )
+    save_ensemble_iters(path / input, iters)
 
     return spa
 end
@@ -196,6 +195,7 @@ function cli_help()
     input [path] - load configuration file or directory at \'path\', defaults to \'./input\'
     info [Int|name] - show information about configuration file
     run [Int|name] - run a configuration file
+        out [label] - outputh label following the run command
     list - show list of loadable configurations in \'path\'
         and optionally run or show information
 
@@ -212,21 +212,17 @@ function cli_list(path)
 end
 
 function cli_info(filepath)
-    iters = 0
     try
-        iters = load_ensemble_iters(filepath)
-    catch
-        print("No number of ensemble iterations found in file '$(filepath)', specify number:")
-        iters = parse(Int64, readline())
-        @assert iters > 0 "Number of ensemble iterations must be > 0"
-        save_ensemble_iters(filepath, iters)
-    end
-    try
-        spa = load_spa_config(filepath)
-        display(spa)
-        display("Ensemble iterations: $iters")
-    catch
-        error("File '$(filepath)' not found or file not valid")
+        data = load_solver_data(filepath)
+        display(data)
+    catch e
+        @warn "No complete solver data found at '$(filepath)', if the file is a template configuration file, ignore this warning.\nError message: $e"
+        try
+            spa = load_spa_config(filepath)
+            display(spa)
+        catch
+            error("File '$(filepath)' not found or file not valid")
+        end
     end
     return
 end
@@ -234,27 +230,33 @@ end
 function cli_run(filepath)
     cli_info(filepath)
     spa = load_spa_config(filepath)
-    iters = load_ensemble_iters(filepath)
+    iters = 0
+    try
+        iters = load_ensemble_iters(filepath)
+    catch
+        println("No ensemble iters found, specify: (=1000)")
+        input = readline()
+        iters = parse(Int64, input == "" ? "1000" : input)
+    end
 
-    @info "Initializing SolverData and precomputing..."
+    @info "Initializing SolverData..."
     data = SolverData(spa, iters)
 
     @info "Solving system of equations..."
     @time solve_MDRC!(data)
 
-    print("Custom label (datetime is appended): ")
-    input = readline()
-    fname = timestamp_suffix(input)
+    if (idx = args_findoption("out")) !== nothing
+        @assert length(ARGS) > idx "Missing argument after 'out'"
+        fname = timestamp_suffix(ARGS[idx+1])
+    else
+        print("Custom label (datetime is appended): ")
+        input = readline()
+        fname = timestamp_suffix(input)
+    end
 
-    save_spa_config(DEFAULT_OUTPUT / fname, spa)
-    save_ensemble_iters(DEFAULT_OUTPUT / fname, iters)
-    save_mdrc_data(DEFAULT_OUTPUT / fname, data.out)
+    save_solver_data(DEFAULT_OUTPUT / fname, data)
     
     @info "Config and results saved to '$(DEFAULT_OUTPUT / fname)'"
-    include("plot.jl")
-    plot_mdrc(data, fname, DEFAULT_PLOTDIR)
-
-    @info "Plots saved to '$(DEFAULT_PLOTDIR / fname)'"
     return
 end
 
@@ -317,7 +319,7 @@ function cli_main()
     if (idx = args_findoption("input")) !== nothing
         @assert length(ARGS) > idx "Missing argument after 'input'"
         try
-            input_path = parse(String, ARGS[idx+1])
+            input_path = ARGS[idx+1]
         catch
             error("Invalid positional value after 'input': $(ARGS[idx+1])")
             exit(0)
@@ -326,7 +328,13 @@ function cli_main()
 
     @debug input_path
     @debug isdir(input_path)
+    @debug isfile(input_path)
     @debug pwd()
+
+    if !isdir(input_path) && !isfile(input_path)
+        @debug "Attempting relative path"
+        input_path = DEFAULT_PATH / input_path
+    end
 
     if (idx = args_findoption("info") !== nothing)
         if isfile(input_path)
