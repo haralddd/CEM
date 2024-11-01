@@ -14,6 +14,8 @@ using FFTW
 using Statistics
 using Random: Xoshiro, randn!
 using JLD2, FileIO
+using ProgressBars
+using LoopVectorization
 import Base.parse
 import Base.show
 import Base.display
@@ -44,7 +46,8 @@ export generate_surface!
 
 include("solver.jl")
 export SimOutput, SolverData
-export solve_single!, MDRC_prefactor, solve_MDRC!, precompute!, observe
+export solve_single!, solve_MDRC!, precompute!, observe
+export get_mdrc_qs_coh_inc
 
 include("utils.jl")
 export show, display, parse, convert
