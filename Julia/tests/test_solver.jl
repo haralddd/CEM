@@ -19,59 +19,70 @@ function test_observation()
     @info "difference: $(observable - mean(A))"
 end
 
-test_observation()
-
 function test_reciprocity()
     surf = GaussianSurface(30.0e-9, 100.0e-9)
     Q = 4
-    Nq = 2048+1
-    valid_qs = LinRange(-Q/2, Q/2, Nq)
-    valid_ks = valid_qs[-1.0 .< valid_qs .< 1.0]
-    @assert all(valid_ks .== .-reverse(valid_ks))
+    Nq = 2048
+
+    dq = Q / (Nq - 1)
+    qs = -Q/2:dq:Q/2
+    ks = qs[-1.0 .< qs .< 1.0]
+    Nk = length(ks)
+
     spa = SimParams(
         lambda=632.8e-9,
-        Q=4,
+        Q=Q,
         Nq=Nq,
-        ks=valid_ks,
-        L=10.0e-6,
+        ks=ks,
+        Lx=10.0e-6,
         Ni=10,
         surf=surf,
         rescale=true
     )
-    sp = SimPrealloc(spa.Nq, length(spa.ks))
+    data = SolverData(spa, 1)
 
-    ks = spa.ks
-    qs = spa.qs
-    Nk = length(ks)
-    rev_ks = reverse(ks)
-    @assert all(ks .== .-rev_ks)
+    @info "SimPreCompute"
+    @time precompute!(data)
+    spa = data.spa
+    sp = data.sp
 
     @info "generate_surface!"
     @time generate_surface!(sp, spa)
 
-    @info "SimPreCompute"
-    @time pc = SimPreCompute(spa)
-    validate(pc)
+    @info "solve_single!"
+    @time solve_single!(data)
 
-    @time solve_single!(sp, spa, pc)
+    Δ = fill(1e-20, Nk, Nk)
 
-    pre(q, k) = √((alpha0(q))/(alpha0(k)))
+    rev_idx(idx) = Nk - idx + 1
 
-    Δ = Matrix{Float64}(undef, Nk, Nk)
+    for (j, kj) in enumerate(spa.kis)
+        for (i, qi) in enumerate(spa.kis)
 
-    rev_idx(idx, N) = N - idx + 1
+            k = qs[kj]
+            q = qs[qi]
 
-    for (i, ki) in enumerate(spa.kis)
-        for (j, kj) in enumerate(spa.kis)
-            q = ks[i]
-            k = ks[j]
-            i_rev = rev_idx(i, Nk)
-            kj_rev = rev_idx(kj, Nq)
-            @assert q == -ks[i_rev] "q=$(q) != -ks[i_rev]=$(-ks[i_rev])"
-            @assert k == -qs[kj_rev] "k=$(k) != -qs[kj_rev]=$(-qs[kj_rev])"
+            mi = rev_idx(i)
+            mqj = spa.rev_kis[j]
+            mqi = spa.rev_kis[i]
 
-            Sqk = pre(q, k) * sp.Npk[ki, j]
-            Skq = pre(-k, -q) * sp.Npk[kj_rev, i_rev]
+            mk = qs[mqj]
+            mq = qs[mqi]
+
+            @assert ks[mi] == -ks[i]
+            @assert mk == -k
+            @assert mq == -q
+
+            a1 = alpha0(q)
+            a2 = alpha0(k)
+
+            b1 = alpha0(mk)
+            b2 = alpha0(mq)
+
+            if a2 ≈ 0.0 || b2 ≈ 0.0 continue end
+
+            Sqk = sqrt(a1/a2) * sp.Npk[qi, j]
+            Skq = sqrt(b1/b2) * sp.Npk[mqj, mi]
 
             Δ[i, j] = abs(Sqk - Skq)
         end
@@ -80,33 +91,6 @@ function test_reciprocity()
     hm = heatmap(ks, ks, log10.(Δ), size=(800, 800))
     display(hm)
     display("Reciprocity, maximum error: $(maximum(Δ))")
-end
-
-function test_symmetry_isotropic()
-    sp, spa = default_config_creation()
-    M = 1
-    @time solve_MDRC!(sp, spa, 1)
-
-    M = sp.Mpq
-    hm = heatmap(log10.(abs2.(M)), size=(800,800))
-    display(hm)
-end
-
-function test_solver_surf(surf::T) where T<:RandomSurface
-    spa, sp = default_params_for_surface_testing(surf)
-
-    M = 100
-    @time qs, coh, incoh = solve_MDRC!(spa, sp, M)
-
-    plt_coh = plot(qs, coh, yscale=:log10, title="$(typeof(surf))\nCoherent MDRC")
-    plt_incoh = plot(qs, incoh, yscale=:log10, title="$(typeof(surf))\nIncoherent MDRC")
-    return plot(plt_coh, plt_incoh, layout=(1, 2))
-end
-
-function test_solver()
-    plt1 = test_solver_surf(GaussianSurface(30.0e-9, 100.0e-9))
-    plt2 = test_solver_surf(RectangularSurface(30.0e-9, 0.82, 1.97))
-    plot(plt1, plt2, layout=(2, 1), size=(800, 800))
 end
 
 function test_crystal_precompute()

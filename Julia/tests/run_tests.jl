@@ -3,8 +3,8 @@
 include("test_surface.jl")
 # test_gaussian()
 # test_rect()
-profile_gaussian_surfacegen()
-profile_rectangular_surfacegen()
+test_gaussian()
+test_rect()
 
 # # Run fresnel tests
 # include("test_fresnel.jl")
@@ -16,8 +16,8 @@ profile_rectangular_surfacegen()
 
 # Run complete solver tests
 include("test_solver.jl")
-# test_reciprocity()
+test_reciprocity()
 # test_symmetry_isotropic()
 # test_solver() 
 # profile_solver_components()
-test_crystal_precompute()
+# test_crystal_precompute()
