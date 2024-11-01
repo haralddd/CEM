@@ -34,14 +34,7 @@ function profile_isotropic_solver()
     _, (pc_stats...) = @timed precompute!(data)
     _, (surf_stats...) = @timed generate_surface!(data.sp, data.spa)
     _, (solve_single_stats...) = @timed solve_single!(data)
-    R = Matrix{ComplexF64}(undef, length(data.out.qis), length(data.spa.kis))
-    _, (obs_stats...) = @timed for n in 1:100
-        for j in eachindex(data.spa.kis)
-            for (i, qi) in enumerate(data.out.qis)
-                R[i, j] = observe(R[i, j], data.sp.Npk[qi, j], n)
-            end
-        end
-    end
+    _, (obs_stats...) = @timed observe!(data.out, data.sp.Npk, 10)
 
     @info "Precomputation: $pc_stats"
     @info "Surface generation: $surf_stats"
@@ -54,13 +47,15 @@ function profile_isotropic_solver()
     _, (pc_stats...) = @timed precompute!(data)
     _, (surf_stats...) = @timed generate_surface!(data.sp, spa)
     _, (solve_single_stats...) = @timed solve_single!(data)
+    _, (obs_stats...) = @timed observe!(data.out, data.sp.Npk, 10)
 
     @info "Precomputation: $pc_stats"
     @info "Surface generation: $surf_stats"
     @info "Single solve: $solve_single_stats"
+    @info "Observation: $obs_stats"
 end
 
-# profile_isotropic_solver()
+profile_isotropic_solver()
 
 function profile_crystal_solver()
     ε = 2.25 + 1e-4im
@@ -86,34 +81,3 @@ function profile_crystal_solver()
 
     @benchmark SimPreCompute($rp_crystal)
 end
-
-using LoopVectorization
-const n = 100
-const A = randn(2049, 3)
-const B = randn(2049, 3)
-C = similar(A)
-
-_obs(A, B) = observe(A, B, n)
-
-function loop!(A,B,C)
-    @tturbo for I in eachindex(C)
-        C[I] = observe(A[I], B[I], n)
-    end
-end
-
-display("loop:")
-display(@benchmark loop!($A, $B, $A))
-
-display("map!:")
-display(@benchmark map!($_obs, $A, $B, $A))
-
-display("vmap!:")
-display(@benchmark vmap!($_obs, $A, $B, $A))
-
-display("vmapnt!:")
-display(@benchmark vmapnt!($_obs, $A, $B, $A))
-
-display("vmapntt!:")
-display(@benchmark vmapntt!($_obs, $A, $B, $A))
-
-# Verify same answer

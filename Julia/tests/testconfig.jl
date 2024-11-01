@@ -65,7 +65,7 @@ function default_config_creation()::SolverData
     return SolverData(spa)
 end
 
-function default_params_for_surface_testing(surf::T)::Tuple{SimPrealloc,SimParams} where {T<:RandomSurface}
+function default_params_for_surface_testing(surf::T, M = 10000) where {T<:RandomSurface}
     spa = SimParams(
         lambda=632.8e-9,
         Q=4,
@@ -77,8 +77,6 @@ function default_params_for_surface_testing(surf::T)::Tuple{SimPrealloc,SimParam
         rescale=true
     )
 
-    sp = SimPrealloc(spa.Nq, length(spa.ks))
-
-    return sp, spa
-
+    data = SolverData(spa, M)
+    return data
 end

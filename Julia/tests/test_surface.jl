@@ -1,5 +1,4 @@
-push!(LOAD_PATH, "$(@__DIR__)/../RayleighSolver/")
-using RayleighSolver
+include("testconfig.jl")
 using Statistics
 using Peaks
 
@@ -79,26 +78,27 @@ function mean_peak_valley_dist(xs::Vector{Float64}, ys::Vector{Float64})
 end
 
 function test_surf(surf::T) where T <:RandomSurface
-    M = 10000
-    spa, sp = default_params_for_surface_testing(surf)
+    M = 100000
+    data = default_params_for_surface_testing(surf, M)
+
+    spa = data.spa
+    sp = data.sp
 
     dx = spa.dx
     xs = spa.xs
     d = spa.surf.d
 
-    means = zeros(M)
-    rms = zeros(M)
-    slopes = zeros(M)
-    dists = zeros(M)
-    for i in 1:M
-        generate!(sp, spa)
-        means[i] = mean(sp.ys)
-        rms[i] = sqrt(mean(sp.ys .^ 2))
-        slopes[i] = mean_slope(sp.ys, dx)
-        dists[i] = mean_peak_valley_dist(xs, sp.ys)
+    meanval = 0.0
+    rms = 0.0
+    slope = 0.0
+    dist = 0.0
+    for m in 1:M
+        generate_surface!(sp, spa)
+        meanval = observe(meanval, mean(sp.ys), m)
+        rms = observe(rms, sqrt(mean(sp.ys .^ 2)), m)
+        slope = observe(slope, mean_slope(sp.ys, dx), m)
+        dist = observe(dist, mean_peak_valley_dist(xs, sp.ys), m)
     end
-
-
 
     H1 = "\033[92m"
     H2 = "\033[32m"
@@ -110,22 +110,22 @@ function test_surf(surf::T) where T <:RandomSurface
     println()
     println_header("Ensemble mean, ⟨ζ(x)⟩:")
     println("Analytical = 0.0")
-    println("Numerical = $(mean(means))")
+    println("Numerical = $(meanval)")
 
     println()
     println_header("Ensemble mean slope, s:")
     println("Analytical = $(analytical_slope(spa.surf))")
-    println("Numerical = $(mean(slopes))")
+    println("Numerical = $(slope)")
 
     println()
     println_header("Ensemble mean peak-valley distance, ⟨D⟩:")
     println("Analytical = $(analytical_dist(spa.surf))")
-    println("Numerical = $(mean(dists))")
+    println("Numerical = $(dist)")
 
     println()
     println_header("Ensemble mean RMS height, δ:")
     println("δ = $(d)")
-    println("Numerical  = $(mean(rms))")
+    println("Numerical  = $(rms)")
 end
 
 test_gaussian() = test_surf(GaussianSurface(30.0e-9, 100.0e-9))
