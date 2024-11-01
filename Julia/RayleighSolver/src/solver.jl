@@ -1,21 +1,17 @@
 
 struct SimOutput
-    qs::Vector{Float64}
-    qis::Vector{Int}
-    coherent::Matrix{Float64}
-    incoherent::Matrix{Float64}
+    R::Matrix{ComplexF64}
+    R²::Matrix{Float64}
+    σ²::Matrix{Float64}
+    κ::Matrix{Float64}
 
     function SimOutput(spa::SimParams)
         # Reduced q-vector indices
-        new_qis = findall(q -> q > -1 && q < 1, spa.qs)
-        new_qs = spa.qs[new_qis]
-
-        coh = zeros(Float64, (length(new_qs), length(spa.kis)))
-        incoh = zeros(Float64, (length(new_qs), length(spa.kis)))
-        new(new_qs, new_qis, coh, incoh)
-    end
-    function SimOutput(qs, coh, incoh)
-        new(qs, coh, incoh)
+        R = zeros(ComplexF64, (length(spa.qs), length(spa.ks)))
+        R² = zeros(Float64, (length(spa.qs), length(spa.ks)))
+        σ² = zeros(Float64, (length(spa.qs), length(spa.ks)))
+        κ = zeros(Float64, (length(spa.qs), length(spa.ks)))
+        return new(R, R², σ², κ)
     end
 end
 
@@ -47,6 +43,35 @@ function precompute!(data::SolverData)::Nothing
     return nothing
 end
 
+"Iteratively update observable like so: ⟨A⟩ₙ = (n-1)/n ⟨A⟩ₙ₋₁ + Aₙ/n"
+function observe(observable, value, N)
+    return observable*(N-1)/N + value/N
+end
+
+"Updates all observables in out::SimOutput"
+function observe!(out::SimOutput, A, n)
+    R = out.R
+    R² = out.R²
+    σ² = out.σ²
+    κ = out.κ
+
+    @inbounds for I in eachindex(R)
+        R[I] = observe(R[I], A[I], n)
+    end
+
+    @inbounds for I in eachindex(R²)
+        R²[I] = observe(R²[I], abs2(A[I]), n)
+    end
+
+    @inbounds for I in eachindex(σ²)
+        var = abs2(A[I] - R[I])
+        σ²[I] = observe(σ²[I], var, n)
+        κ[I] = observe(κ[I], var^2, n)
+    end
+end
+
+"Iteratively update variance like: σₙ = (n-1)/n σₙ₋１ + 1/n (Aₙ - ⟨A⟩ₙ)²"
+
 """
     function solve_single!(data::SolverData)::Nothing
 
@@ -69,7 +94,9 @@ function solve_single!(data::SolverData)::Nothing
     Npkn = pc.Npkn
 
     FFT = spa.FFT
-    kis = spa.kis
+
+    rev_kis = spa.rev_kis
+    rev_qis = spa.rev_qis
 
     Mpq = sp.Mpq
     Npk = sp.Npk
@@ -80,11 +107,6 @@ function solve_single!(data::SolverData)::Nothing
 
     Mpq .= 0.0
     Npk .= 0.0
-    # To access the the Fourier transform of the surface integral
-    # we must access the pattern ζ(p-q), so make a reverse index range
-    qidxs = reverse(axes(Mpq, 2))
-    kidxs = reverse(kis)
-    nidxs = reverse(axes(Mpqn, 3))
 
     @inbounds for n in reverse(axes(Mpqn, 3)) # Reverse because prefactors vanish at higher powers of ´n´
         @inbounds for i in eachindex(Fys)
@@ -95,13 +117,13 @@ function solve_single!(data::SolverData)::Nothing
 
         fftshift!(sFys, Fys)
 
-        @inbounds for (j, qj) in enumerate(qidxs)
+        @inbounds for (j, qj) in enumerate(rev_qis)
             @inbounds for i in axes(Mpq, 1)
                 Mpq[i, j] += Mpqn[i, j, n] * sFys[i+qj-1]
             end
         end
 
-        @inbounds for (j, kj) in enumerate(kidxs)
+        @inbounds for (j, kj) in enumerate(rev_kis)
             @inbounds for i in axes(Npk, 1)
                 Npk[i, j] -= Npkn[i, j, n] * sFys[i+kj-1]
             end
@@ -111,14 +133,6 @@ function solve_single!(data::SolverData)::Nothing
     LinearAlgebra.LAPACK.gesv!(Mpq, Npk)
 
     return nothing
-end
-
-function MDRC_prefactor(k::Float64, q::Float64, L::Float64)::Float64
-    return 1 / (2π * L) * alpha0(q) / alpha0(k)
-end
-
-function observe(observable, value, N)
-    return (observable * (N-1) + value) / N
 end
 
 
@@ -139,37 +153,41 @@ function solve_MDRC!(data::SolverData)
     sp = data.sp
     spa = data.spa
     iters = data.iters
-    valid_qis = data.out.qis
-    valid_qs = data.out.qs
-    coh = data.out.coherent
-    incoh = data.out.incoherent
+    A = sp.Npk
 
-    # Cumulative mean values for coherent and incoherent, ⟨R²⟩ ⟨R⟩²
-    # ⟨R²⟩ can use incoh output (both floats), ⟨R⟩² needs to save the complex values
-    # Iteratively update observable like so: ⟨A⟩ₙ = n/n+1 ⟨A⟩ₙ₋₁ + Aₙ/n+1
-    R = Matrix{ComplexF64}(undef, length(valid_qis), length(spa.kis))
     _, (mdrc_stats...) = @timed begin
-    for n in 1:iters
+    for n in ProgressBar(1:iters)
         generate_surface!(sp, spa)
         solve_single!(data)
-        for j in eachindex(spa.kis)
-            for (i, qi) in enumerate(valid_qis)
-                R[i, j] = observe(R[i, j], sp.Npk[qi, j], n)
-                incoh[i, j] = observe(incoh[i, j], abs2(sp.Npk[qi, j]), n)
-            end
-        end
-    end
-
-    for (j, k) in enumerate(spa.ks)
-        for (i, q) in enumerate(valid_qs)
-            prefactor = abs2(alpha0(q)) / abs(alpha0(k))
-            coh[i, j] = prefactor * abs2(R[i, j])
-            incoh[i, j] = prefactor * incoh[i, j] - coh[i, j]
-        end
+        observe!(data.out, A, n)
     end
     end # end mdrc_stats
 
     @debug "MDRC stats: $mdrc_stats"
 
     return nothing
+end
+"Returns coherent and incoherent MDRC calculated from ⟨R⟩ and ⟨R²⟩"
+function get_mdrc_qs_coh_inc(data::SolverData)::Tuple{Vector{Float64}, Matrix{Float64}, Matrix{Float64}}
+    out = data.out
+    spa = data.spa
+    ks = spa.ks
+    qs = spa.qs
+
+    R = out.R
+    R² = out.R²
+
+    reduced_qs = qs[qs .> -1.0 .&& qs .< 1.0]
+
+    coh = Matrix{Float64}(undef, (length(reduced_qs), length(ks)))
+    inc = Matrix{Float64}(undef, (length(reduced_qs), length(ks)))
+    for (j, k) in enumerate(ks)
+        for (i, q) in enumerate(reduced_qs)
+            C = abs2(alpha(q, spa.above)) / abs(alpha(k, spa.above))
+            coh[i, j] = C * abs2(R[i, j])
+            inc[i, j] = C * R²[i, j] - coh[i, j]
+        end
+    end
+
+    return reduced_qs, coh, inc
 end

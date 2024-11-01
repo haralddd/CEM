@@ -14,74 +14,107 @@ const DEFAULT_OUTPUT = DEFAULT_PATH / "output"
 const DEFAULT_PLOTDIR = DEFAULT_PATH / "plots"
 mkpath(DEFAULT_PLOTDIR)
 mkpath(DEFAULT_OUTPUT)
-function custom_plot!(ax, xs, ys, x0, color, shape)
+function custom_plot!(ax, xs, ys, x0)
+    x0 = round(x0, digits=1)
     lines!(ax,
         xs, ys,
-        label=L"$\theta_0=$%$x0",
         linestyle=:solid,
-        linewidth=1,
-        color=color)
+        linewidth=0.5,
+        color=:red)
     vlines!(ax,
         [-x0, x0],
-        color=color,
+        label=L"\theta_0=\pm %$x0",
+        color=:red,
         linestyle=:dot,
-        linewidth=1)
-    maxidx = argmax(ys)
-    scatter!(ax,
-        [xs[maxidx]],
-        [ys[maxidx]],
-        color=color,
-        marker=shape,
-        markersize=16,
-    )
+        linewidth=1.0)
     return
 end
 
 function plot_mdrc(data::SolverData, fname="default", dir="plots")
 
-    colors = [:red, :green, :blue, :purple, :black, :orange, :cyan, :magenta]
-    shapes = [:circle, :cross, :rect, :diamond, :utriangle, :dtriangle, :ltriangle, :rtriangle]
+    # colors = [:red, :green, :blue, :purple, :black, :orange, :cyan, :magenta]
+    # shapes = [:circle, :cross, :rect, :diamond, :utriangle, :dtriangle, :ltriangle, :rtriangle]
 
-    coh = data.out.coherent
-    incoh = data.out.incoherent
+    qs, coh, incoh = get_mdrc_qs_coh_inc(data)
+    full_qs = data.spa.qs
+    σ² = data.out.σ²
+    κ = data.out.κ
+
     θ0s = asind.(data.spa.ks)
-    θs = asind.(data.out.qs)
+    θs = asind.(qs)
 
+    folder = dir / fname
+    mkpath(folder)
 
     # Incoherent MDRC
-    fig = Figure(fontsize=24)
-    ax = Axis(fig[1, 1], xlabel=L"$\theta_s$ [deg]", ylabel=L"Incoh. MDRC $$")
     for i in axes(incoh, 2)
+        fig = Figure(fontsize=24)
+        ax = Axis(fig[1, 1], xlabel=L"$\theta_s$ [deg]", ylabel=L"\langle \partial_{\theta_s} R\rangle_{\mathrm{incoherent}}")
         θ0 = θ0s[i]
         ys = incoh[:, i]
-        custom_plot!(ax, θs, ys, θ0, colors[i], shapes[i])
+        custom_plot!(ax, θs, ys, θ0)
+        axislegend()
+        save(folder / "incoh_$(i).pdf", fig)
     end
-    axislegend()
-    save(joinpath(dir, fname * "_incoh.pdf"), fig)
 
     # Coherent MDRC
-    fig = Figure(fontsize=24)
-    ax = Axis(fig[1, 1], xlabel=L"$\theta_s$ [deg]", ylabel=L"Coh. MDRC $$")
     for i in axes(coh, 2)
+        fig = Figure(fontsize=24)
+        ax = Axis(fig[1, 1], xlabel=L"$\theta_s$ [deg]", ylabel=L"\langle \partial_{\theta_s} R\rangle_{\mathrm{coherent}}")
         θ0 = θ0s[i]
         ys = coh[:, i]
-        custom_plot!(ax, θs, ys, θ0, colors[i], shapes[i])
+        custom_plot!(ax, θs, ys, θ0)
+        axislegend()
+        save(folder / "coh_$(i).pdf", fig)
     end
-    axislegend()
-    save(joinpath(dir, fname * "_coh.pdf"), fig)
 
-    @info "Saved plots to $(DEFAULT_PLOTDIR / fname)"
+    # variance
+    for i in axes(coh, 2)
+        fig = Figure(fontsize=24)
+        ax = Axis(fig[1, 1], xlabel=L"q [L^{-1}]", ylabel=L"\sigma^2")
+        θ0 = θ0s[i]
+        ys = σ²[:, i]
+        custom_plot!(ax, full_qs, ys, θ0)
+        axislegend()
+        save(folder / "variance_$(i).pdf", fig)
+    end
+    
+    # Kurtosis
+    for i in axes(coh, 2)
+        fig = Figure(fontsize=24)
+        ax = Axis(fig[1, 1], xlabel=L"q [L^{-1}]", ylabel=L"\kappa\sigma^4")
+        θ0 = θ0s[i]
+        ys = κ[:, i]
+        custom_plot!(ax, full_qs, ys, θ0)
+        axislegend()
+        save(folder / "kurtosis_$(i).pdf", fig)
+    end
+
+    @info "Saved plots to $(folder)"
 end
 
 function cli_plot(arg)
     filename = ""
-    arg = ARGS[1]
     try filename = files[parse(Int64, arg)]
     catch
         filename = arg
     end
 
-    plot_mdrc(load_solver_data(DEFAULT_OUTPUT / filename), filename, DEFAULT_PLOTDIR)
+    if isfile(DEFAULT_OUTPUT / filename)
+        data = load_solver_data(DEFAULT_OUTPUT / filename)
+    else
+        @info "File '$filename' not found in $(DEFAULT_OUTPUT). Look for matches."
+        files = readdir(DEFAULT_OUTPUT)
+        for file in files
+            if occursin(arg, file)
+                data = load_solver_data(DEFAULT_OUTPUT / file)
+                @info "Using file '$file'"
+                break
+            end
+        end
+    end
+
+    plot_mdrc(data, filename, DEFAULT_PLOTDIR)
 end
 
 if (abspath(PROGRAM_FILE) == @__FILE__)

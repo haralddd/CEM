@@ -60,7 +60,7 @@ function profile_isotropic_solver()
     @info "Single solve: $solve_single_stats"
 end
 
-profile_isotropic_solver()
+# profile_isotropic_solver()
 
 function profile_crystal_solver()
     ε = 2.25 + 1e-4im
@@ -86,3 +86,34 @@ function profile_crystal_solver()
 
     @benchmark SimPreCompute($rp_crystal)
 end
+
+using LoopVectorization
+const n = 100
+const A = randn(2049, 3)
+const B = randn(2049, 3)
+C = similar(A)
+
+_obs(A, B) = observe(A, B, n)
+
+function loop!(A,B,C)
+    @tturbo for I in eachindex(C)
+        C[I] = observe(A[I], B[I], n)
+    end
+end
+
+display("loop:")
+display(@benchmark loop!($A, $B, $A))
+
+display("map!:")
+display(@benchmark map!($_obs, $A, $B, $A))
+
+display("vmap!:")
+display(@benchmark vmap!($_obs, $A, $B, $A))
+
+display("vmapnt!:")
+display(@benchmark vmapnt!($_obs, $A, $B, $A))
+
+display("vmapntt!:")
+display(@benchmark vmapntt!($_obs, $A, $B, $A))
+
+# Verify same answer

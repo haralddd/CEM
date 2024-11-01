@@ -58,6 +58,8 @@ struct SimParams{SurfT<:RandomSurface,
     qs::Vector{Float64}
     ks::Vector{Float64}
     kis::Vector{Int}
+    rev_qis::Vector{Int}
+    rev_kis::Vector{Int}
 
     above::AboveT
     below::BelowT
@@ -109,7 +111,7 @@ function SimParams{ST,PT,AT,BT}(;
     if typeof(below) == Isotropic
         if imag(below.eps) + imag(below.mu) ≈ 0
             @warn "Material below has no loss, adding small imaginary component to avoid singularities."
-            below = Isotropic(below.eps + 1e-6im, below.mu)
+            below = Isotropic(below.eps + 1e-4im, below.mu)
         end
     end
 
@@ -133,9 +135,19 @@ function SimParams{ST,PT,AT,BT}(;
     kis = [searchsortedfirst(qs, k) for k in ks] |> collect
     ks = qs[kis]
 
+    # To access the the Fourier transform of the surface integral I(γ, q)
+    # we must access the pattern ζ(p-q), so make a reverse index range for q
+    # This works only if qs is symmetric (-Q/2:0:Q/2)
+    rev_qis = reverse(eachindex(qs))
+    @assert all(qs[rev_qis] .== .-qs)
+
+    # for k we must find the index of the corresponding q with opposite sign
+    rev_kis = [searchsortedlast(qs, -k) for k in ks] |> collect
+    @assert all(qs[rev_kis] .== -qs[kis])
+
     seed = seed < 0 ? rand(0:typemax(Int)) : seed
     SimParams{ST,PT,AT,BT}(plan_fft!(similar(xs, ComplexF64)), plan_ifft!(similar(xs, ComplexF64)),
-        xs, xks, ps, qs, ks, kis,
+        xs, xks, ps, qs, ks, kis, rev_qis, rev_kis,
         above, below, lambda, omega,
         Q, dq, Lx, dx,
         Ni, Nq, Nx, new_surf, seed, Xoshiro(seed))
