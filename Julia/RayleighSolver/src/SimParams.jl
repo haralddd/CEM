@@ -3,14 +3,6 @@ const c0 = 299_792_458.0
 const FFT_Plan_t = FFTW.cFFTWPlan{ComplexF64,-1,true,1,Tuple{Int64}}
 const IFFT_Plan_t = FFTW.cFFTWPlan{ComplexF64,1,true,1,Tuple{Int64}}
 
-"""
-Polarization of the primary field of the wave
-"""
-abstract type Polarization end
-
-struct PolarizationP <: Polarization end
-struct PolarizationS <: Polarization end
-
 
 """
     SimParams{SurfT<:RandomSurface, PolarizationT<:Polarization, Above<:Material, Below<:Material}(
@@ -43,11 +35,7 @@ All lengths are scaled to ``x\\cdot\\frac{\\omega}{c_0}``, making length and wav
 - `seed::Int`: Random seed for the algorithm
 - `rng::Xoshiro`: Random number generator with the given seed
 """
-struct SimParams{SurfT<:RandomSurface,
-    PolarizationT<:Polarization,
-    AboveT<:Material,
-    BelowT<:Material}
-
+struct SimParams{SurfT<:RandomSurface, AboveT<:Material, BelowT<:Material}
     FFT
     IFFT
 
@@ -78,11 +66,9 @@ struct SimParams{SurfT<:RandomSurface,
     surf::SurfT
     seed::Int
     rng::Xoshiro
-    
-
 end
 
-function SimParams{ST,PT,AT,BT}(;
+function SimParams{ST,AT,BT}(;
     lambda=600e-9,
     Q=4,
     Nq=127,
@@ -96,7 +82,6 @@ function SimParams{ST,PT,AT,BT}(;
     rescale=true
 ) where {
     ST<:RandomSurface,
-    PT<:Polarization,
     AT<:Material,
     BT<:Material}
 
@@ -122,6 +107,7 @@ function SimParams{ST,PT,AT,BT}(;
         Lx = Lx
         new_surf = surf
     end
+
     Nx = 2 * Nq
     dq = Q / (Nq - 1)
 
@@ -145,8 +131,20 @@ function SimParams{ST,PT,AT,BT}(;
     rev_kis = [searchsortedlast(qs, -k) for k in ks] |> collect
     @assert all(qs[rev_kis] .== -qs[kis])
 
+    @debug "SimParams"
+    @debug Lx
+    @debug new_surf
+    @debug xks
+    @debug xs
+    @debug ps
+    @debug qs
+    @debug ks
+    @debug kis
+    @debug rev_qis
+    @debug rev_kis
+
     seed = seed < 0 ? rand(0:typemax(Int)) : seed
-    SimParams{ST,PT,AT,BT}(plan_fft!(similar(xs, ComplexF64)), plan_ifft!(similar(xs, ComplexF64)),
+    SimParams{ST,AT,BT}(plan_fft!(similar(xs, ComplexF64)), plan_ifft!(similar(xs, ComplexF64)),
         xs, xks, ps, qs, ks, kis, rev_qis, rev_kis,
         above, below, lambda, omega,
         Q, dq, Lx, dx,
@@ -166,7 +164,7 @@ function SimParams(;
     seed=-1,
     rescale=true
 )::SimParams
-    return SimParams{typeof(surf), PolarizationP, typeof(above), typeof(below)}(
+    return SimParams{typeof(surf), typeof(above), typeof(below)}(
         lambda=lambda,
         Q=Q,
         Nq=Nq,

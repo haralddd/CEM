@@ -17,15 +17,13 @@ end
 
 struct SolverData
     spa::SimParams
-    pc::SimPreCompute
     sp::SimPrealloc
     out::SimOutput
     iters::Int64
 
     function SolverData(spa::SimParams, iters::Int64)
-        sp, (sp_stats...) = @timed SimPrealloc(spa)
+        sp, (sp_stats...) = @timed SimPrealloc(spa, iters)
         out, (out_stats...) = @timed SimOutput(spa)
-        pc, (pc_stats...) = @timed SimPreCompute(spa)
 
         @debug "SimOutput stats: $out_stats"
         @debug "SimPrealloc stats: $sp_stats"
@@ -69,8 +67,6 @@ function observe!(out::SimOutput, A, n)
         κ[I] = observe(κ[I], var^2, n)
     end
 end
-
-"Iteratively update variance like: σₙ = (n-1)/n σₙ₋１ + 1/n (Aₙ - ⟨A⟩ₙ)²"
 
 """
     function solve_single!(data::SolverData)::Nothing

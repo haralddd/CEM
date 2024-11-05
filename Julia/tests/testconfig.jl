@@ -61,7 +61,6 @@ function default_config_creation()::SolverData
         surf=GaussianSurface(30.0e-9, 100.0e-9),
         rescale=true
     )
-
     return SolverData(spa)
 end
 
@@ -76,7 +75,37 @@ function default_params_for_surface_testing(surf::T, M = 10000) where {T<:Random
         surf=surf,
         rescale=true
     )
+    return SolverData(spa, M)
+end
 
-    data = SolverData(spa, M)
-    return data
+function config_fresnel_silver(Nk)
+    spa = SimParams(
+        lambda=632.8e-9,
+        Q=4,
+        Nq=1024,
+        ks=sind.(LinRange(0.0, 90.0, Nk)),
+        Lx=10.0e-6,
+        Ni=10,
+        surf=FlatSurface(),
+        rescale=true,
+        above=Vacuum(),
+        below=Isotropic(-7.5 + 0.24im, 1.0)
+    )
+    return SolverData(spa, 1)
+end
+
+function config_fresnel_glass(Nk)
+    spa = SimParams(
+        lambda=632.8e-9,
+        Q=4,
+        Nq=1024,
+        ks=sind.(LinRange(0.0, 90.0, Nk)),
+        Lx=10.0e-6,
+        Ni=10,
+        surf=FlatSurface(),
+        rescale=true,
+        above=Vacuum(),
+        below=Isotropic(2.25, 1.0)
+    )
+    return SolverData(spa, 1)
 end

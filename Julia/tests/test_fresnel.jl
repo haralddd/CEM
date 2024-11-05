@@ -1,5 +1,4 @@
-push!(LOAD_PATH, "Julia/RayleighSolver/")
-using RayleighSolver
+include("testconfig.jl")
 using Statistics
 using CairoMakie
 using LaTeXStrings
@@ -21,41 +20,20 @@ function Rp(θ, εμ)
 end
 
 
-function test_fresnel(; input="silver")
+function test_fresnel_silver(; input="silver")
+    silver = config_fresnel_silver(100)
 
-    rp_p, sp_p, generator_p! = load_solver_config("input/$(input)_p_fresnel.txt")
-    rp_s, sp_s, generator_s! = load_solver_config("input/$(input)_s_fresnel.txt")
+    precompute!(glass)
+    precompute!(silver)
 
-    # Calc the invariant part of Mpk
-    display("Calculating invariant parts of Mpk")
-    Mpk_p_pre = Array{ComplexF64,3}(undef, length(rp_p.ps), length(rp_p.qs), rp_p.Ni + 1)
-    Npk_p_pre = Array{ComplexF64,3}(undef, length(rp_p.ps), length(rp_p.kis), rp_p.Ni + 1)
-
-    Mpk_s_pre = Array{ComplexF64,3}(undef, length(rp_s.ps), length(rp_s.qs), rp_s.Ni + 1)
-    Npk_s_pre = Array{ComplexF64,3}(undef, length(rp_s.ps), length(rp_s.kis), rp_s.Ni + 1)
-
-    @time M_invariant!(Mpk_p_pre, rp_p)
-    @time M_invariant!(Mpk_s_pre, rp_s)
-
-    # Calculate the invariant part of Npk (depends on k)
-    @time N_invariant!(Npk_p_pre, rp_p)
-    @time N_invariant!(Npk_s_pre, rp_s)
-
-    # Check for undefined behaviour
-    @assert all(isfinite.(Mpk_p_pre))
-    @assert all(isfinite.(Mpk_s_pre))
-    @assert all(isfinite.(Npk_p_pre))
-    @assert all(isfinite.(Npk_s_pre))
-
-    # Generate surface (flat)
-    generator_p!(sp_p.ys)
-    generator_s!(sp_s.ys)
+    generate_surface!(glass.sp, glass.spa)
+    generate_surface!(silver.sp, silver.spa)
 
     # Solve for R
-    @time solve_single!(sp_p, rp_p, Mpk_p_pre, Npk_p_pre)
-    @time solve_single!(sp_s, rp_s, Mpk_s_pre, Npk_s_pre)
+    @time solve_single!(glass)
+    @time solve_single!(silver)
 
-    res_p = [sp_p.Npk[:, i] .|> abs2 |> maximum for i in eachindex(rp_p.kis)]
+    res_p = [si.Npk[:, i] .|> abs2 |> maximum for i in eachindex(rp_p.kis)]
     res_s = [sp_s.Npk[:, i] .|> abs2 |> maximum for i in eachindex(rp_s.kis)]
 
     return res_p, res_s, asind.(rp_p.qs[rp_p.kis])
