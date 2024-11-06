@@ -30,70 +30,44 @@ function custom_plot!(ax, xs, ys, x0)
     return
 end
 
-function plot_mdrc(data::SolverData, fname="default", dir="plots")
+function save_plots(data, θ0s, θs, label, folder)
+    for i in axes(data, 2)
+        fig = Figure(fontsize=24)
+        ax = Axis(fig[1, 1], xlabel=L"$\theta_s$ [deg]", ylabel=L"\langle \partial_{\theta_s} R\rangle_{\mathrm{%$label}}")
+        θ0 = θ0s[i]
+        ys = data[:, i]
+        custom_plot!(ax, θs, ys, θ0)
+        axislegend()
+        save(folder / "$(label)_$(i).pdf", fig)
+    end
+end
 
-    # colors = [:red, :green, :blue, :purple, :black, :orange, :cyan, :magenta]
-    # shapes = [:circle, :cross, :rect, :diamond, :utriangle, :dtriangle, :ltriangle, :rtriangle]
-
-    qs, coh, incoh = get_mdrc_qs_coh_inc(data)
-    full_qs = data.spa.qs
-    σ² = data.out.σ²
-    κ = data.out.κ
-
-    θ0s = asind.(data.spa.ks)
-    θs = asind.(qs)
+function calc_mdrc_and_save_plots(data::SolverData, fname="default", dir="plots")
 
     folder = dir / fname
     mkpath(folder)
 
+    ks = data.spa.ks
+
+    qs, mdrc = get_qs_and_mdrc(data)
+    # full_qs = data.spa.qs
+    # σ² = data.out.σ²
+    # κ = data.out.κ
+
+    theta0s = asind.(ks)
+    thetas = asind.(qs)
+
+    # P-polarization
     # Incoherent MDRC
-    for i in axes(incoh, 2)
-        fig = Figure(fontsize=24)
-        ax = Axis(fig[1, 1], xlabel=L"$\theta_s$ [deg]", ylabel=L"\langle \partial_{\theta_s} R\rangle_{\mathrm{incoherent}}")
-        θ0 = θ0s[i]
-        ys = incoh[:, i]
-        custom_plot!(ax, θs, ys, θ0)
-        axislegend()
-        save(folder / "incoh_$(i).pdf", fig)
-    end
-
-    # Coherent MDRC
-    for i in axes(coh, 2)
-        fig = Figure(fontsize=24)
-        ax = Axis(fig[1, 1], xlabel=L"$\theta_s$ [deg]", ylabel=L"\langle \partial_{\theta_s} R\rangle_{\mathrm{coherent}}")
-        θ0 = θ0s[i]
-        ys = coh[:, i]
-        custom_plot!(ax, θs, ys, θ0)
-        axislegend()
-        save(folder / "coh_$(i).pdf", fig)
-    end
-
-    # variance
-    for i in axes(coh, 2)
-        fig = Figure(fontsize=24)
-        ax = Axis(fig[1, 1], xlabel=L"q [L^{-1}]", ylabel=L"\sigma^2")
-        θ0 = θ0s[i]
-        ys = σ²[:, i]
-        custom_plot!(ax, full_qs, ys, θ0)
-        axislegend()
-        save(folder / "variance_$(i).pdf", fig)
-    end
-    
-    # Kurtosis
-    for i in axes(coh, 2)
-        fig = Figure(fontsize=24)
-        ax = Axis(fig[1, 1], xlabel=L"q [L^{-1}]", ylabel=L"\kappa\sigma^4")
-        θ0 = θ0s[i]
-        ys = κ[:, i]
-        custom_plot!(ax, full_qs, ys, θ0)
-        axislegend()
-        save(folder / "kurtosis_$(i).pdf", fig)
-    end
+    save_plots(mdrc.coh_p, theta0s, thetas, "p,coh", folder)
+    save_plots(mdrc.inc_p, theta0s, thetas, "p,incoh", folder)
+    save_plots(mdrc.coh_s, theta0s, thetas, "s,coh", folder)
+    save_plots(mdrc.inc_s, theta0s, thetas, "s,incoh", folder)
 
     @info "Saved plots to $(folder)"
 end
 
-function cli_plot(arg)
+function cli_plot_main(arg)
     filename = ""
     try filename = files[parse(Int64, arg)]
     catch
@@ -114,7 +88,7 @@ function cli_plot(arg)
         end
     end
 
-    plot_mdrc(data, filename, DEFAULT_PLOTDIR)
+    calc_mdrc_and_save_plots(data, filename, DEFAULT_PLOTDIR)
 end
 
 if (abspath(PROGRAM_FILE) == @__FILE__)
@@ -127,6 +101,6 @@ if (abspath(PROGRAM_FILE) == @__FILE__)
             println("$idx: $file")
         end
     else
-        cli_plot(ARGS[1])
+        cli_plot_main(ARGS[1])
     end
 end

@@ -1,6 +1,5 @@
 include("testconfig.jl")
 
-using ProfileView
 using BenchmarkTools
 
 
@@ -12,7 +11,6 @@ function profile_gaussian_surfacegen()
         end
     end
     @btime generate_surface!($sp, $spa)
-    ProfileView.@profview loop_de_loop(sp, spa)
 end
 
 function profile_rectangular_surfacegen()
@@ -23,7 +21,6 @@ function profile_rectangular_surfacegen()
         end
     end
     @btime generate_surface!($sp, $spa)
-    ProfileView.@profview loop_de_loop(sp, spa)
 end
 
 function profile_isotropic_solver()
@@ -34,12 +31,18 @@ function profile_isotropic_solver()
     _, (pc_stats...) = @timed precompute!(data)
     _, (surf_stats...) = @timed generate_surface!(data.sp, data.spa)
     _, (solve_single_stats...) = @timed solve_single!(data)
-    _, (obs_stats...) = @timed observe!(data.out, data.sp.Npk, 10)
+    _, (obs_stats...) = @timed observe!(data.out_p, data.sp.p_data.Npk, 10)
+
 
     @info "Precomputation: $pc_stats"
     @info "Surface generation: $surf_stats"
     @info "Single solve: $solve_single_stats"
     @info "Observation: $obs_stats"
+    
+    # @code_warntype precompute!(data)
+    # @code_warntype generate_surface!(data.sp, data.spa)
+    # @code_warntype solve_single!(data)
+    # @code_warntype observe!(data.out_p, data.sp.p_data.Npk, 11)
 
     @info "Simple silver isotropic"
     spa = config_silver_isotropic()
@@ -47,15 +50,13 @@ function profile_isotropic_solver()
     _, (pc_stats...) = @timed precompute!(data)
     _, (surf_stats...) = @timed generate_surface!(data.sp, spa)
     _, (solve_single_stats...) = @timed solve_single!(data)
-    _, (obs_stats...) = @timed observe!(data.out, data.sp.Npk, 10)
+    _, (obs_stats...) = @timed observe!(data.out_p, data.sp.p_data.Npk, 10)
 
     @info "Precomputation: $pc_stats"
     @info "Surface generation: $surf_stats"
     @info "Single solve: $solve_single_stats"
     @info "Observation: $obs_stats"
 end
-
-profile_isotropic_solver()
 
 function profile_crystal_solver()
     ε = 2.25 + 1e-4im

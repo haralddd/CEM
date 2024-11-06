@@ -36,18 +36,16 @@ export SimParams
 export get_angles, get_scale, get_scaled_params
 
 include("SimPrealloc.jl")
-export SimPrealloc
-
-include("SimPreCompute.jl")
-export SimPreCompute, validate
+export SystemPreAlloc, SimPrealloc
+export precompute!, validate
 
 include("random_surface_generator.jl")
 export generate_surface!
 
 include("solver.jl")
-export SimOutput, SolverData
+export SimOutput, SolverData, DataMDRC
 export solve_single!, solve_MDRC!, precompute!, observe, observe!
-export get_mdrc_qs_coh_inc
+export get_qs_and_mdrc
 
 include("utils.jl")
 export show, display, parse, convert

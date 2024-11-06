@@ -20,12 +20,12 @@ function correlation(k::Float64, surf::RectangularSurface)::Float64
 end
 
 """
-    generate_surface!(sp::SimPrealloc, parameters::SimParams{SurfT,_P,_MA,_MB})
+    generate_surface!(sp::SimPrealloc, parameters::SimParams{SurfT,_MA,_MB})
 
 Generate random surface of the given type and overwrites sp.ys in-place
 Reverts to generic Fourier filtering function, which requires correlation(k, spa.surf::T) to be implemented
 """ 
-function generate_surface!(sp::SimPrealloc, spa::SimParams{SurfT,_P,_MA,_MB})::Nothing where {SurfT <: RandomSurface, _P, _MA, _MB}
+function generate_surface!(sp::SimPrealloc, spa::SimParams{SurfT,_MA,_MB})::Nothing where {SurfT <: RandomSurface, _MA, _MB}
     d = spa.surf.d
     xks = spa.xks
     rng = spa.rng
@@ -53,11 +53,11 @@ function generate_surface!(sp::SimPrealloc, spa::SimParams{SurfT,_P,_MA,_MB})::N
 
     return nothing
 end
-function generate_surface!(sp::SimPrealloc, ::SimParams{FlatSurface,_P,_MA,_MB})::Nothing where {_P,_MA,_MB}
+function generate_surface!(sp::SimPrealloc, ::SimParams{FlatSurface,_MA,_MB})::Nothing where {_MA,_MB}
     sp.ys .= 0.0
     return nothing
 end
-function generate_surface!(sp::SimPrealloc, spa::SimParams{SingleBumpSurface,_P,_MA,_MB})::Nothing where {_P,_MA,_MB}
+function generate_surface!(sp::SimPrealloc, spa::SimParams{SingleBumpSurface,_MA,_MB})::Nothing where {_MA,_MB}
     surf = spa.surf
     δ = surf.d
     a = surf.a

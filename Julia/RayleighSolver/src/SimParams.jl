@@ -1,11 +1,11 @@
 "c_0\\ 299_792_458.0 \\frac{m}{s}`` - Speed of light in a vacuum"
 const c0 = 299_792_458.0
 const FFT_Plan_t = FFTW.cFFTWPlan{ComplexF64,-1,true,1,Tuple{Int64}}
-const IFFT_Plan_t = FFTW.cFFTWPlan{ComplexF64,1,true,1,Tuple{Int64}}
+const IFFT_Plan_t = AbstractFFTs.ScaledPlan{ComplexF64,FFTW.cFFTWPlan{ComplexF64,1,true,1,UnitRange{Int64}},Float64}
 
 
 """
-    SimParams{SurfT<:RandomSurface, PolarizationT<:Polarization, Above<:Material, Below<:Material}(
+    SimParams{SurfT<:RandomSurface, Above<:Material, Below<:Material}(
 
     )
 
@@ -36,8 +36,8 @@ All lengths are scaled to ``x\\cdot\\frac{\\omega}{c_0}``, making length and wav
 - `rng::Xoshiro`: Random number generator with the given seed
 """
 struct SimParams{SurfT<:RandomSurface, AboveT<:Material, BelowT<:Material}
-    FFT
-    IFFT
+    FFT::FFT_Plan_t
+    IFFT::IFFT_Plan_t
 
     xs::Vector{Float64}
     xks::Vector{Float64}
@@ -144,7 +144,11 @@ function SimParams{ST,AT,BT}(;
     @debug rev_kis
 
     seed = seed < 0 ? rand(0:typemax(Int)) : seed
-    SimParams{ST,AT,BT}(plan_fft!(similar(xs, ComplexF64)), plan_ifft!(similar(xs, ComplexF64)),
+    FFTplan = plan_fft!(similar(xs, ComplexF64))
+    IFFTplan = plan_ifft!(similar(xs, ComplexF64))
+    @debug typeof(FFTplan)
+    @debug typeof(IFFTplan)
+    SimParams{ST,AT,BT}(FFTplan, IFFTplan,
         xs, xks, ps, qs, ks, kis, rev_qis, rev_kis,
         above, below, lambda, omega,
         Q, dq, Lx, dx,
