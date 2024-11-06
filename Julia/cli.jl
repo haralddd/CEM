@@ -110,9 +110,6 @@ end
 
 function config_creation_prompt(path=DEFAULT_INPUT)::SimParams
     print("Input for solver parameters input SimParams struct\n")
-    print("Polarization [p|s] (=p): ")
-    input = readline()
-    nu = parse(Polarization, input == "" ? "p" : input)
 
     print("lambda [nm] (=632.8): ")
     input = readline()
@@ -156,7 +153,7 @@ function config_creation_prompt(path=DEFAULT_INPUT)::SimParams
     input = readline()
     seed = parse(Int64, input == "" ? "-1" : input)
 
-    spa = SimParams{typeof(surf),typeof(nu),typeof(above),typeof(below)}(
+    spa = SimParams{typeof(surf),typeof(above),typeof(below)}(
         lambda=lambda,
         Q=Q,
         Nq=Nq,
@@ -241,6 +238,7 @@ function cli_run(filepath)
 
     @info "Initializing SolverData..."
     data = SolverData(spa, iters)
+    @debug "CLI Init: SolverData complete"
 
     @info "Solving system of equations..."
     @time solve_MDRC!(data)

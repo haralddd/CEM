@@ -45,6 +45,9 @@ function test_reciprocity()
     @time precompute!(data)
     spa = data.spa
     sp = data.sp
+    pd = sp.p_data
+    sd = sp.s_data
+
 
     @info "generate_surface!"
     @time generate_surface!(sp, spa)
@@ -52,7 +55,8 @@ function test_reciprocity()
     @info "solve_single!"
     @time solve_single!(data)
 
-    Δ = fill(1e-20, Nk, Nk)
+    Δ_p = fill(1e-20, Nk, Nk)
+    Δ_s = fill(1e-20, Nk, Nk)
 
     rev_idx(idx) = Nk - idx + 1
 
@@ -81,16 +85,22 @@ function test_reciprocity()
 
             if a2 ≈ 0.0 || b2 ≈ 0.0 continue end
 
-            Sqk = sqrt(a1/a2) * sp.Npk[qi, j]
-            Skq = sqrt(b1/b2) * sp.Npk[mqj, mi]
+            Sqk_p = sqrt(a1/a2) * pd.Npk[qi, j]
+            Skq_p = sqrt(b1/b2) * pd.Npk[mqj, mi]
 
-            Δ[i, j] = abs(Sqk - Skq)
+            Sqk_s = sqrt(a1 / a2) * sd.Npk[qi, j]
+            Skq_s = sqrt(b1 / b2) * sd.Npk[mqj, mi]
+
+            Δ_p[i, j] = abs(Sqk_p - Skq_p)
+            Δ_s[i, j] = abs(Sqk_s - Skq_s)
         end
     end
 
-    hm = heatmap(ks, ks, log10.(Δ), size=(800, 800))
-    display(hm)
-    display("Reciprocity, maximum error: $(maximum(Δ))")
+    hm_p = heatmap(ks, ks, log10.(Δ_p), size=(800, 800))
+    hm_s = heatmap(ks, ks, log10.(Δ_s), size=(800, 800))
+    display(plot(hm_p, hm_s))
+    display("Reciprocity in P polarization, maximum error: $(maximum(Δ_p))")
+    display("Reciprocity in S polarization, maximum error: $(maximum(Δ_s))")
 end
 
 function test_crystal_precompute()

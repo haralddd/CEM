@@ -4,9 +4,9 @@ struct SystemPreAlloc
     Mpq::Matrix{ComplexF64}
     Npk::Matrix{ComplexF64}
 
-    function SystemPreAlloc(Np::Int, Nq::Int, Nk::Int, Nn::Int)::SystemPreAlloc
-        Mpqn = zeros(ComplexF64, Np, Nq, Nn)
-        Npkn = zeros(ComplexF64, Np, Nk, Nn)
+    function SystemPreAlloc(Nq::Int, Nk::Int, Ni::Int)::SystemPreAlloc
+        Mpqn = zeros(ComplexF64, Nq, Nq, Ni)
+        Npkn = zeros(ComplexF64, Nq, Nk, Ni)
         Mpq = zeros(ComplexF64, Nq, Nq)
         Npk = zeros(ComplexF64, Nq, Nk)
         return new(Mpqn, Npkn, Mpq, Npk)
@@ -39,9 +39,9 @@ struct SimPrealloc
     Z::Vector{ComplexF64}
     ys::Vector{Float64}
 
-    function SimPrealloc(Nq::Int, Nk::Int, Nn::Int)
-        p_data = SystemPreAlloc(Nq, Nq, Nk, Nn)
-        s_data = SystemPreAlloc(Nq, Nq, Nk, Nn)
+    function SimPrealloc(Nq::Int, Nk::Int, Ni::Int)
+        p_data = SystemPreAlloc(Nq, Nk, Ni)
+        s_data = SystemPreAlloc(Nq, Nk, Ni)
 
         ys = Vector{Float64}(undef, 2Nq)
         Fys = similar(ys, ComplexF64)
@@ -50,8 +50,8 @@ struct SimPrealloc
 
         new(p_data, s_data, Fys, sFys, Z, ys)
     end
-    function SimPrealloc(spa::SimParams, Nn::Int)::SimPrealloc
-        SimPrealloc(spa.Nq, length(spa.ks), Nn)
+    function SimPrealloc(spa::SimParams)::SimPrealloc
+        SimPrealloc(spa.Nq, length(spa.ks), spa.Ni)
     end
 end
 
@@ -68,7 +68,7 @@ end
 function _A2(cr::UniaxialCrystal)::ComplexF64
     return (cr.mu_para*cr.eps_para)/(cr.mu_perp*cr.eps_perp)
 end
-function UniaxialParams(below::UniaxialCrystal, above::Vacuum, nu=:p)::UniParams
+function UniaxialParams(below::UniaxialCrystal, above::Vacuum, nu::Symbol)::UniParams
     
     if nu == :p
         # k = κ     p/m = ±     pa/pe = ∥/⟂
@@ -129,26 +129,26 @@ _pre(n) = prefactors[mod1(n, 4)]
 
 
 """
-    function M_invariant!(M::Array{ComplexF64, 3}, parameters::SimParams{SurfT<:RandomSurface, PolarizationT<:Polarization, Above<:Material, Below<:Material})
+    function M_invariant!(M::Array{ComplexF64, 3}, parameters::SimParams{SurfT<:RandomSurface, Above<:Material, Below<:Material})
 
 Calculates the surface invariant part of the Mpq matrix. 
 Invariant under surface change and incident angle θ0/k
 """
-function M_invariant!(::Array{ComplexF64,3}, spa::SimParams{_S,_A,_B})::Nothing where {_S<:RandomSurface,_A<:Material,_B<:Material}
+function M_invariant!(::Array{ComplexF64,3}, spa::SimParams{_S,_A,_B}, nu::Symbol)::Nothing where {_S<:RandomSurface,_A<:Material,_B<:Material}
     @error "Not implemented for $(typeof(spa))"
 end
 
 
-function _M_isotropic_ker(p::Float64, q::Float64, spa::SimParams, kappa::ComplexF64, ::Val{N})::ComplexF64 where {N}
+function _M_isotropic_ker(p::Float64, q::Float64, spa::SimParams, kappa::ComplexF64, n::Int)::ComplexF64
     a0 = alpha(q, spa.above)
     a = alpha(p, spa.below)
     da = a - a0
-    return _pre(N) / factorial(N) * (
-        (p + kappa * q) * (p - q) * da^(N-1) +
-        (a + kappa * a0)*da^N)
+    return _pre(n) / factorial(n) * (
+        (p + kappa * q) * (p - q) * da^(n-1) +
+        (a + kappa * a0)*da^n)
 end
 
-function M_invariant!(M::Array{ComplexF64,3}, spa::SimParams{_S,Vacuum,Isotropic}, nu=:p)::Nothing where {_S}
+function M_invariant!(M::Array{ComplexF64,3}, spa::SimParams{_S,Vacuum,Isotropic}, nu::Symbol)::Nothing where {_S}
     
     ps = spa.ps
     qs = spa.qs
@@ -157,13 +157,13 @@ function M_invariant!(M::Array{ComplexF64,3}, spa::SimParams{_S,Vacuum,Isotropic
     @inbounds for n in axes(M, 3), j in axes(M, 2), i in axes(M, 1)
         p = ps[i]
         q = qs[j]
-        M[i, j, n] = _M_isotropic_ker(p, q, spa, kappa, Val(n-1))
+        M[i, j, n] = _M_isotropic_ker(p, q, spa, kappa, n-1)
     end
     return nothing
 end
 
 
-function _M_uniaxial_ker(p::Float64, q::Float64, spa::SimParams, upa::UniaxialParams, ::Val{N})::ComplexF64 where {N}
+function _M_uniaxial_ker(p::Float64, q::Float64, spa::SimParams, upa::UniaxialParams, n::Int)::ComplexF64
     kmpa = upa.kmpa
     kmpe = upa.kmpe
     Cpa = upa.Cpa
@@ -172,12 +172,12 @@ function _M_uniaxial_ker(p::Float64, q::Float64, spa::SimParams, upa::UniaxialPa
     at = alpha_tilde(q, p, upa)
     a0 = alpha(q, spa.above)
     da = at - a0
-    return _pre(N) / factorial(N) * (
-        kmpa * (p + Cpe * q) * (p - q) * da^(N-1) +
-        kmpe * (at + Cpa * a0) * da^N)
+    return _pre(n) / factorial(n) * (
+        kmpa * (p + Cpe * q) * (p - q) * da^(n-1) +
+        kmpe * (at + Cpa * a0) * da^n)
 end
 
-function M_invariant!(M::Array{ComplexF64,3}, spa::SimParams{_S,Vacuum,UniaxialCrystal})::Nothing where {_S}
+function M_invariant!(M::Array{ComplexF64,3}, spa::SimParams{_S,Vacuum,UniaxialCrystal}, nu::Symbol)::Nothing where {_S}
 
     ps = spa.ps
     qs = spa.qs
@@ -193,80 +193,85 @@ end
 
 
 """
-    function N_invariant!(N::Array{ComplexF64, 3}, parameters::SimParams{SurfT<:RandomSurface, PolarizationT<:Polarization, Above<:Material, Below<:Material})
+    function N_invariant!(N::Array{ComplexF64, 3}, parameters::SimParams{SurfT<:RandomSurface, Above<:Material, Below<:Material})
 
 Calculates the surface invariant part of the Npk matrix. 
 Invariant under surface change
 """
-function N_invariant!(::Array{ComplexF64,3}, ::SimParams{_S,_A,_B})::Nothing where {_S<:RandomSurface,_A<:Material,_B<:Material}
+function N_invariant!(::Array{ComplexF64,3}, ::SimParams{_S,_A,_B}, nu::Symbol)::Nothing where {_S<:RandomSurface,_A<:Material,_B<:Material}
     @error "Not implemented for $(typeof(spa))"
 end
 
 
-function _N_isotropic_ker(p::Float64, k::Float64, spa::SimParams, kappa::ComplexF64, ::Val{N})::ComplexF64 where {N}
+function _N_isotropic_ker(p::Float64, k::Float64, spa::SimParams, kappa::ComplexF64, n::Int)::ComplexF64
     a0 = alpha(k, spa.above)
     a = alpha(p, spa.below)
     da = a + a0
-    return _pre(N) / factorial(N) * (
-        (p + kappa * k) * (p - k) * da^(N - 1) +
-        (a - kappa * a0) * da^N)
+    return _pre(n) / factorial(n) * (
+        (p + kappa * k) * (p - k) * da^(n - 1) +
+        (a - kappa * a0) * da^n)
 end
-function N_invariant!(N::Array{ComplexF64,3}, spa::SimParams{_S,Vacuum,Isotropic}, nu=:p)::Nothing where {_S}
+function N_invariant!(N::Array{ComplexF64,3}, spa::SimParams{_S,Vacuum,Isotropic}, nu::Symbol)::Nothing where {_S}
 
     ps = spa.ps
     qs = spa.qs
     kis = spa.kis
     
-    kappa = nu==:p ? below.eps : below.mu
+    kappa = nu==:p ? spa.below.eps : spa.below.mu
 
     @inbounds for n in axes(N, 3), (j, kj) in enumerate(kis), i in axes(N, 1)
         p = ps[i]
         k = qs[kj]
-        N[i, j, n] = _N_isotropic_ker(p, k, spa, kappa, Val(n - 1))
+        N[i, j, n] = _N_isotropic_ker(p, k, spa, kappa, n-1)
     end
     return nothing
 end
 
+function _N_uniaxial_ker(p::Float64, q::Float64, spa::SimParams, upa::UniaxialParams, n::Int)::ComplexF64
+    kmpa = upa.kmpa
+    kmpe = upa.kmpe
+    Cpa = upa.Cpa
+    Cpe = upa.Cpe
 
-function N_invariant!(N::Array{ComplexF64,3}, spa::SimParams{_S,Vacuum,UniaxialCrystal})::Nothing where {_S,Nu<:Polarization}
+    at = alpha_tilde(q, p, upa)
+    a0 = alpha(q, spa.above)
+    da = at + a0
+    return _pre(n) / factorial(n) * (
+        kmpa * (p + Cpe * q) * (p - q) * da^(n-1) +
+        kmpe * (at - Cpa * a0) * da^n)
+end
+
+function N_invariant!(N::Array{ComplexF64,3}, spa::SimParams{_S,Vacuum,UniaxialCrystal}, nu::Symbol)::Nothing where {_S}
 
     ps = spa.ps
     qs = spa.qs
     kis = spa.kis
 
-    upa = UniParams(spa)
+    upa = UniaxialParams(spa)
 
-    function _N_uni_ker(p::Float64, k::Float64, n::Int, spa::SimParams, upa::UniParams)::ComplexF64
-        pt = ptilde(k,p,upa.kmt)
-        a0 = alpha(k, spa.above)
-        a = alpha(p, spa.below)
-        da = a + a0
-        return _pre(n) / factorial(n) * upa.kmpa * (
-            (pt + upa.Bpe * k) * (pt - k) * da^(-1) +
-            upa.kmpe * (a - upa.Bpa * a0)
-        ) * da^n
-    end
 
     @inbounds for n in axes(N, 3), (j, kj) in enumerate(kis), i in axes(N, 1)
         p = ps[i]
         k = qs[kj]
-        N[i, j, n] = _N_uni_ker(p, k, n - 1, spa, upa)
+        N[i, j, n] = _N_uni_ker(p, k, spa, upa, n-1)
     end
     return nothing
 end
 
-function precompute!(pc::SimPrealloc, spa::SimParams)::Nothing
-    M_invariant!(pc.p_data.Mpqn, spa, :p)
-    N_invariant!(pc.p_data.Npkn, spa, :p)
-    M_invariant!(pc.s_data.Mpqn, spa, :s)
-    N_invariant!(pc.s_data.Npkn, spa, :s)
+function precompute!(sp::SimPrealloc, spa::SimParams{S,A,B})::Nothing where {S,A,B}
+    M_invariant!(sp.p_data.Mpqn, spa, :p)
+    M_invariant!(sp.s_data.Mpqn, spa, :s)
+
+    N_invariant!(sp.s_data.Npkn, spa, :s)
+    N_invariant!(sp.p_data.Npkn, spa, :p)
     return nothing
 end
 
-function validate(pc::SimPreCompute)::Nothing
-    @assert all(isfinite.(pc.p_data.Mpqn))
-    @assert all(isfinite.(pc.p_data.Npkn))
-    @assert all(isfinite.(pc.s_data.Mpqn))
-    @assert all(isfinite.(pc.s_data.Npkn))
+function validate(sp::SimPrealloc)::Nothing
+    @assert all(isfinite.(sp.p_data.Mpqn))
+    @assert all(isfinite.(sp.s_data.Mpqn))
+
+    @assert all(isfinite.(sp.p_data.Npkn))
+    @assert all(isfinite.(sp.s_data.Npkn))
     return nothing
 end

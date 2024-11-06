@@ -5,3 +5,4 @@ Manifest.toml
 output
 plots
 */cmake-build-debug
+*.mem
