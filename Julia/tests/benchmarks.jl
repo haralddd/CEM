@@ -26,36 +26,30 @@ end
 function profile_isotropic_solver()
 
     @info "Simple glass isotropic:"
-    spa = config_glass_isotropic()
-    data = SolverData(spa, 100)
-    _, (pc_stats...) = @timed precompute!(data)
-    _, (surf_stats...) = @timed generate_surface!(data.sp, data.spa)
-    _, (solve_single_stats...) = @timed solve_single!(data)
-    _, (obs_stats...) = @timed observe!(data.out_p, data.sp.p_data.Npk, 10)
+    data = config_glass_isotropic()
+    @info "precompute"
+    pc_stats = @benchmark precompute!($data)
+    @info "Surface generation"
+    surf_stats = @benchmark generate_surface!($data.sp, $data.spa)
+    @info "Solve single"
+    solve_single_stats = @benchmark solve_single!($data)
+    @info "Observation"
+    obs_stats = @benchmark observe!($data.out_p, $data.sp.p_data.Npk, 10)
 
 
-    @info "Precomputation: $pc_stats"
-    @info "Surface generation: $surf_stats"
-    @info "Single solve: $solve_single_stats"
-    @info "Observation: $obs_stats"
+    @info "Precomputation"
+    display(pc_stats)
+    @info "Surface generation"
+    display(surf_stats)
+    @info "Solve single"
+    display(solve_single_stats)
+    @info "Observation"
+    display(obs_stats)
     
     # @code_warntype precompute!(data)
     # @code_warntype generate_surface!(data.sp, data.spa)
     # @code_warntype solve_single!(data)
     # @code_warntype observe!(data.out_p, data.sp.p_data.Npk, 11)
-
-    @info "Simple silver isotropic"
-    spa = config_silver_isotropic()
-    data = SolverData(spa, 100)
-    _, (pc_stats...) = @timed precompute!(data)
-    _, (surf_stats...) = @timed generate_surface!(data.sp, spa)
-    _, (solve_single_stats...) = @timed solve_single!(data)
-    _, (obs_stats...) = @timed observe!(data.out_p, data.sp.p_data.Npk, 10)
-
-    @info "Precomputation: $pc_stats"
-    @info "Surface generation: $surf_stats"
-    @info "Single solve: $solve_single_stats"
-    @info "Observation: $obs_stats"
 end
 
 function profile_crystal_solver()

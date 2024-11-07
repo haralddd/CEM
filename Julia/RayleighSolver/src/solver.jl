@@ -22,7 +22,7 @@ struct SolverData{SimParamsType}
     out_s::SimOutput
     iters::Int64
 
-    function SolverData(spa::SimParamsType, iters::Int64) where {SimParamsType}
+    function SolverData(spa::SimParamsType, iters::Int64=1000) where {SimParamsType}
         out_p = SimOutput(spa)
         @debug "SolverData init: SimOutput P-polarization complete"
         out_s = SimOutput(spa)
@@ -104,11 +104,11 @@ function solve_single!(data::SolverData)::Nothing
     pd = sp.p_data
     sd = sp.s_data
 
-    pd.Mpq .= zero(ComplexF64)
-    pd.Npk .= zero(ComplexF64)
+    pd.Mpq .= 0.0
+    pd.Npk .= 0.0
 
-    sd.Mpq .= zero(ComplexF64)
-    sd.Npk .= zero(ComplexF64)
+    sd.Mpq .= 0.0
+    sd.Npk .= 0.0
 
     @inbounds for n in reverse(axes(pd.Mpqn, 3)) # Reverse because prefactors vanish at higher powers of ´n´
         @inbounds for i in eachindex(Fys)
@@ -132,17 +132,16 @@ function solve_single!(data::SolverData)::Nothing
             end
         end
     end
+    
     A_p = factorize(pd.Mpq)
     A_s = factorize(sd.Mpq)
 
-    for i in eachindex(rev_kis)
-        ldiv!(pd.Npk[:, i], pd.Mpq[:,:,i], pd.Npk)
-        ldiv!(sd.Npk[:, i], sd.Mpq[:, :, i], sd.Npk)
+    @inbounds for i in axes(pd.Npk, 2)
+        ldiv!(A_p, pd.Npk[:, i])
+        ldiv!(A_s, sd.Npk[:, i])
     end
-    
-    # pd.Npk = pd.Mpq / pd.Npk
-    # sd.Npk = sd.Mpq / pd.Npk
 
+    # LinearAlgebra.LAPACK.getrf!(pd.Mpq, pd.Npk)
 
     # LinearAlgebra.LAPACK.gesv!(pd.Mpq, pd.Npk)
     # LinearAlgebra.LAPACK.gesv!(sd.Mpq, sd.Npk)
@@ -159,8 +158,8 @@ function solve_MDRC!(data::SolverData)
     # N_ens is the number of ensemble averages to perform
     # returns the coherent and incoherent MDRC
 
-    _, (pc_stats...) = @timed precompute!(data)
-    @debug "Precompute stats: $pc_stats"
+    @info "precompute!:"
+    @time precompute!(data)
 
     thr_sz = Threads.nthreads()
     LinearAlgebra.BLAS.set_num_threads(thr_sz)
@@ -169,15 +168,19 @@ function solve_MDRC!(data::SolverData)
     spa = data.spa
     iters = data.iters
 
-    _, (mdrc_stats...) = @timed begin
     for n in ProgressBar(1:iters)
         generate_surface!(sp, spa)
         solve_single!(data)
-        observe!(data, n)
-    end
-    end # end mdrc_stats
+        # observe!(data, n)
+        data.out_p.R .+= data.sp.p_data.Npk
+        data.out_s.R .+= data.sp.s_data.Npk
 
-    @debug "MDRC stats: $mdrc_stats"
+        data.out_p.R² .+= abs2.(data.sp.p_data.Npk)
+        data.out_s.R² .+= abs2.(data.sp.s_data.Npk)
+    end
+
+    data.out_p.R ./= iters
+    data.out_s.R ./= iters
 
     return nothing
 end
