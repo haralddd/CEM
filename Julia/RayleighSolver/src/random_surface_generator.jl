@@ -27,28 +27,36 @@ Reverts to generic Fourier filtering function, which requires correlation(k, spa
 """ 
 function generate_surface!(sp::SimPrealloc, spa::SimParams{SurfT,_MA,_MB})::Nothing where {SurfT <: RandomSurface, _MA, _MB}
     d = spa.surf.d
-    xks = spa.xks
+    Qs = spa.Qs
     rng = spa.rng
     FFT = spa.FFT
     IFFT = spa.IFFT
-    A = 1/sqrt(spa.dx)
 
     ys = sp.ys
-    Z = sp.Z
+    Fys = sp.Fys
+    sFys = sp.sFys
+
+    A = 1/sqrt(spa.dx)
 
     # Generate random phases
     randn!(rng, ys)
-    @inbounds for i in eachindex(Z)
-        Z[i] = complex(ys[i] * d)
+    @inbounds for i in eachindex(Fys)
+        Fys[i] = ys[i] * d
     end
-    FFT * Z # In place FFT
-    @inbounds for i in eachindex(ys)
-        ys[i] = sqrt(correlation(xks[i], spa.surf))*A
-        Z[i] = Z[i] * ys[i] # Filter the numbers in Fourier space
+
+    FFT * Fys # In place FFT
+    fftshift!(sFys, Fys)
+
+    @inbounds for i in eachindex(sFys)
+        # ys[i] = sqrt(correlation(Qs[i], spa.surf) * spa.Nx/spa.Lx)
+        sFys[i] *= sqrt(correlation(Qs[i], spa.surf))*A
     end
-    IFFT * Z # in place Inverse FFT
+
+    ifftshift!(Fys, sFys)
+    IFFT * Fys # in place Inverse FFT
+
     @inbounds for i in eachindex(ys)
-        ys[i] = real(Z[i])
+        ys[i] = real(Fys[i])
     end
 
     return nothing

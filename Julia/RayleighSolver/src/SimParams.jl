@@ -36,149 +36,131 @@ All lengths are scaled to ``x\\cdot\\frac{\\omega}{c_0}``, making length and wav
 - `rng::Xoshiro`: Random number generator with the given seed
 """
 struct SimParams{SurfT<:RandomSurface, AboveT<:Material, BelowT<:Material}
-    FFT::FFT_Plan_t
-    IFFT::IFFT_Plan_t
+    lambda::Float64
+    Lx::Float64
+    Nx::Int
+    Nq::Int
+    Ni::Int
+    dx::Float64
+    dq::Float64
 
     xs::Vector{Float64}
-    xks::Vector{Float64}
-
     ps::Vector{Float64}
     qs::Vector{Float64}
+    Qs::Vector{Float64}
+
+    θs::Vector{Float64}
     ks::Vector{Float64}
     kis::Vector{Int}
     rev_qis::Vector{Int}
     rev_kis::Vector{Int}
 
+    surf::SurfT
     above::AboveT
     below::BelowT
-    lambda::Float64
-    omega::Float64
-
-    Q::Int64
-    dq::Float64
-    Lx::Float64
-    dx::Float64
-
-    Ni::Int
-    Nq::Int
-    Nx::Int
-
-    surf::SurfT
+    
     seed::Int
     rng::Xoshiro
-end
+    FFT::FFT_Plan_t
+    IFFT::IFFT_Plan_t
 
-function SimParams{ST,AT,BT}(;
-    lambda=600e-9,
-    Q=4,
-    Nq=127,
-    ks=[sind(10.0)],
-    Lx=10.0e-6,
-    Ni=10,
-    surf::ST = FlatSurface(),
-    above::AT = Vacuum(),
-    below::BT = Isotropic(2.25 + 1e-6im, 1.0),
-    seed=-1,
-    rescale=true
-) where {
-    ST<:RandomSurface,
-    AT<:Material,
-    BT<:Material}
-
-    K = 2π / lambda
-    omega = c0 * K
-
-    # Assertions and warnings
-    @assert Lx / lambda > 10.0 "Surface length must be much larger than the wavelength, L >> lambda, but is L:$L and lambda:$lambda."
-    @assert Q > 2 "Q must be greater than 2, but is $Q. 4 is recommended."
-    @assert Nq > 2 "Nq must be greater than 2, but is $Nq."
-
-    if typeof(below) == Isotropic
-        if imag(below.eps) + imag(below.mu) ≈ 0
-            @warn "Material below has no loss, adding small imaginary component to avoid singularities."
-            below = Isotropic(below.eps + 1e-4im, below.mu)
+    function SimParams(;
+        lambda=632.8e-9,
+        Lx=100*632.8e-9,
+        Nx=2048,
+        θs=[0.0, 10.0, 20.0],
+        Ni=10,
+        surf::ST = GaussianSurface(30.0e-9, 100.0e-9),
+        above::AT = Vacuum(),
+        below::BT = Isotropic(2.25 + 1e-6im, 1.0),
+        seed=-1,
+        rescale=true
+    ) where {
+        ST<:RandomSurface,
+        AT<:Material,
+        BT<:Material}
+    
+        k0 = 2π / lambda # = ω/c, inverse length scale being used for dispersion relations and in real space
+    
+        # Assertions and warnings
+        @assert Lx / lambda > 10.0 "Surface length must be much larger than the wavelength, Lx >> lambda, but is Lx:$Lx and lambda:$lambda."
+    
+        if typeof(below) == Isotropic
+            if imag(below.eps) + imag(below.mu) ≈ 0
+                @warn "Material below has no loss, adding small imaginary component to avoid singularities."
+                below = Isotropic(below.eps + 1e-4im, below.mu)
+            end
         end
+    
+        if rescale
+            Lx = Lx * k0
+            new_surf = scale(surf, k0)
+            ks = sind.(θs)
+        else
+            Lx = Lx
+            new_surf = surf
+            ks = k0*sind.(θs)
+        end
+    
+        dx = Lx/(Nx-1)
+        dq = 2π/Lx
+        xs = -Lx/2:dx:Lx/2
+
+        @assert Nx % 2 == 0 "Nx should be divisible by 2 to make Nq."
+        Nq = Nx ÷ 2
+        Q = dq*Nq
+    
+        @assert Q > 4 "Q (= $(Q)) should be greater than 4, which is determined by spatial resolution, Q=π/dx, with dx = Lx/Nx"
+    
+        ps = -Q/2:dq:Q/2 #range(-Q/2, Q/2, step=dq)
+        qs =  -Q/2:dq:Q/2 #range(-Q/2, Q/2, step=dq)
+        Qs = fftfreq(Nx, 2pi/dx) |> fftshift
+
+        @debug "dx: $dx, Lx: $Lx, dx*Nx: $(dx*Nx)"
+        @debug "dq: $dq, Δq: $(qs[2] - qs[1]) vs ΔQ: $(Qs[2] - Qs[1])"
+        @debug "Qs: $Qs"
+        @debug "Qs has zero: $(any(Qs .== 0.0))"
+    
+        @debug "ks before lookup: $ks"
+        kis = [searchsortedfirst(qs, k) for k in ks] |> collect
+        ks = qs[kis]
+        @debug "ks after lookup: $ks"
+    
+        # To access the the Fourier transform of the surface integral I(γ, q)
+        # we must access the pattern ζ(p-q), so make a reverse index range for q
+        # This works only if qs is symmetric (-Q/2:0:Q/2)
+        rev_qis = reverse(eachindex(qs))
+        @assert all(qs[rev_qis] .≈ .-qs) "qis reversed not matching qs: $(qs[rev_qis] .== .-qs)"
+    
+        # for k we must find the index of the corresponding q with opposite sign
+        rev_kis = rev_qis[kis]
+        @assert all(qs[rev_kis] .≈ -qs[kis]) "kis reversed not matching ks: $(qs[rev_kis] .== -qs[kis])"
+    
+    
+    
+        seed = seed < 0 ? rand(0:typemax(Int)) : seed
+        FFTplan = plan_fft!(similar(xs, ComplexF64))
+        IFFTplan = plan_ifft!(similar(xs, ComplexF64))
+        @debug "SimParams"
+        @debug "ps: $ps"
+        @debug "qs: $qs"
+        @debug "xs: $xs"
+        @debug "kis: $kis"
+        @debug "rev_kis: $rev_kis"
+        @debug "rev_qis: $rev_qis"
+        @debug "surf: $new_surf"
+        @debug "above: $above"
+        @debug "below: $below"
+        @debug "seed: $seed"
+        @debug "typeof(FFTplan): $(typeof(FFTplan))"
+        @debug "typeof(IFFTplan): $(typeof(IFFTplan))"
+        new{ST,AT,BT}(
+            lambda, Lx, Nx, Nq, Ni, dx, dq,
+            xs, ps, qs, Qs,
+            θs, ks, kis, rev_kis, rev_qis,
+            new_surf, above, below,
+            seed, Xoshiro(seed), FFTplan, IFFTplan,
+        )
     end
-
-    if rescale
-        Lx = Lx * omega / c0
-        new_surf = scale(surf, omega / c0)
-    else
-        Lx = Lx
-        new_surf = surf
-    end
-
-    Nx = 2 * Nq
-    dq = Q / (Nq - 1)
-
-    dx = Lx / (Nx - 1)
-    xs = -Lx/2:dx:Lx/2
-    xks = fftfreq(Nx, 2pi / dx)
-
-    ps = -Q/2:dq:Q/2
-    qs = -Q/2:dq:Q/2
-
-    kis = [searchsortedfirst(qs, k) for k in ks] |> collect
-    ks = qs[kis]
-
-    # To access the the Fourier transform of the surface integral I(γ, q)
-    # we must access the pattern ζ(p-q), so make a reverse index range for q
-    # This works only if qs is symmetric (-Q/2:0:Q/2)
-    rev_qis = reverse(eachindex(qs))
-    @assert all(qs[rev_qis] .== .-qs)
-
-    # for k we must find the index of the corresponding q with opposite sign
-    rev_kis = [searchsortedlast(qs, -k) for k in ks] |> collect
-    @assert all(qs[rev_kis] .== -qs[kis])
-
-    @debug "SimParams"
-    @debug Lx
-    @debug new_surf
-    @debug xks
-    @debug xs
-    @debug ps
-    @debug qs
-    @debug ks
-    @debug kis
-    @debug rev_qis
-    @debug rev_kis
-
-    seed = seed < 0 ? rand(0:typemax(Int)) : seed
-    FFTplan = plan_fft!(similar(xs, ComplexF64))
-    IFFTplan = plan_ifft!(similar(xs, ComplexF64))
-    @debug typeof(FFTplan)
-    @debug typeof(IFFTplan)
-    SimParams{ST,AT,BT}(FFTplan, IFFTplan,
-        xs, xks, ps, qs, ks, kis, rev_qis, rev_kis,
-        above, below, lambda, omega,
-        Q, dq, Lx, dx,
-        Ni, Nq, Nx, new_surf, seed, Xoshiro(seed))
 end
 
-function SimParams(;
-    lambda=600e-9,
-    Q=4,
-    Nq=127,
-    ks=[sind(10.0)],
-    Lx=10.0e-6,
-    Ni=10,
-    surf = FlatSurface(),
-    above = Vacuum(),
-    below = Isotropic(2.25 + 1e-6im, 1.0),
-    seed=-1,
-    rescale=true
-)::SimParams
-    return SimParams{typeof(surf), typeof(above), typeof(below)}(
-        lambda=lambda,
-        Q=Q,
-        Nq=Nq,
-        ks=ks,
-        Lx=Lx,
-        Ni=Ni,
-        surf=surf,
-        above=above,
-        below=below,
-        seed=seed,
-        rescale=rescale
-    )
-end

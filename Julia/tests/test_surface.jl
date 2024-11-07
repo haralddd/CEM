@@ -54,38 +54,19 @@ end
 
 function mean_peak_valley_dist(xs::Vector{Float64}, ys::Vector{Float64})
     peaks = xs[argmaxima(ys)]
-    valleys = xs[argminima(ys)]
     return mean(diff(peaks)) / 2
-
-    acc = 0.0
-    if peaks[1] < valleys[1] # First value is a peak
-        for i in eachindex(valleys)
-            acc += valleys[i] - peaks[i]
-        end
-        if length(peaks) > length(valleys) # Odd number of intervals
-            acc += peaks[end] - valleys[end]
-        end
-    else # First value is a valley
-        for i in eachindex(peaks)
-            acc += peaks[i] - valleys[i]
-        end
-        if length(valleys) > length(peaks) # Odd number of intervals
-            acc += peaks[end] - valleys[end]
-        end
-    end
-
-    return acc / (length(peaks) + length(valleys))
 end
 
-function test_surf(surf::T) where T <:RandomSurface
-    M = 100000
-    data = default_params_for_surface_testing(surf, M)
+function test_surf(data::SolverData)
+
 
     spa = data.spa
     sp = data.sp
+    M = data.iters
+    surf = spa.surf
 
-    dx = spa.dx
     xs = spa.xs
+    dx = spa.dx
     d = spa.surf.d
 
     meanval = 0.0
@@ -127,7 +108,9 @@ function test_surf(surf::T) where T <:RandomSurface
     println("δ = $(d)")
     println("Numerical  = $(rms)")
 end
-
-test_gaussian() = test_surf(GaussianSurface(30.0e-9, 100.0e-9))
-test_rect() = test_surf(RectangularSurface(30.0e-9, 0.82, 1.97))
+const iters = 100000
+test_gaussian() = test_surf(default_gaussian_config(iters))
+test_gaussian2() = test_surf(default_gaussian_config(iters, 200*632.8e-9))
+test_gaussian3() = test_surf(default_gaussian_config(iters, 50*632.8e-9))
+test_rect() = test_surf(default_rectangular_config(iters))
 

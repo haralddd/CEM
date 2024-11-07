@@ -313,15 +313,11 @@ function cli_main()
     end
 
     input_path = DEFAULT_INPUT
+    out = ""
 
     if (idx = args_findoption("input")) !== nothing
         @assert length(ARGS) > idx "Missing argument after 'input'"
-        try
-            input_path = ARGS[idx+1]
-        catch
-            error("Invalid positional value after 'input': $(ARGS[idx+1])")
-            exit(0)
-        end
+        input_path = ARGS[idx+1]
     end
 
     @debug input_path

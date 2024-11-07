@@ -1,9 +1,9 @@
 
 # # Run surface tests
-# include("test_surface.jl")
-# test_gaussian()
-# test_rect()
-# test_gaussian()
+include("test_surface.jl")
+test_gaussian()
+test_gaussian2()
+test_gaussian3()
 # test_rect()
 
 # # Run fresnel tests
@@ -24,4 +24,4 @@
 
 
 include("benchmarks.jl")
-profile_isotropic_solver()  
+profile_isotropic_solver()

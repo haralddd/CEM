@@ -36,7 +36,6 @@ struct SimPrealloc
     s_data::SystemPreAlloc
     Fys::Vector{ComplexF64}
     sFys::Vector{ComplexF64}
-    Z::Vector{ComplexF64}
     ys::Vector{Float64}
 
     function SimPrealloc(Nq::Int, Nk::Int, Ni::Int)
@@ -46,9 +45,8 @@ struct SimPrealloc
         ys = Vector{Float64}(undef, 2Nq)
         Fys = similar(ys, ComplexF64)
         sFys = similar(Fys)
-        Z = similar(Fys)
 
-        new(p_data, s_data, Fys, sFys, Z, ys)
+        new(p_data, s_data, Fys, sFys, ys)
     end
     function SimPrealloc(spa::SimParams)::SimPrealloc
         SimPrealloc(spa.Nq, length(spa.ks), spa.Ni)
@@ -148,16 +146,16 @@ function _M_isotropic_ker(p::Float64, q::Float64, spa::SimParams, kappa::Complex
         (a + kappa * a0)*da^n)
 end
 
-function M_invariant!(M::Array{ComplexF64,3}, spa::SimParams{_S,Vacuum,Isotropic}, nu::Symbol)::Nothing where {_S}
+function M_invariant!(Mpqn::Array{ComplexF64,3}, spa::SimParams{_S,Vacuum,Isotropic}, nu::Symbol)::Nothing where {_S}
     
     ps = spa.ps
     qs = spa.qs
     kappa = nu==:p ? spa.below.eps : spa.below.mu
 
-    @inbounds for n in axes(M, 3), j in axes(M, 2), i in axes(M, 1)
+    @inbounds for n in axes(Mpqn, 3), j in axes(Mpqn, 2), i in axes(Mpqn, 1)
         p = ps[i]
         q = qs[j]
-        M[i, j, n] = _M_isotropic_ker(p, q, spa, kappa, n-1)
+        Mpqn[i, j, n] = _M_isotropic_ker(p, q, spa, kappa, n-1)
     end
     return nothing
 end
@@ -177,16 +175,16 @@ function _M_uniaxial_ker(p::Float64, q::Float64, spa::SimParams, upa::UniaxialPa
         kmpe * (at + Cpa * a0) * da^n)
 end
 
-function M_invariant!(M::Array{ComplexF64,3}, spa::SimParams{_S,Vacuum,UniaxialCrystal}, nu::Symbol)::Nothing where {_S}
+function M_invariant!(Mpqn::Array{ComplexF64,3}, spa::SimParams{_S,Vacuum,UniaxialCrystal}, nu::Symbol)::Nothing where {_S}
 
     ps = spa.ps
     qs = spa.qs
     upa = UniaxialParams(spa)
 
-    @inbounds for n in axes(M, 3), j in axes(M, 2), i in axes(M, 1)
+    @inbounds for n in axes(Mpqn, 3), j in axes(Mpqn, 2), i in axes(Mpqn, 1)
         p = ps[i]
         q = qs[j]
-        M[i, j, n] = _M_uni_ker(p, q, n - 1, spa, upa)
+        Mpqn[i, j, n] = _M_uni_ker(p, q, n - 1, spa, upa)
     end
     return nothing
 end
