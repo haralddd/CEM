@@ -27,7 +27,7 @@ Reverts to generic Fourier filtering function, which requires correlation(k, spa
 """ 
 function generate_surface!(sp::SimPrealloc, spa::SimParams{SurfT,_MA,_MB})::Nothing where {SurfT <: RandomSurface, _MA, _MB}
     d = spa.surf.d
-    Qs = spa.Qs
+    xks = spa.xks
     rng = spa.rng
     FFT = spa.FFT
     IFFT = spa.IFFT
@@ -45,14 +45,13 @@ function generate_surface!(sp::SimPrealloc, spa::SimParams{SurfT,_MA,_MB})::Noth
     end
 
     FFT * Fys # In place FFT
-    fftshift!(sFys, Fys)
+    # fftshift!(sFys, Fys)
 
-    @inbounds for i in eachindex(sFys)
-        # ys[i] = sqrt(correlation(Qs[i], spa.surf) * spa.Nx/spa.Lx)
-        sFys[i] *= sqrt(correlation(Qs[i], spa.surf))*A
+    @inbounds for i in eachindex(Fys)
+        Fys[i] *= sqrt(correlation(xks[i], spa.surf))*A
     end
 
-    ifftshift!(Fys, sFys)
+    # ifftshift!(Fys, sFys)
     IFFT * Fys # in place Inverse FFT
 
     @inbounds for i in eachindex(ys)

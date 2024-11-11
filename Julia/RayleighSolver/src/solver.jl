@@ -111,7 +111,7 @@ function solve_single!(data::SolverData)::Nothing
     sd.Npk .= 0.0
 
     @inbounds for n in reverse(axes(pd.Mpqn, 3)) # Reverse because prefactors vanish at higher powers of ´n´
-        @inbounds for i in eachindex(Fys)
+        for i in eachindex(Fys)
             Fys[i] = ys[i]^(n - 1)
         end
 
@@ -119,14 +119,14 @@ function solve_single!(data::SolverData)::Nothing
 
         fftshift!(sFys, Fys)
 
-        @inbounds for (j, qj) in enumerate(rev_qis)
-            @inbounds for i in axes(pd.Mpq, 1)
+        for (j, qj) in enumerate(rev_qis)
+            for i in axes(pd.Mpq, 1)
                 pd.Mpq[i, j] += pd.Mpqn[i, j, n] * sFys[i+qj-1]
                 sd.Mpq[i, j] += sd.Mpqn[i, j, n] * sFys[i+qj-1]
             end
         end
-        @inbounds for (j, kj) in enumerate(rev_kis)
-            @inbounds for i in axes(pd.Npk, 1)
+        for (j, kj) in enumerate(rev_kis)
+            for i in axes(pd.Npk, 1)
                 pd.Npk[i, j] -= pd.Npkn[i, j, n] * sFys[i+kj-1]
                 sd.Npk[i, j] -= sd.Npkn[i, j, n] * sFys[i+kj-1]
             end
@@ -136,15 +136,10 @@ function solve_single!(data::SolverData)::Nothing
     A_p = factorize(pd.Mpq)
     A_s = factorize(sd.Mpq)
 
-    @inbounds for i in axes(pd.Npk, 2)
+    for i in axes(pd.Npk, 2)
         ldiv!(A_p, pd.Npk[:, i])
         ldiv!(A_s, sd.Npk[:, i])
     end
-
-    # LinearAlgebra.LAPACK.getrf!(pd.Mpq, pd.Npk)
-
-    # LinearAlgebra.LAPACK.gesv!(pd.Mpq, pd.Npk)
-    # LinearAlgebra.LAPACK.gesv!(sd.Mpq, sd.Npk)
 
     return nothing
 end

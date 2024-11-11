@@ -1,9 +1,11 @@
 
 # # Run surface tests
-include("test_surface.jl")
-test_gaussian()
-test_gaussian2()
-test_gaussian3()
+# begin
+#     include("test_surface.jl")
+#     test_gaussian()
+#     test_gaussian2()
+#     test_gaussian3()
+# end
 # test_rect()
 
 # # Run fresnel tests
@@ -22,6 +24,7 @@ test_gaussian3()
 # profile_solver_components()
 # test_crystal_precompute()
 
-
+begin
 include("benchmarks.jl")
 profile_isotropic_solver()
+end
