@@ -29,21 +29,15 @@ function profile_isotropic_solver()
     data = config_glass_isotropic()
     @info "precompute"
     pc_stats = @benchmark precompute!($data)
-    @info "Surface generation"
-    surf_stats = @benchmark generate_surface!($data.sp, $data.spa)
-    @info "Solve single"
-    solve_single_stats = @benchmark solve_single!($data)
-    @info "Observation"
-    obs_stats = @benchmark observe!($data.out_p, $data.sp.p_data.Npk, 10)
-
-
-    @info "Precomputation"
     display(pc_stats)
     @info "Surface generation"
+    surf_stats = @benchmark generate_surface!($data.sp, $data.spa)
     display(surf_stats)
     @info "Solve single"
+    solve_single_stats = @benchmark solve_single!($data)
     display(solve_single_stats)
     @info "Observation"
+    obs_stats = @benchmark observe!($data.out_p, $data.sp.p_data.Npk, 10)
     display(obs_stats)
     
     # @code_warntype precompute!(data)
