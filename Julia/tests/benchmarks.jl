@@ -36,27 +36,21 @@ function profile_isotropic_single_solve()
     display(bench)
 end
 
-function profile_crystal_solver()
-    ε = 2.25 + 1e-4im
-    lambda = 632.8e-9
-    Q = 4
-    Nq = 512 + 1
-    ks = [sind(20.0)]
-    L = 10.0e-6
-    Ni = 3
-    surf = GaussianSurface(30.0e-9, 100.0e-9)
-    rp_crystal = SimParams(
-        lambda=lambda,
-        Q=Q,
-        Nq=Nq,
-        ks=ks,
-        L=L,
-        Ni=Ni,
-        surf=surf,
-        rescale=true,
-        above=UniaxialCrystal(1.0, 1.0, 1.0, 1.0),
-        below=UniaxialCrystal(ε, ε, 1.0, 1.0)
-    )
+function profile_isotropic_observe()
+    @info "Simple glass isotropic observe"
+    data = config_glass_isotropic()
+    precompute!(data)
+    generate_surface!(data.sp, data.spa)
+    solve_single!(data)
+    bench = @benchmark observe!($data, 10)
+    display(bench)
+end
 
-    @benchmark SimPreCompute($rp_crystal)
+function singlerun_isotropic_single_solve()
+    data = config_glass_isotropic()
+    precompute!(data)
+    generate_surface!(data.sp, data.spa)
+    _, stats... = @timed solve_single!(data)
+    @info "Single Solve Total:"
+    display(stats.time)
 end

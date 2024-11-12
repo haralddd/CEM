@@ -20,23 +20,21 @@ function Rp(θ, εμ)
 end
 
 
-function test_fresnel_silver(; input="silver")
-    silver = config_fresnel_silver(100)
+function test_fresnel_silver()
+    data = config_fresnel_silver(100)
+    precompute!(data)
 
-    precompute!(glass)
-    precompute!(silver)
+    generate_surface!(data.sp, data.spa)
 
-    generate_surface!(glass.sp, glass.spa)
-    generate_surface!(silver.sp, silver.spa)
+    @time solve_single!(data)
 
-    # Solve for R
-    @time solve_single!(glass)
-    @time solve_single!(silver)
+    pNpk = data.sp.p_data.Npk
+    sNpk = data.sp.s_data.Npk
 
-    res_p = [si.Npk[:, i] .|> abs2 |> maximum for i in eachindex(rp_p.kis)]
-    res_s = [sp_s.Npk[:, i] .|> abs2 |> maximum for i in eachindex(rp_s.kis)]
+    res_p = [pNpk[:, i] .|> abs2 |> maximum for i in axes(pNpk, 2)]
+    res_s = [sNpk[:, i] .|> abs2 |> maximum for i in axes(sNpk, 2)]
 
-    return res_p, res_s, asind.(rp_p.qs[rp_p.kis])
+    return res_p, res_s, data.spa.θs
 end
 
 
@@ -67,7 +65,7 @@ function plot_fresnel(; res_p, res_s, θs, εμ, title="silver")
     save("plots/fresnel_$(title)_error.pdf", fig2)
 end
 
-res_p, res_s, θs = test_fresnel()
+res_p, res_s, θs = test_fresnel_silver()
 ε = -17.5 + 0.48im
 
 plot_fresnel(; res_p=res_p, res_s=res_s, θs=θs, εμ=ε * 1.0, title="silver")

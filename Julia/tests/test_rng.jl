@@ -1,4 +1,4 @@
-using LoopVectorization
+# using LoopVectorization
 using BenchmarkTools
 using Statistics
 using Random
@@ -105,9 +105,9 @@ function test_rng_sequence()
     M = 1000
 
     names = ["rng_seq_acc", "rng_seq_obs1", "rng_seq_obs2", "rng_seq_obs3",
-        "rng_para_direct", "rng_para_acc", "rng_loopvec_reduce"]
+        "rng_para_direct", "rng_para_acc"]
     funcs = [rng_seq_acc, rng_seq_obs1, rng_seq_obs2, rng_seq_obs3,
-        rng_para_direct, rng_para_acc, rng_loopvec_reduce]
+        rng_para_direct, rng_para_acc]
     diffs = zeros(length(funcs), M)
 
     for fi in eachindex(funcs)

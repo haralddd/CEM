@@ -1,5 +1,4 @@
 # using MKL
-
 const DEFAULT_PATH = "$(@__DIR__)"
 import Base./
 function /(x::AbstractString, y::AbstractString)
@@ -150,10 +149,10 @@ function config_creation_prompt(path=DEFAULT_INPUT)::SimParams
     input = readline()
     seed = parse(Int64, input == "" ? "-1" : input)
 
-    spa = SimParams{typeof(surf),typeof(above),typeof(below)}(
+    spa = SimParams(
         lambda=lambda,
         Nx=Nx,
-        ks=sind.(angles),
+        θs=angles,
         Lx=Lx,
         Ni=Ni,
         surf=surf,
@@ -163,9 +162,10 @@ function config_creation_prompt(path=DEFAULT_INPUT)::SimParams
         rescale=true,
     )
 
-    print("Ensemble iters [Int64 >= 0] (= 1000): ")
-    input = readline()
-    iters = parse(Int64, input == "" ? "1000" : input)
+    # print("Ensemble iters [Int64 >= 0] (= 1000): ")
+    # input = readline()
+    # iters = parse(Int64, input == "" ? "1000" : input)
+    # save_ensemble_iters(path / input, iters)
 
 
     print("Save as filename [=\"default.jld2\"]: ")
@@ -174,7 +174,6 @@ function config_creation_prompt(path=DEFAULT_INPUT)::SimParams
     save_spa_config(path / input, spa,
         override=Dict(:seed => seed) # Override the seed to generate random seed using the input
     )
-    save_ensemble_iters(path / input, iters)
 
     return spa
 end
@@ -209,7 +208,7 @@ function cli_info(filepath)
         data = load_solver_data(filepath)
         display(data)
     catch e
-        @warn "No complete solver data found at '$(filepath)', if the file is a template configuration file, ignore this warning.\nError message: $e"
+        @warn "No complete solver data found at '$(filepath)', if the file is a template configuration file, ignore this warning."
         try
             spa = load_spa_config(filepath)
             display(spa)
@@ -220,17 +219,9 @@ function cli_info(filepath)
     return
 end
 
-function cli_run(filepath)
+function cli_run(filepath, iters = 100)
     cli_info(filepath)
     spa = load_spa_config(filepath)
-    iters = 0
-    try
-        iters = load_ensemble_iters(filepath)
-    catch
-        println("No ensemble iters found, specify: (=1000)")
-        input = readline()
-        iters = parse(Int64, input == "" ? "1000" : input)
-    end
 
     @info "Initializing SolverData..."
     data = SolverData(spa, iters)
@@ -254,7 +245,7 @@ function cli_run(filepath)
     return
 end
 
-function cli_file(arg, argval, confpath)
+function cli_file(arg, argval, confpath, iters = 100)
     file_name = ""
     try
         files = get_jld_files(confpath)
@@ -269,7 +260,7 @@ function cli_file(arg, argval, confpath)
         cli_info(filepath)
         exit(0)
     elseif (arg == "run")
-        cli_run(filepath)
+        cli_run(filepath, iters)
         exit(0)
     else
         error("Unknown single file argument: $(arg)")
@@ -279,7 +270,7 @@ end
 
 
 
-function cli_directory(input_path)
+function cli_directory(input_path, iters = 100)
     if (idx = args_findoption("list")) !== nothing
         cli_list(input_path)
         println("""
@@ -289,7 +280,7 @@ function cli_directory(input_path)
         input = readline()
 
         arg, argval = split(input, " ")
-        cli_file(arg, argval, input_path)
+        cli_file(arg, argval, input_path, iters)
     else
         error("Unknown action following input path: $(input_path)")
         exit(0)
@@ -309,11 +300,16 @@ function cli_main()
     end
 
     input_path = DEFAULT_INPUT
-    out = ""
 
     if (idx = args_findoption("input")) !== nothing
         @assert length(ARGS) > idx "Missing argument after 'input'"
         input_path = ARGS[idx+1]
+    end
+
+    iters = 100
+    if (idx = args_findoption("iters")) !== nothing
+        @assert length(ARGS) > idx "Missing argument after 'iters'"
+        iters = parse(Int64, ARGS[idx+1])
     end
 
     @debug input_path
@@ -331,16 +327,16 @@ function cli_main()
             cli_info(input_path)
         elseif isdir(input_path)
             @assert length(ARGS) > idx "Missing argument after 'info'"
-            cli_file("info", ARGS[idx+1], input_path)
+            cli_file("info", ARGS[idx+1], input_path, iters)
         end
     elseif (idx = args_findoption("run") !== nothing)
         if isfile(input_path)
-            cli_run(input_path)
+            cli_run(input_path, iters)
         elseif isdir(input_path)
             @assert length(ARGS) > idx "Missing argument after 'run'"
-            cli_file("run", ARGS[idx+1], input_path)
+            cli_file("run", ARGS[idx+1], input_path, iters)
         end
     elseif isdir(input_path)
-        cli_directory(input_path)
+        cli_directory(input_path, iters)
     end
 end

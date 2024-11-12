@@ -42,8 +42,8 @@ function precompute!(data::SolverData{SPA})::Nothing where {SPA}
 end
 
 "Iteratively update observable like so: ⟨A⟩ₙ = (n-1)/n ⟨A⟩ₙ₋₁ + Aₙ/n"
-function observe(observable, value, N)
-    return observable*(N-1)/N + value/N
+function observe(obs, x, n)
+    return obs + (x-obs)/n
 end
 
 "Updates all observables in out::SimOutput"
@@ -109,14 +109,13 @@ function solve_single!(data::SolverData)::Nothing
 
     sd.Mpq .= 0.0
     sd.Npk .= 0.0
-
+    
     @inbounds for n in reverse(axes(pd.Mpqn, 3)) # Reverse because prefactors vanish at higher powers of ´n´
         for i in eachindex(Fys)
             Fys[i] = ys[i]^(n - 1)
         end
 
         FFT * Fys # In place FFT
-
         fftshift!(sFys, Fys)
 
         for (j, qj) in enumerate(rev_qis)
@@ -132,14 +131,56 @@ function solve_single!(data::SolverData)::Nothing
             end
         end
     end
-    
-    A_p = factorize(pd.Mpq)
-    A_s = factorize(sd.Mpq)
 
+    A = lu!(pd.Mpq)
     for i in axes(pd.Npk, 2)
-        ldiv!(A_p, pd.Npk[:, i])
-        ldiv!(A_s, sd.Npk[:, i])
+        b = @view pd.Npk[:, i]
+        ldiv!(A, b)
     end
+
+    A = lu!(sd.Mpq)
+    for i in axes(sd.Npk, 2)
+        b = @view sd.Npk[:, i]
+        ldiv!(A, b)
+    end
+
+    # @info "Solve 1"
+    # @time for i in axes(pd.Npk, 2)
+    #     b = @view pd.Npk[:, i]
+    #     b = pd.Mpq \ b
+    # end
+
+    # @info "Solve 2"
+    # @time for i in axes(sd.Npk, 2)
+    #     b = @view sd.Npk[:, i]
+    #     b = sd.Mpq \ b
+    # end
+
+
+    # @info "Factorize 1"
+    # @time A = lu!(pd.Mpq)
+    # @info typeof(A)
+
+    # @info "Solve 1"
+    # @time for i in axes(pd.Npk, 2)
+    #     b = @view pd.Npk[:, i]
+    #     ldiv!(A, b)
+    # end
+
+    # @info "Factorize 2"
+    # @time A = lu!(sd.Mpq)
+    # @info typeof(A)
+
+    # @info "Solve 2"
+    # @time for i in axes(sd.Npk, 2)
+    #     b = @view sd.Npk[:, i]
+    #     ldiv!(A, b)
+    # end
+
+
+    # @info "gesv!"
+    # @time LinearAlgebra.LAPACK.gesv!(pd.Mpq, pd.Npk)
+    # @time LinearAlgebra.LAPACK.gesv!(sd.Mpq, sd.Npk)
 
     return nothing
 end
@@ -163,19 +204,34 @@ function solve_MDRC!(data::SolverData)
     spa = data.spa
     iters = data.iters
 
-    for n in ProgressBar(1:iters)
+    out_p = data.out_p
+    out_s = data.out_s
+
+    out_p.R .= 0.0
+    out_p.R² .= 0.0
+    out_p.σ² .= 0.0
+    out_p.κ .= 0.0
+    out_s.R .= 0.0
+    out_s.R² .= 0.0
+    out_s.σ² .= 0.0
+    out_s.κ .= 0.0
+
+    @info "mainloop:"
+    # for n in ProgressBar(1:iters)
+    @time for n in 1:iters
         generate_surface!(sp, spa)
         solve_single!(data)
         # observe!(data, n)
-        data.out_p.R .+= data.sp.p_data.Npk
-        data.out_s.R .+= data.sp.s_data.Npk
-
-        data.out_p.R² .+= abs2.(data.sp.p_data.Npk)
-        data.out_s.R² .+= abs2.(data.sp.s_data.Npk)
+        out_p.R .+= sp.p_data.Npk
+        out_p.R² .+= abs2.(sp.p_data.Npk)
+        out_s.R .+= sp.s_data.Npk
+        out_s.R² .+= abs2.(sp.s_data.Npk)
     end
 
-    data.out_p.R ./= iters
-    data.out_s.R ./= iters
+    out_p.R ./= iters
+    out_p.R² ./= iters
+    out_s.R ./= iters
+    out_s.R² ./= iters
 
     return nothing
 end
@@ -212,5 +268,5 @@ function get_qs_and_mdrc(data::SolverData)
     coh_p, inc_p = get_coh_inc(data.out_p, reduced_qs, ks, spa.above)
     coh_s, inc_s = get_coh_inc(data.out_s, reduced_qs, ks, spa.above)
 
-    return reduced_qs, DataMDRC(coh_p, inc_p, coh_s, inc_s)
+    return reduced_qs, DataMDRC(coh_p, inc_p, coh_s, inc_s)z
 end
