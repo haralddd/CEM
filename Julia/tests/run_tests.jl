@@ -18,13 +18,13 @@
 
 # Run complete solver tests
 # include("test_solver.jl")
+
 # test_reciprocity()
 # test_symmetry_isotropic()
 # test_solver() 
 # profile_solver_components()
 # test_crystal_precompute()
 
-begin
 include("benchmarks.jl")
-profile_isotropic_solver()
-end
+# profile_isotropic_solver()
+run_simple_isotropic()
