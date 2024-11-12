@@ -1,4 +1,3 @@
-
 # # Run surface tests
 # begin
 #     include("test_surface.jl")
@@ -26,5 +25,7 @@
 # test_crystal_precompute()
 
 include("benchmarks.jl")
-# profile_isotropic_solver()
-run_simple_isotropic()
+profile_gaussian_surfacegen()
+profile_rectangular_surfacegen()
+profile_isotropic_precompute()
+profile_isotropic_single_solve()

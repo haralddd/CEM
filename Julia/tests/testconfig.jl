@@ -12,7 +12,7 @@ function default_gaussian_config(iters = 10000, Lx=100*632.8e-9)::SolverData
 end
 
 function default_rectangular_config(iters = 10000)::SolverData
-    return SolverData(SimParams(surf=RectangularSurface(30.0e-9, 100.0e-9)), iters)
+    return SolverData(SimParams(surf=RectangularSurface(30.0e-9, 0.70, 1.30)), iters)
 end
 
 function config_glass_isotropic()

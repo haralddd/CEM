@@ -15,7 +15,6 @@ using Statistics
 using Random: Xoshiro, randn!
 using JLD2, FileIO
 using ProgressBars
-using LoopVectorization
 import Base.parse
 import Base.show
 import Base.display
