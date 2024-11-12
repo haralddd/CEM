@@ -259,7 +259,6 @@ end
 function precompute!(sp::SimPrealloc, spa::SimParams{S,A,B})::Nothing where {S,A,B}
     M_invariant!(sp.p_data.Mpqn, spa, :p)
     M_invariant!(sp.s_data.Mpqn, spa, :s)
-
     N_invariant!(sp.s_data.Npkn, spa, :s)
     N_invariant!(sp.p_data.Npkn, spa, :p)
     return nothing
@@ -268,7 +267,6 @@ end
 function validate(sp::SimPrealloc)::Nothing
     @assert all(isfinite.(sp.p_data.Mpqn))
     @assert all(isfinite.(sp.s_data.Mpqn))
-
     @assert all(isfinite.(sp.p_data.Npkn))
     @assert all(isfinite.(sp.s_data.Npkn))
     return nothing

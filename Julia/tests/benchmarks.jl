@@ -2,54 +2,38 @@ include("testconfig.jl")
 
 using BenchmarkTools
 using ProfileView
-function run_simple_isotropic()
-    data = default_config_creation()
-    ProfileView.@profview precompute!(data)
-    @time generate_surface!(data.sp, data.spa)
-    @time solve_single!(data)
-end
 
 function profile_gaussian_surfacegen()
-    spa, sp = default_params_for_surface_testing(GaussianSurface(30.0e-9, 100.0e-9))
-    function loop_de_loop(sp, spa)
-        for _ in 1:1000
-            generate_surface!(sp, spa)
-        end
-    end
-    @btime generate_surface!($sp, $spa)
+    @info "Gaussian surface generation"
+    data = default_gaussian_config()
+    bench = @benchmark generate_surface!($data.sp, $data.spa)
+    display(bench)
 end
 
 function profile_rectangular_surfacegen()
-    spa, sp = default_params_for_surface_testing(RectangularSurface(30.0e-9, 0.82, 1.97))
-    function loop_de_loop(sp, spa)
-        for _ in 1:1000
-            generate_surface!(sp, spa)
-        end
-    end
-    @btime generate_surface!($sp, $spa)
+    @info "Rectangular surface generation"
+    data = default_rectangular_config()
+    
+    bench = @benchmark generate_surface!($data.sp, $data.spa)
+    display(bench)
 end
 
-function profile_isotropic_solver()
-
-    @info "Simple glass isotropic:"
+function profile_isotropic_precompute()
+    @info "Simple glass isotropic precompute"
     data = config_glass_isotropic()
-    @info "precompute"
-    pc_stats = @benchmark precompute!($data)
-    display(pc_stats)
-    @info "Surface generation"
-    surf_stats = @benchmark generate_surface!($data.sp, $data.spa)
-    display(surf_stats)
-    @info "Solve single"
-    solve_single_stats = @benchmark solve_single!($data)
-    display(solve_single_stats)
-    @info "Observation"
-    obs_stats = @benchmark observe!($data.out_p, $data.sp.p_data.Npk, 10)
-    display(obs_stats)
-    
-    # @code_warntype precompute!(data)
-    # @code_warntype generate_surface!(data.sp, data.spa)
-    # @code_warntype solve_single!(data)
-    # @code_warntype observe!(data.out_p, data.sp.p_data.Npk, 11)
+
+    bench = @benchmark precompute!($data)
+    display(bench)
+end
+
+function profile_isotropic_single_solve()
+    @info "Simple glass isotropic single solve"
+    data = config_glass_isotropic()
+    precompute!(data)
+    generate_surface!(data.sp, data.spa)
+
+    bench = @benchmark solve_single!($data)
+    display(bench)
 end
 
 function profile_crystal_solver()
