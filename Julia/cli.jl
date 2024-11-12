@@ -1,14 +1,15 @@
 # using MKL
-push!(LOAD_PATH, "$(@__DIR__)/RayleighSolver/")
-using RayleighSolver
-using Dates
 
-
+const DEFAULT_PATH = "$(@__DIR__)"
+import Base./
 function /(x::AbstractString, y::AbstractString)
     return joinpath(x, y)
 end
 
-const DEFAULT_PATH = "$(@__DIR__)/"
+using Pkg; Pkg.develop(path=DEFAULT_PATH / "RayleighSolver")
+using RayleighSolver
+using Dates
+
 const DEFAULT_INPUT = DEFAULT_PATH / "input"
 const DEFAULT_OUTPUT = DEFAULT_PATH / "output"
 
