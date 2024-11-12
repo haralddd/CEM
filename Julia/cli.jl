@@ -116,13 +116,9 @@ function config_creation_prompt(path=DEFAULT_INPUT)::SimParams
     input = readline()
     lambda = parse(Float64, input == "" ? "632.8" : input) * 1e-9
 
-    print("Q [multiple of omega/c] (=4): ")
+    print("Nx (=2048): ")
     input = readline()
-    Q = parse(Int64, input == "" ? "4" : input)
-
-    print("Nq (=1024): ")
-    input = readline()
-    Nq = parse(Int64, input == "" ? "1024" : input)
+    Nx = parse(Int64, input == "" ? "2048" : input)
 
     print("angles [list of deg \'0,1,2...\' OR range \'0:1:10\' OR \'fresnel\'] (=0:10:20): ")
     input = readline()
@@ -156,8 +152,7 @@ function config_creation_prompt(path=DEFAULT_INPUT)::SimParams
 
     spa = SimParams{typeof(surf),typeof(above),typeof(below)}(
         lambda=lambda,
-        Q=Q,
-        Nq=Nq,
+        Nx=Nx,
         ks=sind.(angles),
         Lx=Lx,
         Ni=Ni,
