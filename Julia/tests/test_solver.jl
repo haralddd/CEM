@@ -1,6 +1,5 @@
-push!(LOAD_PATH, "$(@__DIR__)/../RayleighSolver/")
-using RayleighSolver
-using Plots
+include("testconfig.jl")
+# using Plots
 using LinearAlgebra
 using Statistics
 

@@ -1,7 +1,13 @@
 include("testconfig.jl")
 
 using BenchmarkTools
-
+using ProfileView
+function run_simple_isotropic()
+    data = default_config_creation()
+    ProfileView.@profview precompute!(data)
+    @time generate_surface!(data.sp, data.spa)
+    @time solve_single!(data)
+end
 
 function profile_gaussian_surfacegen()
     spa, sp = default_params_for_surface_testing(GaussianSurface(30.0e-9, 100.0e-9))
