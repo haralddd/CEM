@@ -34,10 +34,9 @@ end
 function Base.convert(::Type{Dict}, spa::SimParams)::Dict
     return Dict(
         :lambda => spa.lambda,
-        :Q => spa.Q,
-        :Nq => spa.Nq,
-        :ks => spa.ks,
         :Lx => spa.Lx,
+        :Nx => spa.Nx,
+        :θs => spa.θs,
         :Ni => spa.Ni,
         :surf => spa.surf,
         :above => spa.above,
@@ -47,29 +46,25 @@ function Base.convert(::Type{Dict}, spa::SimParams)::Dict
 end
 
 function Base.convert(::Type{SimParams}, dict::Dict)::SimParams
-    surf = dict[:surf]
-    above = dict[:above]
-    below = dict[:below]
-    return SimParams{typeof(surf), typeof(above), typeof(below)}(;
+    return SimParams(
         lambda=dict[:lambda],
-        Q=dict[:Q],
-        Nq=dict[:Nq],
-        ks=dict[:ks],
         Lx=dict[:Lx],
+        Nx=dict[:Nx],
+        θs=dict[:θs],
         Ni=dict[:Ni],
-        surf=surf,
-        above=above,
-        below=below,
+        surf=dict[:surf],
+        above=dict[:above],
+        below=dict[:below],
         seed=dict[:seed],
         rescale=false
     )
 end
 
 function get_scaled_params(spa::SimParams)::Dict
-    s = spa.omega / c0
+    k0 = 2π / spa.lambda
     dict = convert(Dict, spa)
-    dict[:Lx] = spa.Lx / s
-    dict[:surf] = scale(spa.surf, 1 / s)
+    dict[:Lx] = spa.Lx / k0
+    dict[:surf] = scale(spa.surf, 1 / k0)
     return dict
 end
 

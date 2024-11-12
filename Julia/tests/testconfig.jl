@@ -25,14 +25,16 @@ end
 
 function config_fresnel_silver(Nθ)
     return SolverData(SimParams(
-        θs=range(0.0, 90.0, Nθ),
+        θs=range(0.0, 85.0, Nθ),
+        Nx=4096,
         surf=FlatSurface(),
         below=Isotropic(-7.5 + 0.24im, 1.0)))
 end
 
-function config_fresnel_glass(Nk)
+function config_fresnel_glass(Nθ)
     return SolverData(SimParams(
-        θs=range(0.0, 90.0, Nk),
+        θs=range(0.0, 89.0, Nθ),
+        Nx=4096,
         surf=FlatSurface(),
         below=Isotropic(2.25, 1.0)
     ))

@@ -136,7 +136,6 @@ function M_invariant!(::Array{ComplexF64,3}, spa::SimParams{_S,_A,_B}, nu::Symbo
     @error "Not implemented for $(typeof(spa))"
 end
 
-
 function _M_isotropic_ker(p::Float64, q::Float64, spa::SimParams, kappa::ComplexF64, n::Int)::ComplexF64
     a0 = alpha(q, spa.above)
     a = alpha(p, spa.below)
@@ -152,11 +151,20 @@ function M_invariant!(Mpqn::Array{ComplexF64,3}, spa::SimParams{_S,Vacuum,Isotro
     qs = spa.qs
     kappa = nu==:p ? spa.below.eps : spa.below.mu
 
-    @inbounds for n in axes(Mpqn, 3), j in axes(Mpqn, 2), i in axes(Mpqn, 1)
+    Mpqn .= 0.0
+    @inbounds for i in axes(Mpqn, 1)
+        p = ps[i]
+        a = alpha(p, spa.below)
+        a0 = alpha0(p)
+        Mpqn[i, i, 1] = a + kappa*a0
+    end
+
+    @inbounds for n in axes(Mpqn, 3)[2:end], j in axes(Mpqn, 2), i in axes(Mpqn, 1)
         p = ps[i]
         q = qs[j]
         Mpqn[i, j, n] = _M_isotropic_ker(p, q, spa, kappa, n-1)
     end
+    
     return nothing
 end
 
@@ -209,18 +217,25 @@ function _N_isotropic_ker(p::Float64, k::Float64, spa::SimParams, kappa::Complex
         (p + kappa * k) * (p - k) * da^(n - 1) +
         (a - kappa * a0) * da^n)
 end
-function N_invariant!(N::Array{ComplexF64,3}, spa::SimParams{_S,Vacuum,Isotropic}, nu::Symbol)::Nothing where {_S}
+function N_invariant!(Npkn::Array{ComplexF64,3}, spa::SimParams{_S,Vacuum,Isotropic}, nu::Symbol)::Nothing where {_S}
 
     ps = spa.ps
-    qs = spa.qs
+    ks = spa.ks
     kis = spa.kis
     
     kappa = nu==:p ? spa.below.eps : spa.below.mu
+    Npkn .= 0.0
+    @inbounds for (i, ki) in enumerate(kis)
+        k = ks[i]
 
-    @inbounds for n in axes(N, 3), (j, kj) in enumerate(kis), i in axes(N, 1)
+        a = alpha(k, spa.below)
+        a0 = alpha0(k)
+        Npkn[ki, i, 1] = a - kappa * a0
+    end
+
+    @inbounds for n in axes(Npkn, 3)[2:end], (j, k) in enumerate(ks), i in axes(Npkn, 1)
         p = ps[i]
-        k = qs[kj]
-        N[i, j, n] = _N_isotropic_ker(p, k, spa, kappa, n-1)
+        Npkn[i, j, n] = _N_isotropic_ker(p, k, spa, kappa, n - 1)
     end
     return nothing
 end

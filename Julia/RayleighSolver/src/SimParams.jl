@@ -95,13 +95,12 @@ struct SimParams{SurfT<:RandomSurface, AboveT<:Material, BelowT<:Material}
         if rescale
             Lx = Lx * k0
             new_surf = scale(surf, k0)
-            ks = sind.(θs)
         else
             Lx = Lx
             new_surf = surf
-            ks = k0*sind.(θs)
         end
     
+        ks = sind.(θs)
         dx = Lx / (Nx - 1)
         xs = -Lx/2:dx:Lx/2
 
@@ -129,6 +128,7 @@ struct SimParams{SurfT<:RandomSurface, AboveT<:Material, BelowT<:Material}
         kis = [searchsortedfirst(qs, k) for k in ks] |> collect
         ks = qs[kis]
         @debug "ks after lookup: $ks"
+        θs = rescale ? asind.(ks) : asind.(ks ./ k0)
     
         # To access the the Fourier transform of the surface integral I(γ, q)
         # we must access the pattern ζ(p-q), so make a reverse index range for q
