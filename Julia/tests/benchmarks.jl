@@ -1,7 +1,7 @@
 include("testconfig.jl")
 
 using BenchmarkTools
-using ProfileView
+# using ProfileView
 
 function profile_gaussian_surfacegen()
     @info "Gaussian surface generation"
