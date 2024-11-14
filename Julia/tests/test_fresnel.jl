@@ -19,25 +19,6 @@ function Rp(θ, εμ)
          (n1 * sqrt(1 - (n1 / n2 * sind(θ))^2) + n2 * cosd(θ)))
 end
 
-
-function test_fresnel_silver()
-    data = config_fresnel_silver(100)
-    precompute!(data)
-
-    generate_surface!(data.sp, data.spa)
-
-    solve_single!(data)
-
-    pNpk = data.sp.p_data.Npk
-    sNpk = data.sp.s_data.Npk
-
-    res_p = [pNpk[:, i] .|> abs2 |> maximum for i in axes(pNpk, 2)]
-    res_s = [sNpk[:, i] .|> abs2 |> maximum for i in axes(sNpk, 2)]
-
-    return res_p, res_s, data.spa.θs
-end
-
-
 function plot_fresnel(; res_p, res_s, θs, εμ, title="silver")
 
     fig1 = Figure(; size=(500, 400))
@@ -47,7 +28,7 @@ function plot_fresnel(; res_p, res_s, θs, εμ, title="silver")
     lines!(ax1, θs, Rp.(θs, εμ), label="p (Analytical)", linestyle=:solid, color=:blue)
     lines!(ax1, θs, Rs.(θs, εμ), label="s (Analytical)", linestyle=:solid, color=:red)
     axislegend(ax1; position=:lt)
-    limits!(ax1, 0, 90, 0.96, 1.001)
+    # limits!(ax1, 0, 90, 0.96, 1.001)
 
     display(fig1)
 
@@ -63,7 +44,31 @@ function plot_fresnel(; res_p, res_s, θs, εμ, title="silver")
     save("plots/fresnel_$(title)_error.pdf", fig2)
 end
 
-res_p, res_s, θs = test_fresnel_silver()
-ε = -7.5 + 0.24im
+function test_fresnel(;type=:silver)
+    if type == :silver
+        data = config_fresnel_silver(1000)
+    elseif type == :glass
+        data = config_fresnel_glass(1000)
+    end
 
-plot_fresnel(; res_p=res_p, res_s=res_s, θs=θs, εμ=ε * 1.0, title="silver")
+    spa = data.spa
+    sp = data.sp
+
+    precompute!(data)
+    generate_surface!(sp, spa)
+    solve_single!(data)
+
+    pNpk = data.sp.p_data.Npk
+    sNpk = data.sp.s_data.Npk
+
+    res_p = [pNpk[:, i] .|> abs2 |> maximum for i in axes(pNpk, 2)]
+    res_s = [sNpk[:, i] .|> abs2 |> maximum for i in axes(sNpk, 2)]
+
+    εμ = spa.below.eps * spa.below.mu
+
+    plot_fresnel(; res_p=res_p, res_s=res_s, θs=spa.θs, εμ=εμ, title=string(type))
+
+    return nothing
+end
+
+test_fresnel(type=:silver)
