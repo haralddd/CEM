@@ -94,8 +94,8 @@ function solve_single!(data::SolverData)::Nothing
 
     FFT = spa.FFT
 
-    rev_kis = spa.rev_kis
-    rev_qis = spa.rev_qis
+    sFys_pqidxs = spa.sFys_pqidxs
+    sFys_pkidxs = spa.sFys_pkidxs
 
     ys = sp.ys
     Fys = sp.Fys
@@ -118,19 +118,27 @@ function solve_single!(data::SolverData)::Nothing
         FFT * Fys # In place FFT
         fftshift!(sFys, Fys)
 
-        for (j, qj) in enumerate(rev_qis)
+        # display(findall(!iszero, sFys))
+        # error("Debugging")
+
+        for j in axes(pd.Mpq, 2)
             for i in axes(pd.Mpq, 1)
-                pd.Mpq[i, j] += pd.Mpqn[i, j, n] * sFys[i+qj-1]
-                sd.Mpq[i, j] += sd.Mpqn[i, j, n] * sFys[i+qj-1]
+                idx = sFys_pqidxs[i, j]
+                pd.Mpq[i, j] += pd.Mpqn[i, j, n] * sFys[idx]
+                sd.Mpq[i, j] += sd.Mpqn[i, j, n] * sFys[idx]
             end
         end
-        for (j, kj) in enumerate(rev_kis)
+        for j in axes(pd.Npk, 2)
             for i in axes(pd.Npk, 1)
-                pd.Npk[i, j] -= pd.Npkn[i, j, n] * sFys[i+kj-1]
-                sd.Npk[i, j] -= sd.Npkn[i, j, n] * sFys[i+kj-1]
+                idx = sFys_pkidxs[i, j]
+                pd.Npk[i, j] -= pd.Npkn[i, j, n] * sFys[idx]
+                sd.Npk[i, j] -= sd.Npkn[i, j, n] * sFys[idx]
             end
         end
     end
+
+    @debug findall(x->x != 0.0, pd.Mpq)
+    # @debug pd.Mpq[findall(x -> x != 0.0, pd.Mpq)]
 
     A = lu!(pd.Mpq)
     for i in axes(pd.Npk, 2)
@@ -150,7 +158,7 @@ function solve_single!(data::SolverData)::Nothing
     #     b = pd.Mpq \ b
     # end
 
-    # @info "Solve 2"
+    # # @info "Solve 2"
     # @time for i in axes(sd.Npk, 2)
     #     b = @view sd.Npk[:, i]
     #     b = sd.Mpq \ b

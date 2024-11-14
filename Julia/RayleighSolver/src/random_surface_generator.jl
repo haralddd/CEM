@@ -61,7 +61,7 @@ function generate_surface!(sp::SimPrealloc, spa::SimParams{SurfT,_MA,_MB})::Noth
     return nothing
 end
 function generate_surface!(sp::SimPrealloc, ::SimParams{FlatSurface,_MA,_MB})::Nothing where {_MA,_MB}
-    sp.ys .= 0.0
+    sp.ys .= 1e-6
     return nothing
 end
 function generate_surface!(sp::SimPrealloc, spa::SimParams{SingleBumpSurface,_MA,_MB})::Nothing where {_MA,_MB}

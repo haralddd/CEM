@@ -26,7 +26,7 @@ function test_fresnel_silver()
 
     generate_surface!(data.sp, data.spa)
 
-    @time solve_single!(data)
+    solve_single!(data)
 
     pNpk = data.sp.p_data.Npk
     sNpk = data.sp.s_data.Npk
@@ -47,9 +47,7 @@ function plot_fresnel(; res_p, res_s, θs, εμ, title="silver")
     lines!(ax1, θs, Rp.(θs, εμ), label="p (Analytical)", linestyle=:solid, color=:blue)
     lines!(ax1, θs, Rs.(θs, εμ), label="s (Analytical)", linestyle=:solid, color=:red)
     axislegend(ax1; position=:lt)
-    limits!(ax1, 0, 90, 0.97, 1.001)
-
-    # tightlimits!(ax1)
+    limits!(ax1, 0, 90, 0.96, 1.001)
 
     display(fig1)
 
@@ -60,12 +58,12 @@ function plot_fresnel(; res_p, res_s, θs, εμ, title="silver")
     lines!(ax2, θs, abs.(res_p .- Rp.(θs, εμ)), label="p", linestyle=:solid, color=:blue)
     lines!(ax2, θs, abs.(res_s .- Rs.(θs, εμ)), label="s", linestyle=:solid, color=:red)
     tightlimits!(ax2)
-    display(fig2)
+    mkpath("plots")
     save("plots/fresnel_$(title).pdf", fig1)
     save("plots/fresnel_$(title)_error.pdf", fig2)
 end
 
 res_p, res_s, θs = test_fresnel_silver()
-ε = -17.5 + 0.48im
+ε = -7.5 + 0.24im
 
 plot_fresnel(; res_p=res_p, res_s=res_s, θs=θs, εμ=ε * 1.0, title="silver")

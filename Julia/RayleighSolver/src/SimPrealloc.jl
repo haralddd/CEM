@@ -38,18 +38,18 @@ struct SimPrealloc
     sFys::Vector{ComplexF64}
     ys::Vector{Float64}
 
-    function SimPrealloc(Nq::Int, Nk::Int, Ni::Int)
+    function SimPrealloc(Nx::Int, Nq::Int, Nk::Int, Ni::Int)
         p_data = SystemPreAlloc(Nq, Nk, Ni)
         s_data = SystemPreAlloc(Nq, Nk, Ni)
 
-        ys = Vector{Float64}(undef, 2Nq)
+        ys = Vector{Float64}(undef, Nx)
         Fys = similar(ys, ComplexF64)
         sFys = similar(Fys)
 
         new(p_data, s_data, Fys, sFys, ys)
     end
     function SimPrealloc(spa::SimParams)::SimPrealloc
-        SimPrealloc(spa.Nq, length(spa.ks), spa.Ni)
+        SimPrealloc(spa.Nx, length(spa.qs), length(spa.ks), spa.Ni)
     end
 end
 
@@ -151,15 +151,15 @@ function M_invariant!(Mpqn::Array{ComplexF64,3}, spa::SimParams{_S,Vacuum,Isotro
     qs = spa.qs
     kappa = nu==:p ? spa.below.eps : spa.below.mu
 
-    Mpqn .= 0.0
-    @inbounds for i in axes(Mpqn, 1)
-        p = ps[i]
-        a = alpha(p, spa.below)
-        a0 = alpha0(p)
-        Mpqn[i, i, 1] = a + kappa*a0
-    end
+    # @inbounds for j in axes(Mpqn, 2), i in axes(Mpqn, 1)
+    #     p = ps[i]
+    #     q = qs[i]
+    #     a = alpha(p, spa.below)
+    #     a0 = alpha0(q)
+    #     Mpqn[i, j, 1] = a + kappa*a0
+    # end
 
-    @inbounds for n in axes(Mpqn, 3)[2:end], j in axes(Mpqn, 2), i in axes(Mpqn, 1)
+    @inbounds for n in axes(Mpqn, 3), j in axes(Mpqn, 2), i in axes(Mpqn, 1)
         p = ps[i]
         q = qs[j]
         Mpqn[i, j, n] = _M_isotropic_ker(p, q, spa, kappa, n-1)
@@ -221,20 +221,21 @@ function N_invariant!(Npkn::Array{ComplexF64,3}, spa::SimParams{_S,Vacuum,Isotro
 
     ps = spa.ps
     ks = spa.ks
-    kis = spa.kis
     
     kappa = nu==:p ? spa.below.eps : spa.below.mu
-    Npkn .= 0.0
-    @inbounds for (i, ki) in enumerate(kis)
-        k = ks[i]
 
-        a = alpha(k, spa.below)
-        a0 = alpha0(k)
-        Npkn[ki, i, 1] = a - kappa * a0
-    end
+    # @inbounds for j in axes(Npkn, 2), i in axes(Npkn, 1)
+    #     p = ps[i]
+    #     k = ks[j]
 
-    @inbounds for n in axes(Npkn, 3)[2:end], (j, k) in enumerate(ks), i in axes(Npkn, 1)
+    #     a = alpha(p, spa.below)
+    #     a0 = alpha0(k)
+    #     Npkn[i, j, 1] = a - kappa * a0
+    # end
+
+    @inbounds for n in axes(Npkn, 3), j in axes(Npkn, 2), i in axes(Npkn, 1)
         p = ps[i]
+        k = ks[j]
         Npkn[i, j, n] = _N_isotropic_ker(p, k, spa, kappa, n - 1)
     end
     return nothing
