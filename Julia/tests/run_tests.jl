@@ -1,10 +1,8 @@
 # # Run surface tests
-# begin
-#     include("test_surface.jl")
-#     test_gaussian()
-#     test_gaussian2()
-#     test_gaussian3()
-# end
+include("test_surface.jl")
+test_gaussian()
+test_gaussian2()
+test_gaussian3()
 # test_rect()
 
 # # Run fresnel tests

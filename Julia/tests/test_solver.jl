@@ -1,5 +1,5 @@
 include("testconfig.jl")
-# using Plots
+using Plots
 using LinearAlgebra
 using Statistics
 
@@ -18,89 +18,71 @@ function test_observation()
     @info "difference: $(observable - mean(A))"
 end
 
-function test_reciprocity()
-    surf = GaussianSurface(30.0e-9, 100.0e-9)
-    Q = 4
-    Nq = 2048
 
-    dq = Q / (Nq - 1)
-    qs = -Q/2:dq:Q/2
-    ks = qs[-1.0 .< qs .< 1.0]
-    Nk = length(ks)
+function plot_singlesolve()
+    data = default_config_creation()
+    precompute!(data)
+    generate_surface!(data.sp, data.spa)
+    solve_single!(data)
 
-    spa = SimParams(
-        lambda=632.8e-9,
-        Q=Q,
-        Nq=Nq,
-        ks=ks,
-        Lx=10.0e-6,
-        Ni=10,
-        surf=surf,
-        rescale=true
-    )
-    data = SolverData(spa, 1)
-
-    @info "SimPreCompute"
-    @time precompute!(data)
-    spa = data.spa
-    sp = data.sp
-    pd = sp.p_data
-    sd = sp.s_data
-
-
-    @info "generate_surface!"
-    @time generate_surface!(sp, spa)
-
-    @info "solve_single!"
-    @time solve_single!(data)
-
-    Δ_p = fill(1e-20, Nk, Nk)
-    Δ_s = fill(1e-20, Nk, Nk)
-
-    rev_idx(idx) = Nk - idx + 1
-
-    for (j, kj) in enumerate(spa.kis)
-        for (i, qi) in enumerate(spa.kis)
-
-            k = qs[kj]
-            q = qs[qi]
-
-            mi = rev_idx(i)
-            mqj = spa.rev_kis[j]
-            mqi = spa.rev_kis[i]
-
-            mk = qs[mqj]
-            mq = qs[mqi]
-
-            @assert ks[mi] == -ks[i]
-            @assert mk == -k
-            @assert mq == -q
-
-            a1 = alpha0(q)
-            a2 = alpha0(k)
-
-            b1 = alpha0(mk)
-            b2 = alpha0(mq)
-
-            if a2 ≈ 0.0 || b2 ≈ 0.0 continue end
-
-            Sqk_p = sqrt(a1/a2) * pd.Npk[qi, j]
-            Skq_p = sqrt(b1/b2) * pd.Npk[mqj, mi]
-
-            Sqk_s = sqrt(a1 / a2) * sd.Npk[qi, j]
-            Skq_s = sqrt(b1 / b2) * sd.Npk[mqj, mi]
-
-            Δ_p[i, j] = abs(Sqk_p - Skq_p)
-            Δ_s[i, j] = abs(Sqk_s - Skq_s)
-        end
-    end
-
-    hm_p = heatmap(ks, ks, log10.(Δ_p), size=(800, 800))
-    hm_s = heatmap(ks, ks, log10.(Δ_s), size=(800, 800))
-    display(plot(hm_p, hm_s))
-    display("Reciprocity in P polarization, maximum error: $(maximum(Δ_p))")
-    display("Reciprocity in S polarization, maximum error: $(maximum(Δ_s))")
+    qs = data.spa.qs
+    ks = data.spa.ks
+    mask = qs .>= -1.0 .&& qs .<= 1.0
+    Npk = data.sp.p_data.Npk
+    # heatmap(log10.(abs2.(data.sp.p_data.Mpqn[:,:,7])))
+    # display(data.spa.qs)
+    plot()
+    plot!(qs[mask], [log10.(abs2.(Npk[mask, i])) for i in axes(Npk,2)])
+    vline!(ks)
+    # heatmap(data.spa.qs, data.spa.ks, )
 end
+
+# plot_singlesolve()
+
+function plot_Rmean()
+
+    data = SolverData(SimParams(), 100)
+    solve_MDRC!(data)
+
+    qs = data.spa.qs
+    ks = data.spa.ks
+    mask = qs .>= -1.0 .&& qs .<= 1.0
+    R = data.out_p.R
+
+    plot()
+    plot!(qs[mask], [abs2.(R[mask, i]) for i in axes(R, 2)])
+    vline!(ks)
+end
+plot_Rmean()
+
+function test_save_data()
+
+    data = SolverData(SimParams(), 100)
+    solve_MDRC!(data)
+
+    qs = data.spa.qs
+    ks = data.spa.ks
+    mask = qs .>= -1.0 .&& qs .<= 1.0
+    R = data.out_p.R
+
+    plt1 = plot()
+    plot!(qs[mask], [abs2.(R[mask, i]) for i in axes(R, 2)])
+    vline!(ks)
+
+    save_solver_data("test_save", data)
+    loaded_data = load_solver_data("test_save")
+
+    R_ld = loaded_data.out_p.R
+
+    plt2 = plot()
+    plot!(qs[mask], [abs2.(R_ld[mask, i]) for i in axes(R, 2)])
+    vline!(ks)
+
+    plot(plt1, plt2)
+end
+
+test_save_data()
+
 
 function test_crystal_precompute()
     ε = 2.25 + 1e-4im

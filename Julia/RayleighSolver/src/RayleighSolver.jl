@@ -44,7 +44,7 @@ export generate_surface!
 include("solver.jl")
 export SimOutput, SolverData, DataMDRC
 export solve_single!, solve_MDRC!, precompute!, observe, observe!
-export get_qs_and_mdrc
+export calc_mdrc
 
 include("utils.jl")
 export show, display, parse, convert
