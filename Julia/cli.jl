@@ -220,8 +220,8 @@ function cli_info(filepath)
 end
 
 function cli_run(filepath, iters = 100)
-    cli_info(filepath)
     spa = load_spa_config(filepath)
+    display(spa)
 
     @info "Initializing SolverData..."
     data = SolverData(spa, iters)

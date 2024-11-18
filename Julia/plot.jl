@@ -30,13 +30,13 @@ function custom_plot!(ax, xs, ys, x0)
     return
 end
 
-function save_plots(data, θ0s, θs, label, folder)
+function save_plots(data, θis, θss, label, folder)
     for i in axes(data, 2)
         fig = Figure(fontsize=24)
         ax = Axis(fig[1, 1], xlabel=L"$\theta_s$ [deg]", ylabel=L"\langle \partial_{\theta_s} R\rangle_{\mathrm{%$label}}")
-        θ0 = θ0s[i]
+        θi = θis[i]
         ys = data[:, i]
-        custom_plot!(ax, θs, ys, θ0)
+        custom_plot!(ax, θss, ys, θi)
         axislegend()
         save(folder / "$(label)_$(i).pdf", fig)
     end
@@ -47,22 +47,27 @@ function calc_mdrc_and_save_plots(data::SolverData, fname="default", dir="plots"
     folder = dir / fname
     mkpath(folder)
 
-    ks = data.spa.ks
-
-    qs, mdrc = get_qs_and_mdrc(data)
+    mdrc_data = calc_mdrc(data)
     # full_qs = data.spa.qs
     # σ² = data.out.σ²
     # κ = data.out.κ
+    θis = mdrc_data.θis
+    θss = mdrc_data.θss
 
-    theta0s = asind.(ks)
-    thetas = asind.(qs)
+    cp = mdrc_data.coh_p
+    ip = mdrc_data.inc_p
+    cs = mdrc_data.coh_s
+    is = mdrc_data.inc_s
+
+    @debug "θis: $θis"
+    @debug "θss: $θss"
 
     # P-polarization
     # Incoherent MDRC
-    save_plots(mdrc.coh_p, theta0s, thetas, "p,coh", folder)
-    save_plots(mdrc.inc_p, theta0s, thetas, "p,incoh", folder)
-    save_plots(mdrc.coh_s, theta0s, thetas, "s,coh", folder)
-    save_plots(mdrc.inc_s, theta0s, thetas, "s,incoh", folder)
+    save_plots(cp, θis, θss, "p,coh", folder)
+    save_plots(ip, θis, θss, "p,incoh", folder)
+    save_plots(cs, θis, θss, "s,coh", folder)
+    save_plots(is, θis, θss, "s,incoh", folder)
 
     @info "Saved plots to $(folder)"
 end
@@ -77,7 +82,7 @@ function cli_plot_main(arg)
     if isfile(DEFAULT_OUTPUT / filename)
         data = load_solver_data(DEFAULT_OUTPUT / filename)
     else
-        @info "File '$filename' not found in $(DEFAULT_OUTPUT). Look for matches."
+        @info "File '$filename' not found in $(DEFAULT_OUTPUT). Looking for matches."
         files = readdir(DEFAULT_OUTPUT)
         for file in files
             if occursin(arg, file)

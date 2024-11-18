@@ -72,3 +72,4 @@ function test_fresnel(;type=:silver)
 end
 
 test_fresnel(type=:silver)
+test_fresnel(type=:glass)

@@ -53,7 +53,6 @@ struct SimParams{SurfT<:RandomSurface, AboveT<:Material, BelowT<:Material}
     ks::Vector{Float64}
     kis::Vector{Int}
     sFys_pqidxs::Matrix{Int}
-    sFys_pkidxs::Matrix{Int}
 
     surf::SurfT
     above::AboveT
@@ -85,12 +84,12 @@ struct SimParams{SurfT<:RandomSurface, AboveT<:Material, BelowT<:Material}
         # Assertions and warnings
         @assert Lx / lambda > 10.0 "Surface length must be much larger than the wavelength, Lx >> lambda, but is Lx:$Lx and lambda:$lambda."
     
-        if typeof(below) == Isotropic
-            if imag(below.eps) + imag(below.mu) ≈ 0
-                @warn "Material below has no loss, adding small imaginary component to avoid singularities."
-                below = Isotropic(below.eps + 1e-4im, below.mu)
-            end
-        end
+        # if typeof(below) == Isotropic
+        #     if imag(below.eps) + imag(below.mu) ≈ 0
+        #         @warn "Material below has no loss, adding small imaginary component to avoid singularities."
+        #         below = Isotropic(below.eps + 1e-4im, below.mu)
+        #     end
+        # end
     
         if rescale
             Lx = Lx * k0
@@ -109,16 +108,12 @@ struct SimParams{SurfT<:RandomSurface, AboveT<:Material, BelowT<:Material}
         Q = π / dx
         dq = 2π / Lx
         xks = fftfreq(Nx, 2pi/dx)
-        # @debug xks
 
         @assert Nx % 2 == 0 "Nx should be divisible by 2 to make Nq."
     
         @debug "Q: $Q"
         @debug "xks has zero: $(any(xks .== 0.0))"
         @assert Q > 4 "Q (= $(Q)) should be greater than 4, which is determined by spatial resolution, Q=π/dx, with dx = Lx/Nx"
-    
-        # ps = (-Q+dq)/2:dq:(Q-dq)/2
-        # qs = (-Q+dq)/2:dq:(Q-dq)/2
 
         ps = -Q/2:dq:Q/2
         qs = -Q/2:dq:Q/2
@@ -139,15 +134,17 @@ struct SimParams{SurfT<:RandomSurface, AboveT<:Material, BelowT<:Material}
     
         # To access the the Fourier transform of the surface integral I(γ, q)
         # we must access the pattern ζ(p-q), so make a reverse index range for q
-        # This works only if qs is symmetric (-Q/2:0:Q/2)
+        # This works only if qs is symmetric (-Q/2, ..., 0, ..., Q/2)
         rev_qis = reverse(eachindex(qs))
         sFys_pqidxs = [i+qj-1 for i in eachindex(ps), qj in rev_qis]
         @debug "sFys_pqidxs > Nx: \n$(findall(sFys_pqidxs .> Nx))"
-        sFys_pqidxs[end, 1] = 1 # Nyquist aliasing, avoid OOB error in sFys
+        sFys_pqidxs[end, 1] = 1 # Alias with Nyquist frequency, avoid OOB error in sFys
         @debug "sFys_pqidxs > Nx: \n$(findall(sFys_pqidxs .> Nx))"
+        if !all(qs[rev_qis] .≈ -qs)
+            @warn "rev_qis reversed not matching qs: error=$(qs[rev_qis] .+ qs[rev_qis])"
+        end
         
         rev_kis = rev_qis[kis]
-        sFys_pkidxs = [i+kj-1 for i in eachindex(ps), kj in rev_kis]
         if !all(qs[rev_kis] .≈ -qs[kis])
             @warn "kis reversed not matching ks: error=$(qs[rev_kis] .+ qs[kis])"
         end
@@ -168,7 +165,7 @@ struct SimParams{SurfT<:RandomSurface, AboveT<:Material, BelowT<:Material}
         new{ST,AT,BT}(
             lambda, Lx, Nx, Nq, Ni, dx, dq,
             xs, xks, ps, qs,
-            θs, ks, kis, sFys_pqidxs, sFys_pkidxs,
+            θs, ks, kis, sFys_pqidxs,
             new_surf, above, below,
             seed, Xoshiro(seed), FFTplan, IFFTplan,
         )

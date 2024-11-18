@@ -39,8 +39,8 @@ struct SimPrealloc
     ys::Vector{Float64}
 
     function SimPrealloc(Nx::Int, Nq::Int, Nk::Int, Ni::Int)
-        p_data = SystemPreAlloc(Nq, Nk, Ni)
-        s_data = SystemPreAlloc(Nq, Nk, Ni)
+        p_data = SystemPreAlloc(Nq, Nk, Ni+1)
+        s_data = SystemPreAlloc(Nq, Nk, Ni+1)
 
         ys = Vector{Float64}(undef, Nx)
         Fys = similar(ys, ComplexF64)
@@ -151,18 +151,26 @@ function M_invariant!(Mpqn::Array{ComplexF64,3}, spa::SimParams{_S,Vacuum,Isotro
     qs = spa.qs
     kappa = nu==:p ? spa.below.eps : spa.below.mu
 
-    # @inbounds for j in axes(Mpqn, 2), i in axes(Mpqn, 1)
-    #     p = ps[i]
-    #     q = qs[i]
-    #     a = alpha(p, spa.below)
-    #     a0 = alpha0(q)
-    #     Mpqn[i, j, 1] = a + kappa*a0
-    # end
+    # n = 0
+    @inbounds for j in axes(Mpqn, 2)
+        for i in axes(Mpqn, 1)
+            p = ps[i]
+            q = qs[j]
+            a0 = alpha0(q)
+            a = alpha(p, spa.below)
+            Mpqn[i, j, 1] = a + kappa*a0
+        end
+    end
 
-    @inbounds for n in axes(Mpqn, 3), j in axes(Mpqn, 2), i in axes(Mpqn, 1)
-        p = ps[i]
-        q = qs[j]
-        Mpqn[i, j, n] = _M_isotropic_ker(p, q, spa, kappa, n-1)
+    # n > 0
+    @inbounds for n in axes(Mpqn, 3)[2:end]
+        for j in axes(Mpqn, 2)
+            for i in axes(Mpqn, 1)
+                p = ps[i]
+                q = qs[j]
+                Mpqn[i, j, n] = _M_isotropic_ker(p, q, spa, kappa, n-1)
+            end
+        end
     end
     
     return nothing
@@ -189,10 +197,14 @@ function M_invariant!(Mpqn::Array{ComplexF64,3}, spa::SimParams{_S,Vacuum,Uniaxi
     qs = spa.qs
     upa = UniaxialParams(spa)
 
-    @inbounds for n in axes(Mpqn, 3), j in axes(Mpqn, 2), i in axes(Mpqn, 1)
-        p = ps[i]
-        q = qs[j]
-        Mpqn[i, j, n] = _M_uni_ker(p, q, n - 1, spa, upa)
+    @inbounds for n in axes(Mpqn, 3)
+        for j in axes(Mpqn, 2)
+            for i in axes(Mpqn, 1)
+                p = ps[i]
+                q = qs[j]
+                Mpqn[i, j, n] = _M_uni_ker(p, q, n - 1, spa, upa)
+            end
+        end
     end
     return nothing
 end
@@ -210,10 +222,10 @@ end
 
 
 function _N_isotropic_ker(p::Float64, k::Float64, spa::SimParams, kappa::ComplexF64, n::Int)::ComplexF64
-    a0 = alpha(k, spa.above)
     a = alpha(p, spa.below)
+    a0 = alpha(k, spa.above)
     da = a + a0
-    return _pre(n) / factorial(n) * (
+    return -_pre(n) / factorial(n) * (
         (p + kappa * k) * (p - k) * da^(n - 1) +
         (a - kappa * a0) * da^n)
 end
@@ -221,22 +233,28 @@ function N_invariant!(Npkn::Array{ComplexF64,3}, spa::SimParams{_S,Vacuum,Isotro
 
     ps = spa.ps
     ks = spa.ks
-    
     kappa = nu==:p ? spa.below.eps : spa.below.mu
 
-    # @inbounds for j in axes(Npkn, 2), i in axes(Npkn, 1)
-    #     p = ps[i]
-    #     k = ks[j]
+    # n = 0
+    @inbounds for j in axes(Npkn, 2)
+        for i in axes(Npkn, 1)
+            p = ps[i]
+            k = ks[j]
+            a0 = alpha0(k)
+            a = alpha(p, spa.below)
+            Npkn[i, j, 1] = a - kappa*a0
+        end
+    end
 
-    #     a = alpha(p, spa.below)
-    #     a0 = alpha0(k)
-    #     Npkn[i, j, 1] = a - kappa * a0
-    # end
-
-    @inbounds for n in axes(Npkn, 3), j in axes(Npkn, 2), i in axes(Npkn, 1)
-        p = ps[i]
-        k = ks[j]
-        Npkn[i, j, n] = _N_isotropic_ker(p, k, spa, kappa, n - 1)
+    # n > 0
+    @inbounds for n in axes(Npkn, 3)[2:end]
+        for j in axes(Npkn, 2)
+            for i in axes(Npkn, 1)
+                p = ps[i]
+                k = ks[j]
+                Npkn[i, j, n] = _N_isotropic_ker(p, k, spa, kappa, n - 1)
+            end
+        end
     end
     return nothing
 end
@@ -250,7 +268,7 @@ function _N_uniaxial_ker(p::Float64, q::Float64, spa::SimParams, upa::UniaxialPa
     at = alpha_tilde(q, p, upa)
     a0 = alpha(q, spa.above)
     da = at + a0
-    return _pre(n) / factorial(n) * (
+    return -_pre(n) / factorial(n) * (
         kmpa * (p + Cpe * q) * (p - q) * da^(n-1) +
         kmpe * (at - Cpa * a0) * da^n)
 end
@@ -275,14 +293,16 @@ end
 function precompute!(sp::SimPrealloc, spa::SimParams{S,A,B})::Nothing where {S,A,B}
     M_invariant!(sp.p_data.Mpqn, spa, :p)
     M_invariant!(sp.s_data.Mpqn, spa, :s)
-    N_invariant!(sp.s_data.Npkn, spa, :s)
+
     N_invariant!(sp.p_data.Npkn, spa, :p)
+    N_invariant!(sp.s_data.Npkn, spa, :s)
     return nothing
 end
 
 function validate(sp::SimPrealloc)::Nothing
     @assert all(isfinite.(sp.p_data.Mpqn))
     @assert all(isfinite.(sp.s_data.Mpqn))
+    
     @assert all(isfinite.(sp.p_data.Npkn))
     @assert all(isfinite.(sp.s_data.Npkn))
     return nothing
