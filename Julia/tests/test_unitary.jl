@@ -3,11 +3,11 @@ using RayleighSolver
 using CairoMakie
 using LaTeXStrings
 
-function unitary(R, spa, k)
+function unitary(R, params, k)
     sum = 0.0
-    idxs = findall(x -> -1.0 < x < 1.0, spa.qs)
+    idxs = findall(x -> -1.0 < x < 1.0, params.qs)
     for i in idxs
-        sum += abs2(R[i] * sqrt(α0(spa.qs[i]) / α0(k)))
+        sum += abs2(R[i] * sqrt(α0(params.qs[i]) / α0(k)))
     end
     return sum
 end
@@ -21,7 +21,7 @@ function test_unitarity_plot(; surf_t::SurfType=flat, ε=2.25, μ=1.0, ν::Polar
     for i in eachindex(ims)
         display("$i")
         im = ims[i]
-        spa = SimParams(
+        params = Parameters(
             ν=ν,
             Nq=2^10,
             ε=ε + (ν == p ? im : 0),
@@ -29,18 +29,18 @@ function test_unitarity_plot(; surf_t::SurfType=flat, ε=2.25, μ=1.0, ν::Polar
             Ni=10,
             L=L,
         )
-        sp = SurfPreAlloc(spa, surf_t)
-        ki = searchsortedfirst(spa.qs, sind(θ0), rev=true)
-        k = spa.qs[ki]
+        sp = SurfPreAlloc(params, surf_t)
+        ki = searchsortedfirst(params.qs, sind(θ0), rev=true)
+        k = params.qs[ki]
 
         # Pre-calculate the invariant parts of the M and N matrices
-        M_pre = Array{ComplexF64,3}(undef, length(spa.ps), length(spa.qs), spa.Ni + 1)
-        N_pre = Matrix{ComplexF64}(undef, length(spa.ps), spa.Ni + 1)
-        M_invariant!(M_pre, spa)
-        N_invariant!(N_pre, spa, k)
+        M_pre = Array{ComplexF64,3}(undef, length(params.ps), length(params.qs), params.Ni + 1)
+        N_pre = Matrix{ComplexF64}(undef, length(params.ps), params.Ni + 1)
+        M_invariant!(M_pre, params)
+        N_invariant!(N_pre, params, k)
 
-        solve_single!(sp, spa, M_pre, N_pre, ki)
-        res[i] = unitary(sp.Npk, spa, k)
+        solve_single!(sp, params, M_pre, N_pre, ki)
+        res[i] = unitary(sp.Npk, params, k)
     end
     return ims, res
 end

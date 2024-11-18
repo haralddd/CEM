@@ -31,22 +31,22 @@ function Base.parse(::Type{Material}, str::String)::Material
            error("Unknown material: $str")
 end
 
-function Base.convert(::Type{Dict}, spa::SimParams)::Dict
+function Base.convert(::Type{Dict}, params::Parameters)::Dict
     return Dict(
-        :lambda => spa.lambda,
-        :Lx => spa.Lx,
-        :Nx => spa.Nx,
-        :θs => spa.θs,
-        :Ni => spa.Ni,
-        :surf => spa.surf,
-        :above => spa.above,
-        :below => spa.below,
-        :seed => spa.seed
+        :lambda => params.lambda,
+        :Lx => params.Lx,
+        :Nx => params.Nx,
+        :θs => params.θs,
+        :Ni => params.Ni,
+        :surf => params.surf,
+        :above => params.above,
+        :below => params.below,
+        :seed => params.seed
     )
 end
 
-function Base.convert(::Type{SimParams}, dict::Dict)::SimParams
-    return SimParams(
+function Base.convert(::Type{Parameters}, dict::Dict)::Parameters
+    return Parameters(
         lambda=dict[:lambda],
         Lx=dict[:Lx],
         Nx=dict[:Nx],
@@ -60,36 +60,36 @@ function Base.convert(::Type{SimParams}, dict::Dict)::SimParams
     )
 end
 
-function get_scaled_params(spa::SimParams)::Dict
-    k0 = 2π / spa.lambda
-    dict = convert(Dict, spa)
-    dict[:Lx] = spa.Lx / k0
-    dict[:surf] = scale(spa.surf, 1 / k0)
+function get_scaled_params(params::Parameters)::Dict
+    k0 = 2π / params.lambda
+    dict = convert(Dict, params)
+    dict[:Lx] = params.Lx / k0
+    dict[:surf] = scale(params.surf, 1 / k0)
     return dict
 end
 
-Base.show(spa::SimParams) = println("SimParams($(["\n\t$(k)=$(v)" for (k, v) in get_scaled_params(spa)]...)\n)")
-Base.display(spa::SimParams) = Base.show(spa)
+Base.show(params::Parameters) = println("Parameters($(["\n\t$(k)=$(v)" for (k, v) in get_scaled_params(params)]...)\n)")
+Base.display(params::Parameters) = Base.show(params)
 
 # Base.show(data::SolverData) = println("SolverData($(["\n\t$(k)=$(v)" for (k, v) in data]...)\n)")
 # Base.display(data::SolverData) = Base.show(data)
 
-function save_spa_config(file::String, spa::SimParams; override::Dict=Dict())
-    dict = convert(Dict, spa)
+function save_spa_config(file::String, params::Parameters; override::Dict=Dict())
+    dict = convert(Dict, params)
     for (k, v) in override
         dict[k] = v
     end
 
     file = split(file, '.')[end] != "jld2" ? file*".jld2" : file
     jldopen(file, "a+") do io 
-        io["spa"] = dict
+        io["params"] = dict
     end
     return
 end
 
-function load_spa_config(file::String)::SimParams
+function load_spa_config(file::String)::Parameters
     file = split(file, '.')[end] != "jld2" ? file*".jld2" : file
-    return load(file, "spa")
+    return load(file, "params")
 end
 
 function save_solver_data(file::String, out::SolverData)

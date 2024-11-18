@@ -5,7 +5,7 @@ const IFFT_Plan_t = AbstractFFTs.ScaledPlan{ComplexF64,FFTW.cFFTWPlan{ComplexF64
 
 
 """
-    SimParams{SurfT<:RandomSurface, Above<:Material, Below<:Material}(
+    Parameters{SurfT<:RandomSurface, Above<:Material, Below<:Material}(
 
     )
 
@@ -35,7 +35,7 @@ All lengths are scaled to ``x\\cdot\\frac{\\omega}{c_0}``, making length and wav
 - `seed::Int`: Random seed for the algorithm
 - `rng::Xoshiro`: Random number generator with the given seed
 """
-struct SimParams{SurfT<:RandomSurface, AboveT<:Material, BelowT<:Material}
+struct Parameters{SurfT<:RandomSurface, AboveT<:Material, BelowT<:Material}
     lambda::Float64
     Lx::Float64
     Nx::Int
@@ -63,7 +63,7 @@ struct SimParams{SurfT<:RandomSurface, AboveT<:Material, BelowT<:Material}
     FFT::FFT_Plan_t
     IFFT::IFFT_Plan_t
 
-    function SimParams(;
+    function Parameters(;
         lambda=632.8e-9,
         Lx=100*632.8e-9,
         Nx=2048,
@@ -152,7 +152,7 @@ struct SimParams{SurfT<:RandomSurface, AboveT<:Material, BelowT<:Material}
         seed = seed < 0 ? rand(0:typemax(Int)) : seed
         FFTplan = plan_fft!(similar(xs, ComplexF64))
         IFFTplan = plan_ifft!(similar(xs, ComplexF64))
-        @debug "SimParams"
+        @debug "Parameters"
         @debug "kis: $kis"
         @debug "rev_kis: $rev_kis"
         @debug "rev_qis: $rev_qis"

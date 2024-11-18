@@ -26,21 +26,21 @@ function test_reciprocity()
 
     # below = Isotropic(2.0, 1.0)
     below = Isotropic(-10.0, 1.0)
-    spa = SimParams(
+    params = Parameters(
         lambda=λ,
         Nx=Nx,
         θs=θs,
         Lx=_Lx,
         below=below
     )
-    data = SolverData(spa, 1)
+    data = SolverData(params, 1)
 
     @info "SimPreCompute"
     @time precompute!(data)
 
 
     @info "generate_surface!"
-    @time generate_surface!(data.sp, data.spa)
+    @time generate_surface!(data.sp, data.params)
 
     @info "solve_single!"
     @time solve_single!(data)
@@ -57,7 +57,7 @@ function test_reciprocity()
     Δ_s = fill(1e-20, Nk, Nk)
 
     rev_idx(idx) = Nk - idx + 1
-    kis = spa.kis
+    kis = params.kis
     rev_qis = reverse(eachindex(qs))
     rev_kis = rev_qis[kis]
 

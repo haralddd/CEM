@@ -48,7 +48,7 @@ function calc_mdrc_and_save_plots(data::SolverData, fname="default", dir="plots"
     mkpath(folder)
 
     mdrc_data = calc_mdrc(data)
-    # full_qs = data.spa.qs
+    # full_qs = data.params.qs
     # σ² = data.out.σ²
     # κ = data.out.κ
     θis = mdrc_data.θis

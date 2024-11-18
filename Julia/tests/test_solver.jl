@@ -22,30 +22,30 @@ end
 function plot_singlesolve()
     data = default_config_creation()
     precompute!(data)
-    generate_surface!(data.sp, data.spa)
+    generate_surface!(data.sp, data.params)
     solve_single!(data)
 
-    qs = data.spa.qs
-    ks = data.spa.ks
+    qs = data.params.qs
+    ks = data.params.ks
     mask = qs .>= -1.0 .&& qs .<= 1.0
     Npk = data.sp.p_data.Npk
     # heatmap(log10.(abs2.(data.sp.p_data.Mpqn[:,:,7])))
-    # display(data.spa.qs)
+    # display(data.params.qs)
     plot()
     plot!(qs[mask], [log10.(abs2.(Npk[mask, i])) for i in axes(Npk,2)])
     vline!(ks)
-    # heatmap(data.spa.qs, data.spa.ks, )
+    # heatmap(data.params.qs, data.params.ks, )
 end
 
 # plot_singlesolve()
 
 function plot_Rmean()
 
-    data = SolverData(SimParams(), 100)
+    data = SolverData(Parameters(), 100)
     solve_MDRC!(data)
 
-    qs = data.spa.qs
-    ks = data.spa.ks
+    qs = data.params.qs
+    ks = data.params.ks
     mask = qs .>= -1.0 .&& qs .<= 1.0
     R = data.out_p.R
 
@@ -57,11 +57,11 @@ plot_Rmean()
 
 function test_save_data()
 
-    data = SolverData(SimParams(), 100)
+    data = SolverData(Parameters(), 100)
     solve_MDRC!(data)
 
-    qs = data.spa.qs
-    ks = data.spa.ks
+    qs = data.params.qs
+    ks = data.params.ks
     mask = qs .>= -1.0 .&& qs .<= 1.0
     R = data.out_p.R
 
@@ -94,7 +94,7 @@ function test_crystal_precompute()
     Ni = 3
     surf = GaussianSurface(30.0e-9, 100.0e-9)
 
-    rp_isotropic = SimParams(
+    rp_isotropic = Parameters(
         lambda=lambda,
         Q=Q,
         Nq=Nq,
@@ -109,7 +109,7 @@ function test_crystal_precompute()
     @time pc_i = SimPreCompute(rp_isotropic)
     validate(pc_i)
 
-    rp_crystal = SimParams(
+    rp_crystal = Parameters(
         lambda=lambda,
         Q=Q,
         Nq=Nq,

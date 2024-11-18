@@ -60,21 +60,21 @@ end
 function test_surf(data::SolverData)
 
 
-    spa = data.spa
+    params = data.params
     sp = data.sp
     M = data.iters
-    surf = spa.surf
+    surf = params.surf
 
-    xs = spa.xs
-    dx = spa.dx
-    d = spa.surf.d
+    xs = params.xs
+    dx = params.dx
+    d = params.surf.d
 
     meanval = 0.0
     rms = 0.0
     slope = 0.0
     dist = 0.0
     for m in 1:M
-        generate_surface!(sp, spa)
+        generate_surface!(sp, params)
         meanval = observe(meanval, mean(sp.ys), m)
         rms = observe(rms, sqrt(mean(sp.ys .^ 2)), m)
         slope = observe(slope, mean_slope(sp.ys, dx), m)
@@ -95,12 +95,12 @@ function test_surf(data::SolverData)
 
     println()
     println_header("Ensemble mean slope, s:")
-    println("Analytical = $(analytical_slope(spa.surf))")
+    println("Analytical = $(analytical_slope(params.surf))")
     println("Numerical = $(slope)")
 
     println()
     println_header("Ensemble mean peak-valley distance, ⟨D⟩:")
-    println("Analytical = $(analytical_dist(spa.surf))")
+    println("Analytical = $(analytical_dist(params.surf))")
     println("Numerical = $(dist)")
 
     println()
