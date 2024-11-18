@@ -19,6 +19,7 @@ import Base.parse
 import Base.show
 import Base.display
 import Base.convert
+import Base.+
 
 include("Material.jl")
 export Material, Vacuum, Isotropic, UniaxialCrystal
@@ -29,14 +30,17 @@ export RandomSurface, FlatSurface, GaussianSurface
 export SingleBumpSurface, RectangularSurface
 export scale
 
-include("SimParams.jl")
+include("Parameters.jl")
 export Polarization, PolarizationP, PolarizationS
-export SimParams
+export Parameters
 export get_angles, get_scale, get_scaled_params
 
-include("SimPrealloc.jl")
-export SystemPreAlloc, SimPrealloc
+include("Precomputed.jl")
+export Precomputed
 export precompute!, validate
+
+include("Preallocated.jl")
+export Preallocated
 
 include("random_surface_generator.jl")
 export generate_surface!

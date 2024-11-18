@@ -108,8 +108,8 @@ function material_prompt()
     return Vacuum()
 end
 
-function config_creation_prompt(path=DEFAULT_INPUT)::SimParams
-    print("Input for solver parameters input SimParams struct\n")
+function config_creation_prompt(path=DEFAULT_INPUT)::Parameters
+    print("Input for solver parameters input Parameters struct\n")
 
     print("lambda [nm] (=632.8): ")
     input = readline()
@@ -149,7 +149,7 @@ function config_creation_prompt(path=DEFAULT_INPUT)::SimParams
     input = readline()
     seed = parse(Int64, input == "" ? "-1" : input)
 
-    spa = SimParams(
+    params = Parameters(
         lambda=lambda,
         Nx=Nx,
         θs=angles,
@@ -171,11 +171,11 @@ function config_creation_prompt(path=DEFAULT_INPUT)::SimParams
     print("Save as filename [=\"default.jld2\"]: ")
     input = readline()
     input = input == "" ? "default.jld2" : input
-    save_spa_config(path / input, spa,
+    save_spa_config(path / input, params,
         override=Dict(:seed => seed) # Override the seed to generate random seed using the input
     )
 
-    return spa
+    return params
 end
 
 function cli_help()
@@ -210,8 +210,8 @@ function cli_info(filepath)
     catch e
         @warn "No complete solver data found at '$(filepath)', if the file is a template configuration file, ignore this warning."
         try
-            spa = load_spa_config(filepath)
-            display(spa)
+            params = load_spa_config(filepath)
+            display(params)
         catch
             error("File '$(filepath)' not found or file not valid")
         end
@@ -220,11 +220,11 @@ function cli_info(filepath)
 end
 
 function cli_run(filepath, iters = 100)
-    spa = load_spa_config(filepath)
-    display(spa)
+    params = load_spa_config(filepath)
+    display(params)
 
     @info "Initializing SolverData..."
-    data = SolverData(spa, iters)
+    data = SolverData(params, iters)
     @debug "CLI Init: SolverData complete"
 
     @info "Solving system of equations..."

@@ -4,27 +4,27 @@ using RayleighSolver
 "For debug purposes, mostly"
 
 function default_config_creation()::SolverData
-    return SolverData(SimParams())
+    return SolverData(Parameters())
 end
 
 function default_gaussian_config(iters = 10000, Lx=100*632.8e-9)::SolverData
-    return SolverData(SimParams(;Lx=Lx, surf=GaussianSurface(30.0e-9, 100.0e-9)), iters)
+    return SolverData(Parameters(;Lx=Lx, surf=GaussianSurface(30.0e-9, 100.0e-9)), iters)
 end
 
 function default_rectangular_config(iters = 10000)::SolverData
-    return SolverData(SimParams(surf=RectangularSurface(30.0e-9, 0.70, 1.30)), iters)
+    return SolverData(Parameters(surf=RectangularSurface(30.0e-9, 0.70, 1.30)), iters)
 end
 
 function config_glass_isotropic()
-    return SolverData(SimParams(below=Isotropic(2.25, 1.0)))
+    return SolverData(Parameters(below=Isotropic(2.25, 1.0)))
 end
 
 function config_silver_isotropic()
-    return SolverData(SimParams(below=Isotropic(-7.5 + 0.24im, 1.0)))
+    return SolverData(Parameters(below=Isotropic(-7.5 + 0.24im, 1.0)))
 end
 
 function config_fresnel_silver(Nθ)
-    return SolverData(SimParams(
+    return SolverData(Parameters(
         θs=range(0.0, 90.0, Nθ),
         Nx=2*2048,
         surf=FlatSurface(),
@@ -32,7 +32,7 @@ function config_fresnel_silver(Nθ)
 end
 
 function config_fresnel_glass(Nθ)
-    return SolverData(SimParams(
+    return SolverData(Parameters(
         θs=range(0.0, 90.0, Nθ),
         Nx=2*2048,
         surf=FlatSurface(),

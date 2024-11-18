@@ -20,23 +20,23 @@ function correlation(k::Float64, surf::RectangularSurface)::Float64
 end
 
 """
-    generate_surface!(sp::SimPrealloc, parameters::SimParams{SurfT,_MA,_MB})
+    generate_surface!(sp::SimPrealloc, parameters::Parameters{SurfT,_MA,_MB})
 
 Generate random surface of the given type and overwrites sp.ys in-place
-Reverts to generic Fourier filtering function, which requires correlation(k, spa.surf::T) to be implemented
+Reverts to generic Fourier filtering function, which requires correlation(k, params.surf::T) to be implemented
 """ 
-function generate_surface!(sp::SimPrealloc, spa::SimParams{SurfT,_MA,_MB})::Nothing where {SurfT <: RandomSurface, _MA, _MB}
-    d = spa.surf.d
-    xks = spa.xks
-    rng = spa.rng
-    FFT = spa.FFT
-    IFFT = spa.IFFT
+function generate_surface!(sp::Preallocated, params::Parameters{SurfT,_MA,_MB})::Nothing where {SurfT <: RandomSurface, _MA, _MB}
+    d = params.surf.d
+    xks = params.xks
+    rng = params.rng
+    FFT = params.FFT
+    IFFT = params.IFFT
 
     ys = sp.ys
     Fys = sp.Fys
     sFys = sp.sFys
 
-    A = 1/sqrt(spa.dx)
+    A = 1/sqrt(params.dx)
 
     # Generate random phases
     randn!(rng, ys)
@@ -48,7 +48,7 @@ function generate_surface!(sp::SimPrealloc, spa::SimParams{SurfT,_MA,_MB})::Noth
     # fftshift!(sFys, Fys)
 
     @inbounds for i in eachindex(Fys)
-        Fys[i] *= sqrt(correlation(xks[i], spa.surf))*A
+        Fys[i] *= sqrt(correlation(xks[i], params.surf))*A
     end
 
     # ifftshift!(Fys, sFys)
@@ -60,15 +60,15 @@ function generate_surface!(sp::SimPrealloc, spa::SimParams{SurfT,_MA,_MB})::Noth
 
     return nothing
 end
-function generate_surface!(sp::SimPrealloc, ::SimParams{FlatSurface,_MA,_MB})::Nothing where {_MA,_MB}
+function generate_surface!(sp::Preallocated, ::Parameters{FlatSurface,_MA,_MB})::Nothing where {_MA,_MB}
     sp.ys .= 1e-6
     return nothing
 end
-function generate_surface!(sp::SimPrealloc, spa::SimParams{SingleBumpSurface,_MA,_MB})::Nothing where {_MA,_MB}
-    surf = spa.surf
+function generate_surface!(sp::Preallocated, params::Parameters{SingleBumpSurface,_MA,_MB})::Nothing where {_MA,_MB}
+    surf = params.surf
     δ = surf.d
     a = surf.a
 
-    sp.ys .= δ * exp.((-0.5 * spa.xs / a) .^ 2)
+    sp.ys .= δ * exp.((-0.5 * params.xs / a) .^ 2)
     return nothing
 end

@@ -51,11 +51,11 @@ function test_fresnel(;type=:silver)
         data = config_fresnel_glass(1000)
     end
 
-    spa = data.spa
+    params = data.params
     sp = data.sp
 
     precompute!(data)
-    generate_surface!(sp, spa)
+    generate_surface!(sp, params)
     solve_single!(data)
 
     pNpk = data.sp.p_data.Npk
@@ -64,9 +64,9 @@ function test_fresnel(;type=:silver)
     res_p = [pNpk[:, i] .|> abs2 |> maximum for i in axes(pNpk, 2)]
     res_s = [sNpk[:, i] .|> abs2 |> maximum for i in axes(sNpk, 2)]
 
-    εμ = spa.below.eps * spa.below.mu
+    εμ = params.below.eps * params.below.mu
 
-    plot_fresnel(; res_p=res_p, res_s=res_s, θs=spa.θs, εμ=εμ, title=string(type))
+    plot_fresnel(; res_p=res_p, res_s=res_s, θs=params.θs, εμ=εμ, title=string(type))
 
     return nothing
 end
