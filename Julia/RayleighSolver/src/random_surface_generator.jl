@@ -25,16 +25,16 @@ end
 Generate random surface of the given type and overwrites sp.ys in-place
 Reverts to generic Fourier filtering function, which requires correlation(k, params.surf::T) to be implemented
 """ 
-function generate_surface!(sp::Preallocated, params::Parameters{SurfT,_MA,_MB})::Nothing where {SurfT <: RandomSurface, _MA, _MB}
+function generate_surface!(pre::Preallocated, params::Parameters{SurfT,_MA,_MB})::Nothing where {SurfT <: RandomSurface, _MA, _MB}
     d = params.surf.d
     xks = params.xks
     rng = params.rng
     FFT = params.FFT
     IFFT = params.IFFT
 
-    ys = sp.ys
-    Fys = sp.Fys
-    sFys = sp.sFys
+    ys = pre.ys
+    Fys = pre.Fys
+    sFys = pre.sFys
 
     A = 1/sqrt(params.dx)
 
@@ -60,15 +60,15 @@ function generate_surface!(sp::Preallocated, params::Parameters{SurfT,_MA,_MB}):
 
     return nothing
 end
-function generate_surface!(sp::Preallocated, ::Parameters{FlatSurface,_MA,_MB})::Nothing where {_MA,_MB}
-    sp.ys .= 1e-6
+function generate_surface!(pre::Preallocated, ::Parameters{FlatSurface,_MA,_MB})::Nothing where {_MA,_MB}
+    pre.ys .= 1e-6
     return nothing
 end
-function generate_surface!(sp::Preallocated, params::Parameters{SingleBumpSurface,_MA,_MB})::Nothing where {_MA,_MB}
+function generate_surface!(pre::Preallocated, params::Parameters{SingleBumpSurface,_MA,_MB})::Nothing where {_MA,_MB}
     surf = params.surf
     δ = surf.d
     a = surf.a
 
-    sp.ys .= δ * exp.((-0.5 * params.xs / a) .^ 2)
+    pre.ys .= δ * exp.((-0.5 * params.xs / a) .^ 2)
     return nothing
 end

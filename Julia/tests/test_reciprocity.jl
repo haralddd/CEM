@@ -37,19 +37,21 @@ function test_reciprocity()
 
     @info "SimPreCompute"
     @time precompute!(data)
+    alloc = Preallocated(params)
 
 
     @info "generate_surface!"
-    @time generate_surface!(data.sp, data.params)
+    @time generate_surface!(alloc, data.params)
 
     @info "solve_single!"
-    @time solve_single!(data)
-    pd = data.sp.p_data
-    sd = data.sp.s_data
+    @time solve_single!(alloc, data)
 
-    _l = lines(θs, abs2.(pd.Npk[mask, 1]), label="θ = $(θs[1])")
-    lines!(θs, abs2.(pd.Npk[mask, Nk÷2+1]), label="θ = $(θs[Nk÷2+1])")
-    lines!(θs, abs2.(pd.Npk[mask, end]), label="θ = $(θs[end])")
+    PNpk = alloc.PNpk
+    SNpk = alloc.SNpk
+
+    _l = lines(θs, abs2.(PNpk[mask, 1]), label="θ = $(θs[1])")
+    lines!(θs, abs2.(PNpk[mask, Nk÷2+1]), label="θ = $(θs[Nk÷2+1])")
+    lines!(θs, abs2.(PNpk[mask, end]), label="θ = $(θs[end])")
     axislegend()
     display(_l)
 
@@ -61,8 +63,8 @@ function test_reciprocity()
     rev_qis = reverse(eachindex(qs))
     rev_kis = rev_qis[kis]
 
-    @assert(any(pd.Npk .!= 0.0))
-    @assert(any(sd.Npk .!= 0.0))
+    @assert(any(PNpk .!= 0.0))
+    @assert(any(SNpk .!= 0.0))
 
     for (j, kj) in enumerate(kis)
         for (i, qi) in enumerate(kis)
@@ -90,11 +92,11 @@ function test_reciprocity()
             # if a2 ≈ 0.0 || b2 ≈ 0.0 continue end
             # if a1 ≈ 0.0 || b1 ≈ 0.0 @warn "zero" end
 
-            Sqk_p = sqrt(a1/a2) * pd.Npk[qi, j]
-            Skq_p = sqrt(b1/b2) * pd.Npk[mqj, mi]
+            Sqk_p = sqrt(a1/a2) * PNpk[qi, j]
+            Skq_p = sqrt(b1/b2) * PNpk[mqj, mi]
 
-            Sqk_s = sqrt(a1 / a2) * sd.Npk[qi, j]
-            Skq_s = sqrt(b1 / b2) * sd.Npk[mqj, mi]
+            Sqk_s = sqrt(a1 / a2) * SNpk[qi, j]
+            Skq_s = sqrt(b1 / b2) * SNpk[mqj, mi]
 
             Δ_p[i, j] = abs(Sqk_p - Skq_p)
             Δ_s[i, j] = abs(Sqk_s - Skq_s)
@@ -112,8 +114,8 @@ function test_reciprocity()
     maxidx_s = argmax(Δ_s)[2]
     qmaxidx_p = kis[maxidx_p]
     qmaxidx_s = kis[maxidx_s]
-    rel_err_p = Δ_p[maxidx_p] / abs(pd.Npk[qmaxidx_p, maxidx_p])
-    rel_err_s = Δ_s[maxidx_s] / abs(sd.Npk[qmaxidx_s, maxidx_s])
+    rel_err_p = Δ_p[maxidx_p] / abs(PNpk[qmaxidx_p, maxidx_p])
+    rel_err_s = Δ_s[maxidx_s] / abs(SNpk[qmaxidx_s, maxidx_s])
 
     @info "Reciprocity in P polarization, maximum abs error: $(maximum(Δ_p))"
     @info "Reciprocity in S polarization, maximum abs error: $(maximum(Δ_s))"

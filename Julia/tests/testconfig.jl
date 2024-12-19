@@ -39,3 +39,11 @@ function config_fresnel_glass(Nθ)
         below=Isotropic(2.25, 1.0)
     ))
 end
+
+function config_default_uniaxial()
+    eps_para = 2.0
+    eps_perp = 5*eps_para
+    return SolverData(Parameters(
+        below=Uniaxial(eps_perp, eps_para, 1.0, 1.0)
+    ))
+end

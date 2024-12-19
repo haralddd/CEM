@@ -6,15 +6,18 @@ struct Precomputed
     SNpkn::Array{ComplexF64,3}
 
     function Precomputed(Nq::Int, Nk::Int, Ni::Int)::Precomputed
-        PMpqn = Matrix{ComplexF64}(undef, Nq, Nq, Ni)
-        PNpkn = Matrix{ComplexF64}(undef, Nq, Nk, Ni)
+        PMpqn = Array{ComplexF64, 3}(undef, Nq, Nq, Ni)
+        PNpkn = Array{ComplexF64, 3}(undef, Nq, Nk, Ni)
         
         SMpqn = similar(PMpqn)
         SNpkn = similar(PNpkn)
         return new(PMpqn, PNpkn, SMpqn, SNpkn)
     end
-    function Precomputed(params::Parameters)::Precomputed
+    function Precomputed(params::Parameters{_S,_A,_B})::Precomputed where {_S,_A,_B}
         return Precomputed(length(params.qs), length(params.ks), params.Ni+1)
+    end
+    function Precomputed(params::Parameters{_S,Vacuum,Uniaxial})::Precomputed where {_S}
+        return Precomputed(2*length(params.qs), length(params.ks), params.Ni+1)
     end
 end
 
@@ -28,10 +31,10 @@ struct UniaxialParams
     Cpe::ComplexF64
 end
 
-function _A2(cr::UniaxialCrystal)::ComplexF64
+function _A2(cr::Uniaxial)::ComplexF64
     return (cr.mu_para * cr.eps_para) / (cr.mu_perp * cr.eps_perp)
 end
-function UniaxialParams(below::UniaxialCrystal, above::Vacuum, nu::Symbol)::UniParams
+function UniaxialParams(below::Uniaxial, above::Vacuum, nu::Symbol)::UniParams
 
     if nu == :p
         # k = κ     p/m = ±     pa/pe = ∥/⟂
@@ -54,7 +57,7 @@ end
 function alpha2(q::Float64, A2::ComplexF64, με::ComplexF64)::ComplexF64
     return A2 * (με - q^2)
 end
-function alpha2(q::Float64, material::UniaxialCrystal)::ComplexF64
+function alpha2(q::Float64, material::Uniaxial)::ComplexF64
     A2 = _A2(material)
     με = material.mu_para * material.eps_para
     return alpha2(q, A2, με)
@@ -82,7 +85,7 @@ function alpha(q::Float64, material::Isotropic)::ComplexF64
     με = material.eps * material.mu
     return sqrt(με - q^2)
 end
-function alpha(q::Float64, material::UniaxialCrystal)::ComplexF64
+function alpha(q::Float64, material::Uniaxial)::ComplexF64
     return sqrt(alpha2(q, material))
 end
 function alpha0(q)
@@ -125,7 +128,7 @@ function M_invariant!(Mpqn::Array{ComplexF64,3}, params::Parameters{_S,Vacuum,Is
             q = qs[j]
             a0 = alpha0(q)
             a = alpha(p, params.below)
-            Mpqn[i, j, 1] = a + kappa * a0
+            Mpqn[i, j, 1] = (p ≈ q) ? a + kappa * a0 : 0.0
         end
     end
 
@@ -158,7 +161,7 @@ function _M_uniaxial_ker(p::Float64, q::Float64, params::Parameters, upa::Uniaxi
         kmpe * (at + Cpa * a0) * da^n)
 end
 
-function M_invariant!(Mpqn::Array{ComplexF64,3}, params::Parameters{_S,Vacuum,UniaxialCrystal}, nu::Symbol)::Nothing where {_S}
+function M_invariant!(Mpqn::Array{ComplexF64,3}, params::Parameters{_S,Vacuum,Uniaxial}, nu::Symbol)::Nothing where {_S}
 
     ps = params.ps
     qs = params.qs
@@ -209,7 +212,7 @@ function N_invariant!(Npkn::Array{ComplexF64,3}, params::Parameters{_S,Vacuum,Is
             k = ks[j]
             a0 = alpha0(k)
             a = alpha(p, params.below)
-            Npkn[i, j, 1] = a - kappa * a0
+            Npkn[i, j, 1] = (p ≈ k) ? a - kappa * a0 : 0.0
         end
     end
 
@@ -240,7 +243,7 @@ function _N_uniaxial_ker(p::Float64, q::Float64, params::Parameters, upa::Uniaxi
         kmpe * (at - Cpa * a0) * da^n)
 end
 
-function N_invariant!(N::Array{ComplexF64,3}, params::Parameters{_S,Vacuum,UniaxialCrystal}, nu::Symbol)::Nothing where {_S}
+function N_invariant!(N::Array{ComplexF64,3}, params::Parameters{_S,Vacuum,Uniaxial}, nu::Symbol)::Nothing where {_S}
 
     ps = params.ps
     qs = params.qs
@@ -266,11 +269,19 @@ function precompute!(pre::Precomputed, params::Parameters{S,A,B})::Nothing where
     return nothing
 end
 
-function validate(pre::Precomputed)::Nothing
-    @assert all(isfinite.(pre.PMpqn))
-    @assert all(isfinite.(pre.PNpkn))
+function _validate_single(A)
+    if !all(isfinite.(A))
+        open("trace.dat", "w+") do io
+            write(io, A)
+        end
+        error("Validation of precomputed data failed, matrices not finite")
+    end
+end
 
-    @assert all(isfinite.(pre.SMpqn))
-    @assert all(isfinite.(pre.SNpkn))
+function validate(pre::Precomputed)::Nothing
+    _validate_single(pre.PMpqn)
+    _validate_single(pre.PNpkn)
+    _validate_single(pre.SMpqn)
+    _validate_single(pre.SNpkn)
     return nothing
 end

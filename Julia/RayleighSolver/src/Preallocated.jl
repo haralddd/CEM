@@ -13,6 +13,9 @@ struct Results
         κ = zeros(Float64, Nq, Nk)
         return new(R, R², σ², κ)
     end
+    function Results(params::Parameters)
+        return Results(length(params.qs), length(params.ks))
+    end
 end
 
 """
@@ -40,8 +43,8 @@ struct Preallocated
         PMpq = zeros(ComplexF64, Nq, Nq)
         PNpk = zeros(ComplexF64, Nq, Nk)
         
-        SMpq = similar(PMpq)
-        SNpk = similar(PNpk)
+        SMpq = zeros(ComplexF64, Nq, Nq)
+        SNpk = zeros(ComplexF64, Nq, Nk)
 
         ys = Vector{Float64}(undef, Nx)
         Fys = similar(ys, ComplexF64)
@@ -53,7 +56,10 @@ struct Preallocated
         new(PMpq, PNpk, SMpq, SNpk, Fys, sFys, ys, P_res, S_res)
     end
     function Preallocated(params::Parameters)::Preallocated
-        SimPrealloc(length(params.xs), length(params.qs), length(params.ks))
+        Preallocated(length(params.xs), length(params.qs), length(params.ks))
+    end
+    function Preallocated(params::Parameters{_S,Vacuum,Uniaxial}) where {_S}
+        Preallocated(length(params.xs), 2*length(params.qs), length(params.ks))
     end
 end
 
@@ -69,15 +75,15 @@ function observe!(res::Results, x, n)
     σ² = res.σ²
     κ = res.κ
 
-    @inbounds for I in eachindex(R)
+    for I in eachindex(R)
         R[I] = observe(R[I], x[I], n)
     end
 
-    @inbounds for I in eachindex(R²)
+    for I in eachindex(R²)
         R²[I] = observe(R²[I], abs2(x[I]), n)
     end
 
-    @inbounds for I in eachindex(σ²)
+    for I in eachindex(σ²)
         var = abs2(x[I] - R[I])
         σ²[I] = observe(σ²[I], var, n)
         κ[I] = observe(κ[I], var^2, n)
@@ -94,15 +100,30 @@ function observe!(pre::Preallocated, n::Int)
 end
 
 
-function combine(res1::Results, res2::Results, n1::Int, n2::Int)
-end
+"""
+Adds the results `obs` to `out` with the weight `N/divisor`. 
+Used to combine several means with different number of iterations, typically after multithreading
+"""
+function combine!(out::Results, obs::Results, N::Int, divisor::Int)
+    R = out.R
+    R² = out.R²
+    σ² = out.σ²
+    κ = out.κ
 
-"""
-Combines all values in `results` weighted by the number of observations given in `counts`
-"""
-function combine(results::Vector{Results}, counts::Vector{Int})::Results
-    out = deepcopy(results[1])
-    @assert length(results) == length(counts)
-    for i in eachindex
+    for I in eachindex(R)
+        R[I] += obs.R[I] * N / divisor
     end
+
+    for I in eachindex(R)
+        R²[I] += obs.R²[I] * N / divisor
+    end
+
+    for I in eachindex(R)
+        σ²[I] += obs.σ²[I] * N / divisor
+    end
+
+    for I in eachindex(R)
+        κ[I] += obs.κ[I] * N / divisor
+    end
+
 end

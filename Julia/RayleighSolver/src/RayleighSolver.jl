@@ -22,7 +22,7 @@ import Base.convert
 import Base.+
 
 include("Material.jl")
-export Material, Vacuum, Isotropic, UniaxialCrystal
+export Material, Vacuum, Isotropic, Uniaxial
 export _A, ptilde, alpha, alpha0
 
 include("RandomSurface.jl")
@@ -45,10 +45,16 @@ export Preallocated
 include("random_surface_generator.jl")
 export generate_surface!
 
-include("solver.jl")
-export SimOutput, SolverData, DataMDRC
-export solve_single!, solve_MDRC!, precompute!, observe, observe!
-export calc_mdrc
+include("SolverData.jl")
+export SolverData
+
+include("solver_reduced.jl")
+include("solver_full.jl")
+export DataMDRC
+export solve_single!, precompute!, observe, observe!
+include("solver_ensemble.jl")
+export solve_MDRC!, calc_mdrc
+
 
 include("utils.jl")
 export show, display, parse, convert
