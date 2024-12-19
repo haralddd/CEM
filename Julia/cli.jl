@@ -92,7 +92,7 @@ function material_prompt()
         input = readline()
         mu_para = parse(ComplexF64, input == "" ? "1.0" : input)
 
-        return UniaxialCrystal(eps_perp, eps_para, mu_perp, mu_para)
+        return Uniaxial(eps_perp, eps_para, mu_perp, mu_para)
     elseif input == "isotropic"
         print("Isotropic ε [complex] (=1.0): ")
         input = readline()
@@ -187,7 +187,8 @@ function cli_help()
     input [path] - load configuration file or directory at \'path\', defaults to \'./input\'
     info [Int|name] - show information about configuration file
     run [Int|name] - run a configuration file
-        out [label] - outputh label following the run command
+        out [label] - output file label following the run command
+        iters [Int] - number of ensemble iters, default 100
     list - show list of loadable configurations in \'path\'
         and optionally run or show information
 

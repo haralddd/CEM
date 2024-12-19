@@ -21,14 +21,21 @@ end
 
 function plot_singlesolve()
     data = default_config_creation()
-    precompute!(data)
-    generate_surface!(data.sp, data.params)
-    solve_single!(data)
+    @info "precompute"
+    @time precompute!(data)
+
+    alloc = Preallocated(data.params)
+
+    @info "surface generator"
+    @time generate_surface!(alloc, data.params)
+
+    @info "solve single"
+    @time solve_single!(alloc, data)
 
     qs = data.params.qs
     ks = data.params.ks
     mask = qs .>= -1.0 .&& qs .<= 1.0
-    Npk = data.sp.p_data.Npk
+    Npk = alloc.PNpk
     # heatmap(log10.(abs2.(data.sp.p_data.Mpqn[:,:,7])))
     # display(data.params.qs)
     plot()
@@ -37,17 +44,16 @@ function plot_singlesolve()
     # heatmap(data.params.qs, data.params.ks, )
 end
 
-# plot_singlesolve()
+plot_singlesolve()
 
 function plot_Rmean()
-
     data = SolverData(Parameters(), 100)
     solve_MDRC!(data)
 
     qs = data.params.qs
     ks = data.params.ks
     mask = qs .>= -1.0 .&& qs .<= 1.0
-    R = data.out_p.R
+    R = data.P_res.R
 
     plot()
     plot!(qs[mask], [abs2.(R[mask, i]) for i in axes(R, 2)])
@@ -63,22 +69,25 @@ function test_save_data()
     qs = data.params.qs
     ks = data.params.ks
     mask = qs .>= -1.0 .&& qs .<= 1.0
-    R = data.out_p.R
+    display(mask)
+    display(size(mask))
+    R = data.P_res.R
 
     plt1 = plot()
     plot!(qs[mask], [abs2.(R[mask, i]) for i in axes(R, 2)])
     vline!(ks)
 
+    # rm("test_save.jdl2")
     save_solver_data("test_save", data)
     loaded_data = load_solver_data("test_save")
-
-    R_ld = loaded_data.out_p.R
+    R_ld = loaded_data.P_res.R
 
     plt2 = plot()
     plot!(qs[mask], [abs2.(R_ld[mask, i]) for i in axes(R, 2)])
     vline!(ks)
 
-    plot(plt1, plt2)
+    plot(plt1, plt2) |> display
+    rm("test_save.jld2")
 end
 
 test_save_data()
@@ -118,8 +127,8 @@ function test_crystal_precompute()
         Ni=Ni,
         surf=surf,
         rescale=true,
-        above=UniaxialCrystal(1.0, 1.0, 1.0, 1.0),
-        below=UniaxialCrystal(ε, ε, 1.0, 1.0)
+        above=Uniaxial(1.0, 1.0, 1.0, 1.0),
+        below=Uniaxial(ε, ε, 1.0, 1.0)
     )
     @time pc_c = SimPreCompute(rp_crystal)
     validate(pc_c)

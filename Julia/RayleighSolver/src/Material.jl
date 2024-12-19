@@ -14,7 +14,7 @@ struct Isotropic <: Material
     mu::ComplexF64
 end
 
-struct UniaxialCrystal <: Material
+struct Uniaxial <: Material
     eps_perp::ComplexF64
     eps_para::ComplexF64
     mu_perp::ComplexF64
