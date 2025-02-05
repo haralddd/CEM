@@ -93,6 +93,8 @@ function cli_plot_main(arg)
         end
     end
 
+    display(size(data.P_res.R))
+
     calc_mdrc_and_save_plots(data, filename, DEFAULT_PLOTDIR)
 end
 

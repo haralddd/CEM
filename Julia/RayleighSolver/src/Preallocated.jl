@@ -16,6 +16,9 @@ struct Results
     function Results(params::Parameters)
         return Results(length(params.qs), length(params.ks))
     end
+    function Results(params::Parameters{_S, Vacuum, Uniaxial}) where {_S}
+        return Results(2*length(params.qs), length(params.ks))
+    end
 end
 
 """
