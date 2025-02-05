@@ -61,7 +61,7 @@ function test_surf(data::SolverData)
 
 
     params = data.params
-    sp = data.sp
+    alloc = Preallocated(params)
     M = data.iters
     surf = params.surf
 
@@ -74,11 +74,11 @@ function test_surf(data::SolverData)
     slope = 0.0
     dist = 0.0
     for m in 1:M
-        generate_surface!(sp, params)
-        meanval = observe(meanval, mean(sp.ys), m)
-        rms = observe(rms, sqrt(mean(sp.ys .^ 2)), m)
-        slope = observe(slope, mean_slope(sp.ys, dx), m)
-        dist = observe(dist, mean_peak_valley_dist(xs, sp.ys), m)
+        generate_surface!(alloc, params)
+        meanval = observe(meanval, mean(alloc.ys), m)
+        rms = observe(rms, sqrt(mean(alloc.ys .^ 2)), m)
+        slope = observe(slope, mean_slope(alloc.ys, dx), m)
+        dist = observe(dist, mean_peak_valley_dist(xs, alloc.ys), m)
     end
 
     H1 = "\033[92m"
@@ -114,3 +114,25 @@ test_gaussian2() = test_surf(default_gaussian_config(iters, 200*632.8e-9))
 test_gaussian3() = test_surf(default_gaussian_config(iters, 50*632.8e-9))
 test_rect() = test_surf(default_rectangular_config(iters))
 
+test_gaussian()
+
+using Plots
+using LaTeXStrings
+function make_plot(data::SolverData, label="")
+    params = data.params
+    alloc = Preallocated(params)
+
+    generate_surface!(alloc, params)
+
+    yscale = 4
+
+    k0 = 2π / params.lambda
+    xs = params.xs ./ k0 .* 1e6
+    ys = alloc.ys ./ k0 .* 1e6
+    maxy = max(extrema(ys)...)
+    ylims = (-yscale * maxy, yscale * maxy)
+    plt = plot(xs, ys, xlabel=L"x_1\ [\mu m]", ylabel=L"\zeta(x_1)\ [\mu m]", ylims=ylims, label=nothing)
+    savefig(plt, "plots/$label.pdf")
+end
+make_plot(SolverData(Parameters(surf=GaussianSurface(30.0e-9, 400.0e-9))), "gaussian_surf")
+make_plot(SolverData(Parameters(surf=RectangularSurface(30.0e-9, 0.10, 1.10))), "rect_surf")

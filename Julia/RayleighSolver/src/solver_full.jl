@@ -239,11 +239,11 @@ function calc_mdrc(data::SolverData{Parameters{_S,Vacuum,Uniaxial}})::DataMDRC w
     θis = data.params.θs
 
     @assert all(ks .≈ sind.(θis))
-    Rp = data.P_res.R[begin:2:end] # Filter out R from X = (R,T)
-    R2p = data.P_res.R²[begin:2:end]
+    Rp = data.P_res.R[begin:2:end, :] # Filter out R from X = (R,T)
+    R2p = data.P_res.R²[begin:2:end, :]
 
-    Rs = data.S_res.R[begin:2:end]
-    R2s = data.S_res.R²[begin:2:end]
+    Rs = data.S_res.R[begin:2:end, :]
+    R2s = data.S_res.R²[begin:2:end, :]
 
     coh_p, inc_p = get_coh_inc(Rp[mask, :], R2p[mask, :], qs[mask], ks)
     coh_s, inc_s = get_coh_inc(Rs[mask, :], R2s[mask, :], qs[mask], ks)
