@@ -14,9 +14,8 @@ function solve_MDRC!(data::SolverData{_P}) where {_P}
     LinearAlgebra.BLAS.set_num_threads(1)
     Niters = data.iters
 
-    enable_threads = true
-
-    @time begin
+    enable_threads = Nthreads > 1
+    progress = 0
 
     if Niters > Nthreads && enable_threads
         @info "Mainloop: Running $Niters iters on $Nthreads threads..."
@@ -24,7 +23,7 @@ function solve_MDRC!(data::SolverData{_P}) where {_P}
         allocs = [Preallocated(data.params) for _ in 1:Nthreads]
         lk = ReentrantLock()
 
-        Threads.@threads :static for n in 1:Niters
+        @time Threads.@threads :static for n in 1:Niters
             tidx = Threads.threadid()
             _alloc = allocs[tidx]
 
@@ -33,21 +32,24 @@ function solve_MDRC!(data::SolverData{_P}) where {_P}
             @lock lk begin
                 observe!(data.P_res, _alloc.PNpk, n)
                 observe!(data.S_res, _alloc.SNpk, n)
+                progress += 1
+                @info "$progress / $Niters"
             end # lock
         end
     else
         @info "Mainloop: Running $Niters iters sequentially."
         alloc = Preallocated(data.params)
-        for n in 1:Niters
+        @time for n in 1:Niters
             generate_surface!(alloc, data.params)
             solve_single!(alloc, data)
-            observe!(alloc, n)
+            observe!(data.P_res, alloc.PNpk, n)
+            observe!(data.S_res, alloc.SNpk, n)
+            progress += 1
+            @info "$progress / $Niters"
         end
         combine!(data.P_res, alloc.P_res, 1, 1)
         combine!(data.S_res, alloc.S_res, 1, 1)
     end
-
-    end # @time
 
 
     return nothing

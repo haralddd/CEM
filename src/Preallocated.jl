@@ -130,3 +130,55 @@ function combine!(out::Results, obs::Results, N::Int, divisor::Int)
     end
 
 end
+
+"""
+    get_R(res::Results)
+
+Extract reflection coefficients from Results. For the full solver, R values are stored
+at odd indices (1:2:end) in the Results matrix.
+
+Returns:
+- Matrix{ComplexF64}: Matrix of reflection coefficients [Nq × Nk]
+"""
+function get_R(res::Results)
+    return res.R[1:2:end, :]
+end
+
+"""
+    get_T(res::Results)
+
+Extract transmission coefficients from Results. For the full solver, T values are stored
+at even indices (2:2:end) in the Results matrix.
+
+Returns:
+- Matrix{ComplexF64}: Matrix of transmission coefficients [Nq × Nk]
+"""
+function get_T(res::Results)
+    return res.R[2:2:end, :]
+end
+
+"""
+    get_R²(res::Results)
+
+Extract squared magnitude of reflection coefficients from Results.
+For the full solver, R² values are stored at odd indices (1:2:end).
+
+Returns:
+- Matrix{Float64}: Matrix of |R|² values [Nq × Nk]
+"""
+function get_R²(res::Results)
+    return res.R²[1:2:end, :]
+end
+
+"""
+    get_T²(res::Results)
+
+Extract squared magnitude of transmission coefficients from Results.
+For the full solver, T² values are stored at even indices (2:2:end).
+
+Returns:
+- Matrix{Float64}: Matrix of |T|² values [Nq × Nk]
+"""
+function get_T²(res::Results)
+    return res.R²[2:2:end, :]
+end

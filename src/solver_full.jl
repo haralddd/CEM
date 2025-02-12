@@ -47,6 +47,10 @@ function _N20(p, k, a0)
     return δ(p - k) * a0
 end
 
+function A(u::Uniaxial)
+    return √((u.mu_para * u.eps_para) / (u.mu_perp * u.eps_perp))
+end
+
 function alpha(q::Float64, A::ComplexF64, μεpa::ComplexF64)::ComplexF64
     return A * (μεpa - q^2)
 end
@@ -239,11 +243,11 @@ function calc_mdrc(data::SolverData{Parameters{_S,Vacuum,Uniaxial}})::DataMDRC w
     θis = data.params.θs
 
     @assert all(ks .≈ sind.(θis))
-    Rp = data.P_res.R[begin:2:end, :] # Filter out R from X = (R,T)
-    R2p = data.P_res.R²[begin:2:end, :]
+    Rp = get_R(data.P_res)
+    R2p = get_R²(data.P_res)
 
-    Rs = data.S_res.R[begin:2:end, :]
-    R2s = data.S_res.R²[begin:2:end, :]
+    Rs = get_R(data.S_res)
+    R2s = get_R²(data.S_res)
 
     coh_p, inc_p = get_coh_inc(Rp[mask, :], R2p[mask, :], qs[mask], ks)
     coh_s, inc_s = get_coh_inc(Rs[mask, :], R2s[mask, :], qs[mask], ks)
@@ -252,4 +256,23 @@ function calc_mdrc(data::SolverData{Parameters{_S,Vacuum,Uniaxial}})::DataMDRC w
 end
 
 function calc_mdtc(data::SolverData{Parameters{_S,Vacuum,Uniaxial}}) where {_S}
+    params = data.params
+    qs = params.qs
+    ks = params.ks
+
+    mask = qs .>= -1.0 .&& qs .<= 1.0
+    θss = asind.(qs[mask])
+    θis = data.params.θs
+
+    @assert all(ks .≈ sind.(θis))
+    Tp = get_T(data.P_res)
+    T2p = get_T²(data.P_res)
+
+    Ts = get_T(data.S_res)
+    T2s = get_T²(data.S_res)
+
+    coh_p, inc_p = get_coh_inc(Tp[mask, :], T2p[mask, :], qs[mask], ks)
+    coh_s, inc_s = get_coh_inc(Ts[mask, :], T2s[mask, :], qs[mask], ks)
+
+    return DataMDRC(coh_p, inc_p, coh_s, inc_s, θis, θss)
 end

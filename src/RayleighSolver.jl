@@ -23,7 +23,7 @@ import Base.+
 
 include("Material.jl")
 export Material, Vacuum, Isotropic, Uniaxial
-export _A, ptilde, alpha, alpha0
+export A, ptilde, alpha, alpha0
 
 include("RandomSurface.jl")
 export RandomSurface, FlatSurface, GaussianSurface
@@ -40,7 +40,7 @@ export Precomputed
 export precompute!, validate
 
 include("Preallocated.jl")
-export Preallocated
+export Preallocated, Results, get_R, get_T, get_R², get_T²
 
 include("random_surface_generator.jl")
 export generate_surface!
