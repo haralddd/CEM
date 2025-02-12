@@ -5,7 +5,6 @@ function /(x::AbstractString, y::AbstractString)
     return joinpath(x, y)
 end
 
-using Pkg; Pkg.develop(path=DEFAULT_PATH / "RayleighSolver")
 using RayleighSolver
 using Dates
 
