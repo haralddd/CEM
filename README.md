@@ -21,3 +21,13 @@ Initial README.md for a Computational Electromagnetics (CEM), numerical physics 
 * The focus of the code will be high performance computing for the resulting matrix system of integral equations.
 
 * Prototyping in `Julia` or `Python`. Look at the possibility of porting to `C` or `C++` for better scaleability and parallelization.
+
+### How to run
+
+Run `julia` in the root directory, then build the RayleighSolver package and add it to the current Julia environment by running
+```julia
+julia> using Pkg
+julia> Pkg.develop(path=".")
+```
+
+The package can now be used with `using RayleighSolver`. Example usage is done in the `cli.jl` command line interface, which is a simple interface that can be run with `julia main.jl`. This generates output in a separate folder, which can then be plotted by loading the dataset, like is done in the `plot.jl` file.

@@ -1,4 +1,3 @@
-push!(LOAD_PATH, "$(@__DIR__)/RayleighSolver/")
 using RayleighSolver
 
 using CairoMakie
