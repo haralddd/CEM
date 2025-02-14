@@ -52,7 +52,13 @@ function A(u::Uniaxial)
 end
 
 function alpha(q::Float64, A::ComplexF64, μεpa::ComplexF64)::ComplexF64
-    return A * (μεpa - q^2)
+    return A * √(μεpa - q^2)
+end
+
+function alpha(q::Float64, uni::Uniaxial)::ComplexF64
+    _A = A(uni)
+    μεpa = uni.mu_para * uni.eps_para
+    return alpha(q, _A, μεpa)
 end
 
 function precompute!(pre::Precomputed, params::Parameters{_S,Vacuum,Uniaxial})::Nothing where {_S}
@@ -73,78 +79,116 @@ function precompute!(pre::Precomputed, params::Parameters{_S,Vacuum,Uniaxial})::
     SNn = pre.SNpkn
 
     # n = 0
-    for j in axes(PMn, 2)[begin:2:end] # strided indices
+    for j in 1:2:size(PMn, 2) # Process column pairs
         lj = 1 + j ÷ 2 # Linear idx for q
         
-        for i in axes(PMn, 1)[begin:2:end] # strided indices
+        # First block: all M11 and M12 elements
+        for i in 1:2:size(PMn, 1)
             li = 1 + i ÷ 2 # Linear idx for p
-
             p = ps[li]
             q = qs[lj]
             a = alpha(q, A, μεpa)
             a0 = alpha0(q)
 
-            PMn[i, j, 1] = _M110(p, q)
-            PMn[i, j+1, 1] = _M120(p, q)
-            PMn[i+1, j, 1] = _M210(p, q, a0)
-            PMn[i+1, j+1, 1] = _M220(p, q, a, εpa)
+            PMn[li, j, 1] = _M110(p, q)
+            PMn[li, j+1, 1] = _M120(p, q)
+            SMn[li, j, 1] = _M110(p, q)
+            SMn[li, j+1, 1] = _M120(p, q)
+        end
 
-            SMn[i, j, 1] = _M110(p, q)
-            SMn[i, j+1, 1] = _M120(p, q)
-            SMn[i+1, j, 1] = _M210(p, q, a0)
-            SMn[i+1, j+1, 1] = _M220(p, q, a, μpa)
+        # Second block: all M21 and M22 elements
+        for i in 1:2:size(PMn, 1)
+            li = 1 + i ÷ 2
+            p = ps[li]
+            q = qs[lj]
+            a = alpha(q, A, μεpa)
+            a0 = alpha0(q)
+
+            PMn[li + size(PMn,1)÷2, j, 1] = _M210(p, q, a0)
+            PMn[li + size(PMn,1)÷2, j+1, 1] = _M220(p, q, a, εpa)
+            SMn[li + size(SMn,1)÷2, j, 1] = _M210(p, q, a0)
+            SMn[li + size(SMn,1)÷2, j+1, 1] = _M220(p, q, a, μpa)
         end
     end
     for j in axes(PNn, 2)
-        for i in axes(PNn, 1)[begin:2:end]
+        # First block: all N1 elements
+        for i in 1:2:size(PNn, 1)
             li = 1 + i ÷ 2
             p = ps[li]
             k = ks[j]
             a0 = alpha0(k)
 
-            PNn[i, j, 1] = _N10(p, k)
-            PNn[i+1, j, 1] = _N20(p, k, a0)
+            PNn[li, j, 1] = _N10(p, k)
+            SNn[li, j, 1] = _N10(p, k)
+        end
 
-            SNn[i, j, 1] = _N10(p, k)
-            SNn[i+1, j, 1] = _N20(p, k, a0)
+        # Second block: all N2 elements
+        for i in 1:2:size(PNn, 1)
+            li = 1 + i ÷ 2
+            p = ps[li]
+            k = ks[j]
+            a0 = alpha0(k)
+
+            PNn[li + size(PNn,1)÷2, j, 1] = _N20(p, k, a0)
+            SNn[li + size(SNn,1)÷2, j, 1] = _N20(p, k, a0)
         end
     end
 
     # n > 0
     for n in axes(PMn, 3)[2:end]
-        for j in axes(PMn, 2)[begin:2:end]
+        for j in 1:2:size(PMn, 2)
             lj = 1 + j ÷ 2
-            for i in axes(PMn, 1)[begin:2:end]
-                li = 1 + i ÷ 2
 
+            # First block: M11 and M12 elements
+            for i in 1:2:size(PMn, 1)
+                li = 1 + i ÷ 2
                 p = ps[li]
                 q = qs[lj]
                 a = alpha(q, A, μεpa)
                 a0 = alpha0(q)
 
-                PMn[i, j, n] = _M11n(a0, n - 1)
-                PMn[i, j+1, n] = _M12n(a, n - 1)
-                PMn[i+1, j, n] = _M21n(p, q, a0, n - 1)
-                PMn[i+1, j+1, n] = _M22n(p, q, a, εpa, εpe, n - 1)
+                PMn[li, j, n] = _M11n(a0, n - 1)
+                PMn[li, j+1, n] = _M12n(a, n - 1)
+                SMn[li, j, n] = _M11n(a0, n - 1)
+                SMn[li, j+1, n] = _M12n(a, n - 1)
+            end
 
-                SMn[i, j, n] = _M11n(a0, n - 1)
-                SMn[i, j+1, n] = _M12n(a, n - 1)
-                SMn[i+1, j, n] = _M21n(p, q, a0, n - 1)
-                SMn[i+1, j+1, n] = _M22n(p, q, a, μpa, μpe, n - 1)
+            # Second block: M21 and M22 elements
+            for i in 1:2:size(PMn, 1)
+                li = 1 + i ÷ 2
+                p = ps[li]
+                q = qs[lj]
+                a = alpha(q, A, μεpa)
+                a0 = alpha0(q)
+
+                PMn[li + size(PMn,1)÷2, j, n] = _M21n(p, q, a0, n - 1)
+                PMn[li + size(PMn,1)÷2, j+1, n] = _M22n(p, q, a, εpa, εpe, n - 1)
+                SMn[li + size(SMn,1)÷2, j, n] = _M21n(p, q, a0, n - 1)
+                SMn[li + size(SMn,1)÷2, j+1, n] = _M22n(p, q, a, μpa, μpe, n - 1)
             end
         end
+
         for j in axes(PNn, 2)
-            for i in axes(PNn, 1)[begin:2:end]
+            # First block: N1 elements
+            for i in 1:2:size(PNn, 1)
                 li = 1 + i ÷ 2
                 p = ps[li]
                 k = ks[j]
                 a0 = alpha0(k)
 
-                PNn[i, j, n] = _N1n(a0, n - 1)
-                PNn[i+1, j, n] = _N2n(p, k, a0, n - 1)
+                PNn[li, j, n] = _N1n(a0, n - 1)
+                SNn[li, j, n] = _N1n(a0, n - 1)
+            end
 
-                SNn[i, j, n] = _N1n(a0, n - 1)
-                SNn[i+1, j, n] = _N2n(p, k, a0, n - 1)
+            # Second block: N2 elements
+            for i in 1:2:size(PNn, 1)
+                li = 1 + i ÷ 2
+                p = ps[li]
+                k = ks[j]
+                a0 = alpha0(k)
+
+                PNn[li + size(PNn,1)÷2, j, n] = _N2n(p, k, a0, n - 1)
+                SNn[li + size(SNn,1)÷2, j, n] = _N2n(p, k, a0, n - 1)
             end
         end
     end
@@ -180,41 +224,57 @@ function solve_single!(alloc::Preallocated, data::SolverData{Parameters{_S,Vacuu
     SM .= 0.0
     SN .= 0.0
 
-    @inbounds for n in reverse(axes(PMn, 3)) # Reverse because prefactors vanish at higher powers of ´n´
+    @inbounds for n in reverse(axes(PMn, 3))
         for i in eachindex(Fys)
             Fys[i] = ys[i]^(n - 1)
         end
 
-        FFT * Fys # In place FFT
+        FFT * Fys
         fftshift!(sFys, Fys)
 
-        for j in axes(PM, 2)[begin:2:end]
+        # Process blocks contiguously
+        half_rows = size(PM, 1) ÷ 2
+        
+        # First process all upper blocks
+        for j in 1:2:size(PM, 2)
             lj = 1 + j ÷ 2
-            for i in axes(PM, 1)[begin:2:end]
-                li = 1 + i ÷ 2
-                idx = sFys_pqidxs[li, lj]
+            for i in 1:half_rows
+                idx = sFys_pqidxs[i, lj]
 
                 PM[i, j] += PMn[i, j, n] * sFys[idx]
-                PM[i+1, j] += PMn[i+1, j, n] * sFys[idx]
                 PM[i, j+1] += PMn[i, j+1, n] * sFys[idx]
-                PM[i+1, j+1] += PMn[i+1, j+1, n] * sFys[idx]
-
                 SM[i, j] += SMn[i, j, n] * sFys[idx]
-                SM[i+1, j] += SMn[i+1, j, n] * sFys[idx]
                 SM[i, j+1] += SMn[i, j+1, n] * sFys[idx]
-                SM[i+1, j+1] += SMn[i+1, j+1, n] * sFys[idx]
             end
         end
-        for (j, kj) in enumerate(kis)
-            for i in axes(PN, 1)[begin:2:end]
-                li = 1 + i ÷ 2
-                idx = sFys_pqidxs[li, kj]
 
+        # Then process all lower blocks
+        for j in 1:2:size(PM, 2)
+            lj = 1 + j ÷ 2
+            for i in 1:half_rows
+                idx = sFys_pqidxs[i, lj]
+
+                PM[i + half_rows, j] += PMn[i + half_rows, j, n] * sFys[idx]
+                PM[i + half_rows, j+1] += PMn[i + half_rows, j+1, n] * sFys[idx]
+                SM[i + half_rows, j] += SMn[i + half_rows, j, n] * sFys[idx]
+                SM[i + half_rows, j+1] += SMn[i + half_rows, j+1, n] * sFys[idx]
+            end
+        end
+
+        # Process PN and SN in blocks
+        for j in axes(PN, 2)
+            kj = kis[j]
+            # Upper block
+            for i in 1:half_rows
+                idx = sFys_pqidxs[i, kj]
                 PN[i, j] += PNn[i, j, n] * sFys[idx]
-                PN[i+1, j] += PNn[i+1, j, n] * sFys[idx]
-
                 SN[i, j] += SNn[i, j, n] * sFys[idx]
-                SN[i+1, j] += SNn[i+1, j, n] * sFys[idx]
+            end
+            # Lower block
+            for i in 1:half_rows
+                idx = sFys_pqidxs[i, kj]
+                PN[i + half_rows, j] += PNn[i + half_rows, j, n] * sFys[idx]
+                SN[i + half_rows, j] += SNn[i + half_rows, j, n] * sFys[idx]
             end
         end
     end
@@ -230,49 +290,4 @@ function solve_single!(alloc::Preallocated, data::SolverData{Parameters{_S,Vacuu
         b = @view SN[:, j]
         ldiv!(A, b)
     end
-end
-
-"Specialization of calc_mdrc from reduced. Must split R and T of the resulting vectors."
-function calc_mdrc(data::SolverData{Parameters{_S,Vacuum,Uniaxial}})::DataMDRC where {_S}
-    params = data.params
-    qs = params.qs
-    ks = params.ks
-
-    mask = qs .>= -1.0 .&& qs .<= 1.0
-    θss = asind.(qs[mask])
-    θis = data.params.θs
-
-    @assert all(ks .≈ sind.(θis))
-    Rp = get_R(data.P_res)
-    R2p = get_R²(data.P_res)
-
-    Rs = get_R(data.S_res)
-    R2s = get_R²(data.S_res)
-
-    coh_p, inc_p = get_coh_inc(Rp[mask, :], R2p[mask, :], qs[mask], ks)
-    coh_s, inc_s = get_coh_inc(Rs[mask, :], R2s[mask, :], qs[mask], ks)
-
-    return DataMDRC(coh_p, inc_p, coh_s, inc_s, θis, θss)
-end
-
-function calc_mdtc(data::SolverData{Parameters{_S,Vacuum,Uniaxial}}) where {_S}
-    params = data.params
-    qs = params.qs
-    ks = params.ks
-
-    mask = qs .>= -1.0 .&& qs .<= 1.0
-    θss = asind.(qs[mask])
-    θis = data.params.θs
-
-    @assert all(ks .≈ sind.(θis))
-    Tp = get_T(data.P_res)
-    T2p = get_T²(data.P_res)
-
-    Ts = get_T(data.S_res)
-    T2s = get_T²(data.S_res)
-
-    coh_p, inc_p = get_coh_inc(Tp[mask, :], T2p[mask, :], qs[mask], ks)
-    coh_s, inc_s = get_coh_inc(Ts[mask, :], T2s[mask, :], qs[mask], ks)
-
-    return DataMDRC(coh_p, inc_p, coh_s, inc_s, θis, θss)
 end

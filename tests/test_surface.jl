@@ -115,6 +115,7 @@ test_gaussian3() = test_surf(default_gaussian_config(iters, 50*632.8e-9))
 test_rect() = test_surf(default_rectangular_config(iters))
 
 test_gaussian()
+test_rect()
 
 using Plots
 using LaTeXStrings

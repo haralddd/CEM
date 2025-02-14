@@ -15,6 +15,7 @@ using Statistics
 using Random: Xoshiro, randn!
 using JLD2, FileIO
 using ProgressBars
+using Roots
 import Base.parse
 import Base.show
 import Base.display
@@ -50,10 +51,14 @@ export SolverData
 
 include("solver_reduced.jl")
 include("solver_full.jl")
-export DataMDRC
+export PlotData
 export solve_single!, precompute!, observe, observe!
+
+include("energy.jl")
+export energy_conservation, energy_ratio
+
 include("solver_ensemble.jl")
-export solve_MDRC!, calc_mdrc
+export solve_MDRC!, calc_mdrc, calc_mdtc
 
 
 include("utils.jl")

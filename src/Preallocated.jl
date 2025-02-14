@@ -39,9 +39,6 @@ struct Preallocated
     sFys::Vector{ComplexF64}
     ys::Vector{Float64}
 
-    P_res::Results
-    S_res::Results
-
     function Preallocated(Nx::Int, Nq::Int, Nk::Int)::Preallocated
         PMpq = zeros(ComplexF64, Nq, Nq)
         PNpk = zeros(ComplexF64, Nq, Nk)
@@ -53,10 +50,7 @@ struct Preallocated
         Fys = similar(ys, ComplexF64)
         sFys = similar(Fys)
 
-        P_res = Results(Nq, Nk)
-        S_res = Results(Nq, Nk)
-
-        new(PMpq, PNpk, SMpq, SNpk, Fys, sFys, ys, P_res, S_res)
+        new(PMpq, PNpk, SMpq, SNpk, Fys, sFys, ys)
     end
     function Preallocated(params::Parameters)::Preallocated
         Preallocated(length(params.xs), length(params.qs), length(params.ks))

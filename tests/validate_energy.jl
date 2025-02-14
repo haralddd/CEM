@@ -1,29 +1,5 @@
 using RayleighSolver
 
-function scattering_condition(res::Results, ks, qs, A::ComplexF64, μεpa::ComplexF64, κpa::ComplexF64)
-    filt = -1.0 .<= qs .<= 1.0
-    R = get_R(res)[filt, :]
-    T = get_T(res)[filt, :]
-    ret = zeros(size(R, 2))
-
-    for k_idx in eachindex(ks)  # For each incident angle
-        k = ks[k_idx]
-        a0k = real(alpha0(k))
-        for (q_idx, q) in enumerate(qs[filt])
-            a0q = real(alpha0(q))
-            aq = real(alpha(q, A, μεpa))
-
-            R_term = abs2(R[q_idx, k_idx]) * a0q / a0k
-            T_term = abs2(T[q_idx, k_idx]) * aq / (real(κpa) * a0k)
-
-            ret[k_idx] += R_term + T_term
-        end
-    end
-    
-    return ret
-end
-
-
 """
     validate_energy_conservation(data::SolverData; rtol=1e-6)
 
@@ -38,23 +14,9 @@ Parameters:
 Returns:
 - Dictionary with validation results for each incident angle and polarization
 """
-function validate_energy_conservation(data::SolverData{Parameters{_S,Vacuum,Uniaxial}}) where {_S}
-    μpa = data.params.below.mu_para
-    μpe = data.params.below.mu_perp
-    εpa = data.params.below.eps_para
-    εpe = data.params.below.eps_perp
-    μεpa = μpa * εpa
-    Aval = A(data.params.below)
+function validate_energy_conservation(data::SolverData)
+    P, S = energy_conservation(data.P_res, data.S_res, data.params)
     ks = data.params.ks
-    qs = data.params.qs
-
-    @info "μ∥ = $μpa"
-    @info "ε∥ = $εpa"
-    @info "μ⟂ = $μpe"
-    @info "ε⟂ = $εpe"
-
-    P = scattering_condition(data.P_res, ks, qs, Aval, μεpa, εpa)
-    S = scattering_condition(data.S_res, ks, qs, Aval, μεpa, μpa)
 
     println("P")
     for p in P

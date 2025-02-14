@@ -21,54 +21,6 @@ struct Precomputed
     end
 end
 
-"Various uniaxial crystal prefactors"
-struct UniaxialParams
-    kmpa::ComplexF64
-    kmpe::ComplexF64
-    A2::ComplexF64
-    B::ComplexF64
-    Cpa::ComplexF64
-    Cpe::ComplexF64
-end
-
-function _A2(cr::Uniaxial)::ComplexF64
-    return (cr.mu_para * cr.eps_para) / (cr.mu_perp * cr.eps_perp)
-end
-function UniaxialParams(below::Uniaxial, above::Vacuum, nu::Symbol)::UniParams
-
-    if nu == :p
-        # k = κ     p/m = ±     pa/pe = ∥/⟂
-        kmpa = below.eps_para
-        kmpe = below.eps_perp
-        Cpa = kmpa
-        Cpe = kmpe
-    else
-        # k = κ     p/m = ±     pa/pe = ∥/⟂
-        kmpa = below.mu_para
-        kmpe = below.mu_perp
-        Cpa = kmpa
-        Cpe = kmpe
-    end
-    A2 = _A2(below)
-    B = kmpa / kmpe
-    return UniParams(kmpa, kmpe, A2, B, Cpa, Cpe)
-end
-
-function alpha2(q::Float64, A2::ComplexF64, με::ComplexF64)::ComplexF64
-    return A2 * (με - q^2)
-end
-function alpha2(q::Float64, material::Uniaxial)::ComplexF64
-    A2 = _A2(material)
-    με = material.mu_para * material.eps_para
-    return alpha2(q, A2, με)
-end
-function alpha_tilde(q, p, params::UniaxialParams)::ComplexF64
-    B = params.B
-    A2 = params.A2
-    με = params.με
-    return sqrt(B * (q^2 - p^2) + alpha2(q, A2, με))
-end
-
 """
     alpha(q::Float64, material<:Material)::ComplexF64
 Calculates the perpendicular wave number, alpha ≡ q⟂, based on the parallel wave number `q` and `material` properties.
@@ -84,9 +36,6 @@ end
 function alpha(q::Float64, material::Isotropic)::ComplexF64
     με = material.eps * material.mu
     return sqrt(με - q^2)
-end
-function alpha(q::Float64, material::Uniaxial)::ComplexF64
-    return sqrt(alpha2(q, material))
 end
 function alpha0(q)
     alpha(q, Vacuum())
@@ -122,14 +71,12 @@ function M_invariant!(Mpqn::Array{ComplexF64,3}, params::Parameters{_S,Vacuum,Is
     kappa = nu == :p ? params.below.eps : params.below.mu
 
     # n = 0
-    @inbounds for j in axes(Mpqn, 2)
-        for i in axes(Mpqn, 1)
-            p = ps[i]
-            q = qs[j]
-            a0 = alpha0(q)
-            a = alpha(p, params.below)
-            Mpqn[i, j, 1] = (p ≈ q) ? a + kappa * a0 : 0.0
-        end
+    Mpqn[:, :, 1] .= 0.0
+    @inbounds for i in axes(Mpqn, 1)
+        p = ps[i]
+        a0 = alpha0(p)
+        a = alpha(p, params.below)
+        Mpqn[i, i, 1] = a + kappa * a0
     end
 
     # n > 0
@@ -143,39 +90,6 @@ function M_invariant!(Mpqn::Array{ComplexF64,3}, params::Parameters{_S,Vacuum,Is
         end
     end
 
-    return nothing
-end
-
-
-function _M_uniaxial_ker(p::Float64, q::Float64, params::Parameters, upa::UniaxialParams, n::Int)::ComplexF64
-    kmpa = upa.kmpa
-    kmpe = upa.kmpe
-    Cpa = upa.Cpa
-    Cpe = upa.Cpe
-
-    at = alpha_tilde(q, p, upa)
-    a0 = alpha(q, params.above)
-    da = at - a0
-    return _pre(n) / factorial(n) * (
-        kmpa * (p + Cpe * q) * (p - q) * da^(n - 1) +
-        kmpe * (at + Cpa * a0) * da^n)
-end
-
-function M_invariant!(Mpqn::Array{ComplexF64,3}, params::Parameters{_S,Vacuum,Uniaxial}, nu::Symbol)::Nothing where {_S}
-
-    ps = params.ps
-    qs = params.qs
-    upa = UniaxialParams(params)
-
-    @inbounds for n in axes(Mpqn, 3)
-        for j in axes(Mpqn, 2)
-            for i in axes(Mpqn, 1)
-                p = ps[i]
-                q = qs[j]
-                Mpqn[i, j, n] = _M_uni_ker(p, q, n - 1, params, upa)
-            end
-        end
-    end
     return nothing
 end
 
@@ -206,18 +120,16 @@ function N_invariant!(Npkn::Array{ComplexF64,3}, params::Parameters{_S,Vacuum,Is
     kappa = nu == :p ? params.below.eps : params.below.mu
 
     # n = 0
-    @inbounds for j in axes(Npkn, 2)
-        for i in axes(Npkn, 1)
-            p = ps[i]
-            k = ks[j]
-            a0 = alpha0(k)
-            a = alpha(p, params.below)
-            Npkn[i, j, 1] = (p ≈ k) ? a - kappa * a0 : 0.0
-        end
-    end
+    # Npkn[:, :, 1] .= 0.0
+    # @inbounds for i in axes(Npkn, 2)
+    #     k = ks[i]
+    #     a0 = alpha0(k)
+    #     a = alpha(k, params.below)
+    #     Npkn[i, i, 1] = -(a - kappa * a0)
+    # end
 
     # n > 0
-    @inbounds for n in axes(Npkn, 3)[2:end]
+    @inbounds for n in axes(Npkn, 3)[1:end]
         for j in axes(Npkn, 2)
             for i in axes(Npkn, 1)
                 p = ps[i]
@@ -225,37 +137,6 @@ function N_invariant!(Npkn::Array{ComplexF64,3}, params::Parameters{_S,Vacuum,Is
                 Npkn[i, j, n] = _N_isotropic_ker(p, k, params, kappa, n - 1)
             end
         end
-    end
-    return nothing
-end
-
-function _N_uniaxial_ker(p::Float64, q::Float64, params::Parameters, upa::UniaxialParams, n::Int)::ComplexF64
-    kmpa = upa.kmpa
-    kmpe = upa.kmpe
-    Cpa = upa.Cpa
-    Cpe = upa.Cpe
-
-    at = alpha_tilde(q, p, upa)
-    a0 = alpha(q, params.above)
-    da = at + a0
-    return -_pre(n) / factorial(n) * (
-        kmpa * (p + Cpe * q) * (p - q) * da^(n - 1) +
-        kmpe * (at - Cpa * a0) * da^n)
-end
-
-function N_invariant!(N::Array{ComplexF64,3}, params::Parameters{_S,Vacuum,Uniaxial}, nu::Symbol)::Nothing where {_S}
-
-    ps = params.ps
-    qs = params.qs
-    kis = params.kis
-
-    upa = UniaxialParams(params)
-
-
-    @inbounds for n in axes(N, 3), (j, kj) in enumerate(kis), i in axes(N, 1)
-        p = ps[i]
-        k = qs[kj]
-        N[i, j, n] = _N_uni_ker(p, k, params, upa, n - 1)
     end
     return nothing
 end

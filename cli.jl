@@ -27,11 +27,11 @@ function get_jld_files(path)
 end
 
 function interface_prompt()
-    print("Interface type [flat|gaussian|singlebump|rect(West O'Donnell)] (=gaussian): ")
+    print("Interface type [1:flat|2:gaussian|3:singlebump|4:rect(West O'Donnell)] (=gaussian): ")
     input = readline()
-    input = input == "" ? "gaussian" : input
+    input = input == "" ? "2" : input
 
-    if input == "rect"
+    if input == "4"
         print("West O'Donnell RMS height, δ [nm] (=5.0): ")
         input = readline()
         d = parse(Float64, input == "" ? "5.0" : input) * 1e-9
@@ -45,24 +45,24 @@ function interface_prompt()
         kp = parse(Float64, input == "" ? "1.2" : input)
 
         return RectangularSurface(d, km, kp)
-    elseif input == "gaussian"
+    elseif input == "2"
         print("Gaussian RMS height, δ [nm] (=5.0): ")
         input = readline()
         d = parse(Float64, input == "" ? "5.0" : input) * 1e-9
 
-        print("Gaussian correlation length, a [nm] (=1.0): ")
+        print("Gaussian correlation length, a [nm] (=100.0): ")
         input = readline()
-        a = parse(Float64, input == "" ? "1.0" : input) * 1e-9
+        a = parse(Float64, input == "" ? "100.0" : input) * 1e-9
 
         return GaussianSurface(d, a)
-    elseif input == "singlebump"
+    elseif input == "3"
         print("Single bump RMS height, δ [nm] (=5.0): ")
         input = readline()
         d = parse(Float64, input == "" ? "5.0" : input) * 1e-9
 
-        print("Single bump correlation length, a [nm] (=1.0): ")
+        print("Single bump correlation length, a [nm] (=100.0): ")
         input = readline()
-        a = parse(Float64, input == "" ? "1.0" : input) * 1e-9
+        a = parse(Float64, input == "" ? "100.0" : input) * 1e-9
 
         return SingleBumpSurface(d, a)
     else
@@ -71,10 +71,10 @@ function interface_prompt()
 end
 
 function material_prompt()
-    print("Material type [vacuum|isotropic|uniaxialcrystal] (=vacuum): ")
+    print("Material type [1:vacuum|2:isotropic|3:uniaxial] (=vacuum): ")
     input = readline()
     input = input == "" ? "vacuum" : input
-    if input == "uniaxialcrystal"
+    if input == "3"
         print("Uniaxial crystal ε⟂ [complex] (=1.0): ")
         input = readline()
         eps_perp = parse(ComplexF64, input == "" ? "1.0" : input)
@@ -92,7 +92,7 @@ function material_prompt()
         mu_para = parse(ComplexF64, input == "" ? "1.0" : input)
 
         return Uniaxial(eps_perp, eps_para, mu_perp, mu_para)
-    elseif input == "isotropic"
+    elseif input == "2"
         print("Isotropic ε [complex] (=1.0): ")
         input = readline()
         eps = parse(ComplexF64, input == "" ? "1.0" : input)
