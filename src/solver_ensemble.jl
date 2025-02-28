@@ -93,7 +93,7 @@ function get_mdrc_coh_inc(R, R2, qs::Vector{Float64}, ks::Vector{Float64}, param
     inc = Matrix{Float64}(undef, (length(qs), length(ks)))
     for (j, k) in enumerate(ks)
         for (i, q) in enumerate(qs)
-            C = abs2(alpha0(q)) / abs(alpha0(k))
+            C = alpha0(q)^2 / alpha0(k)
             coh[i, j] = C * abs2(R[i, j])
             inc[i, j] = C * R2[i, j] - coh[i, j]
         end
@@ -110,7 +110,7 @@ function get_mdtc_coh_inc(T, T2, qs::Vector{Float64}, ks::Vector{Float64}, param
     κpa = ν == :p ? params.below.eps_para : params.below.mu_para
     for (j, k) in enumerate(ks)
         for (i, q) in enumerate(qs)
-            C = abs(alpha(q, params.below)) * abs(alpha0(q)) / (κpa * abs(alpha0(k)))
+            C = real(alpha(q, params.below) * alpha0(q) / (κpa * alpha0(k)))
             coh[i, j] = C * abs2(T[i, j])
             inc[i, j] = C * T2[i, j] - coh[i, j]
         end

@@ -7,3 +7,4 @@ plots
 */cmake-build-debug
 *.mem
 scripts
+error

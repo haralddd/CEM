@@ -46,7 +46,7 @@ end
 
 if (abspath(PROGRAM_FILE) == @__FILE__) || isinteractive()
     filename = ARGS[1]
-    data_path = joinpath(@__DIR__, "..", "output")
+    data_path = joinpath(splitdir(@__DIR__)[1], "output")
     output_files = readdir(data_path)
     file = output_files[findfirst(x->occursin(filename, x), output_files)]
     data = load_solver_data(joinpath(data_path, file))
