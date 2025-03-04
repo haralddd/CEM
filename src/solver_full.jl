@@ -3,27 +3,27 @@ Solves the full set of integral equations under the Rayleigh hypothesis.
 I.e. solves for both R and T, so double the equations of RRE which only uses R
 """
 
-function I(gamma, n)
+function I_pre(gamma, n)
     return _pre(n) * gamma^n / factorial(n)
 end
 
 function _M11n(a0, n)
-    return -I(-a0, n)
+    return -I_pre(-a0, n)
 end
 function _M12n(a, n)
-    return I(a, n)
+    return I_pre(a, n)
 end
 function _M21n(p, q, a0, n)
-    return (-1)^n * _pre(n) / factorial(n) * (q * (q - p) * a0^(n-1) + a0^(n+1))
+    return _pre(n) / factorial(n) * (q * (q - p) * a0^(n-1) + a0^(n+1))
 end
 function _M22n(p, q, a, kperp, kpara, n)
-    return _pre(n)/(kperp * kpara * factorial(n))*(kpara * (q * (p - q)) * a^(n-1) + kperp * a^(n+1))
+    return _pre(n)/factorial(n) * 1/(kperp * kpara) * (kpara * (q * (q - p)) * a^(n-1) + kperp * a^(n+1))
 end
 function _N1n(a0, n) # TODO: Check correct signs and such
-    return I(a0, n)
+    return -I(-a0, n)
 end
 function _N2n(p, k, a0, n) # TODO: Check correct signs and such
-    return (k * (k - p) / a0 + a0) * I(a0, n)
+    return _pre(n) / factorial(n) * (k * (k - p) * a0^(n-1) + a0^(n+1))
 end
 
 # n=0 specializations, I(n=0) = δ(p-q) from the Fourier integral, since ζ^0 = 1
@@ -78,6 +78,7 @@ function precompute!(pre::Precomputed, params::Parameters{_S,Vacuum,Uniaxial})::
     SMn = pre.SMpqn
     SNn = pre.SNpkn
 
+    # Separate system of equations into 
     # n = 0
     for j in 1:2:size(PMn, 2) # Process column pairs
         lj = 1 + j ÷ 2 # Linear idx for q

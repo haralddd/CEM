@@ -41,7 +41,7 @@ function solve_MDRC!(data::SolverData{_P}) where {_P}
         allocs = [Preallocated(data.params) for _ in 1:Nthreads]
         lk = ReentrantLock()
 
-        @time Threads.@threads :static for _ in 1:Niters
+        @time Threads.@threads :static for _ in (show_iter ? ProgressBar(1:Niters) : 1:Niters)
             tidx = Threads.threadid()
             _alloc = allocs[tidx]
 
@@ -51,9 +51,6 @@ function solve_MDRC!(data::SolverData{_P}) where {_P}
                 iter += 1
                 observe!(data.P_res, _alloc.PNpk, iter)
                 observe!(data.S_res, _alloc.SNpk, iter)
-                if show_iter
-                    @info "Iter: $iter / $Niters"
-                end
                 if do_debug
                     P_energy, S_energy = energy_conservation(abs2(_alloc.PNpk), abs2(_alloc.SNpk), data.params)
                     @debug "P_energy: $P_energy"
@@ -64,15 +61,12 @@ function solve_MDRC!(data::SolverData{_P}) where {_P}
     else
         @info "Mainloop: Running $Niters iters sequentially."
         alloc = Preallocated(data.params)
-        @time for n in 1:Niters
+        @time for n in (show_iter ? ProgressBar(1:Niters) : 1:Niters)
             generate_surface!(alloc, data.params)
             solve_single!(alloc, data)
             observe!(data.P_res, alloc.PNpk, n)
             observe!(data.S_res, alloc.SNpk, n)
             iter += 1
-            if show_iter
-                @info "Iter: $iter / $Niters"
-            end
             if do_debug
                 P_energy, S_energy = energy_conservation(abs2(alloc.PNpk), abs2(alloc.SNpk), data.params)
                 @debug "P_energy: $P_energy"
