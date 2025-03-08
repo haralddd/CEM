@@ -14,37 +14,37 @@ function _M12n(a, n)
     return I_pre(a, n)
 end
 function _M21n(p, q, a0, n)
-    return _pre(n) / factorial(n) * (q * (q - p) * a0^(n-1) + a0^(n+1))
+    return _pre(n) / factorial(n) * (-q * (p - q) * a0^(n - 1) + a0^(n + 1))
 end
 function _M22n(p, q, a, kperp, kpara, n)
-    return _pre(n)/factorial(n) * 1/(kperp * kpara) * (kpara * (q * (q - p)) * a^(n-1) + kperp * a^(n+1))
+    return _pre(n) / factorial(n) * 1 / (kperp * kpara) * (kpara * (q * (q - p)) * a^(n - 1) + kperp * a^(n + 1))
 end
 function _N1n(a0, n) # TODO: Check correct signs and such
     return -I(-a0, n)
 end
 function _N2n(p, k, a0, n) # TODO: Check correct signs and such
-    return _pre(n) / factorial(n) * (k * (k - p) * a0^(n-1) + a0^(n+1))
+    return _pre(n) / factorial(n) * (k * (k - p) * a0^(n - 1) + a0^(n + 1))
 end
 
-# n=0 specializations, I(n=0) = δ(p-q) from the Fourier integral, since ζ^0 = 1
+# n=0 specializations, I(n=0) = 2πδ(p-q) from the Fourier integral, since ζ^0 = 1
 δ(x) = (x ≈ 0.0) ? 1.0 : 0.0  # Allow for machine epsilon
 function _M110(p, q)
-    return -δ(p - q)
+    return -2π * δ(p - q)
 end
 function _M120(p, q)
-    return δ(p - q)
+    return 2π * δ(p - q)
 end
 function _M210(p, q, a0)
-    return δ(p - q) * a0
+    return 2π * δ(p - q) * a0
 end
 function _M220(p, q, a, kpara)
-    return δ(p - q) * a / kpara
+    return 2π * δ(p - q) * a / kpara
 end
 function _N10(p, k)
-    return δ(p - k)
+    return 2π * δ(p - k)
 end
 function _N20(p, k, a0)
-    return δ(p - k) * a0
+    return 2π * δ(p - k) * a0
 end
 
 function A(u::Uniaxial)
@@ -82,7 +82,7 @@ function precompute!(pre::Precomputed, params::Parameters{_S,Vacuum,Uniaxial})::
     # n = 0
     for j in 1:2:size(PMn, 2) # Process column pairs
         lj = 1 + j ÷ 2 # Linear idx for q
-        
+
         # First block: all M11 and M12 elements
         for i in 1:2:size(PMn, 1)
             li = 1 + i ÷ 2 # Linear idx for p
@@ -105,10 +105,10 @@ function precompute!(pre::Precomputed, params::Parameters{_S,Vacuum,Uniaxial})::
             a = alpha(q, A, μεpa)
             a0 = alpha0(q)
 
-            PMn[li + size(PMn,1)÷2, j, 1] = _M210(p, q, a0)
-            PMn[li + size(PMn,1)÷2, j+1, 1] = _M220(p, q, a, εpa)
-            SMn[li + size(SMn,1)÷2, j, 1] = _M210(p, q, a0)
-            SMn[li + size(SMn,1)÷2, j+1, 1] = _M220(p, q, a, μpa)
+            PMn[li+size(PMn, 1)÷2, j, 1] = _M210(p, q, a0)
+            PMn[li+size(PMn, 1)÷2, j+1, 1] = _M220(p, q, a, εpa)
+            SMn[li+size(SMn, 1)÷2, j, 1] = _M210(p, q, a0)
+            SMn[li+size(SMn, 1)÷2, j+1, 1] = _M220(p, q, a, μpa)
         end
     end
     for j in axes(PNn, 2)
@@ -130,8 +130,8 @@ function precompute!(pre::Precomputed, params::Parameters{_S,Vacuum,Uniaxial})::
             k = ks[j]
             a0 = alpha0(k)
 
-            PNn[li + size(PNn,1)÷2, j, 1] = _N20(p, k, a0)
-            SNn[li + size(SNn,1)÷2, j, 1] = _N20(p, k, a0)
+            PNn[li+size(PNn, 1)÷2, j, 1] = _N20(p, k, a0)
+            SNn[li+size(SNn, 1)÷2, j, 1] = _N20(p, k, a0)
         end
     end
 
@@ -162,10 +162,10 @@ function precompute!(pre::Precomputed, params::Parameters{_S,Vacuum,Uniaxial})::
                 a = alpha(q, A, μεpa)
                 a0 = alpha0(q)
 
-                PMn[li + size(PMn,1)÷2, j, n] = _M21n(p, q, a0, n - 1)
-                PMn[li + size(PMn,1)÷2, j+1, n] = _M22n(p, q, a, εpa, εpe, n - 1)
-                SMn[li + size(SMn,1)÷2, j, n] = _M21n(p, q, a0, n - 1)
-                SMn[li + size(SMn,1)÷2, j+1, n] = _M22n(p, q, a, μpa, μpe, n - 1)
+                PMn[li+size(PMn, 1)÷2, j, n] = _M21n(p, q, a0, n - 1)
+                PMn[li+size(PMn, 1)÷2, j+1, n] = _M22n(p, q, a, εpa, εpe, n - 1)
+                SMn[li+size(SMn, 1)÷2, j, n] = _M21n(p, q, a0, n - 1)
+                SMn[li+size(SMn, 1)÷2, j+1, n] = _M22n(p, q, a, μpa, μpe, n - 1)
             end
         end
 
@@ -188,15 +188,15 @@ function precompute!(pre::Precomputed, params::Parameters{_S,Vacuum,Uniaxial})::
                 k = ks[j]
                 a0 = alpha0(k)
 
-                PNn[li + size(PNn,1)÷2, j, n] = _N2n(p, k, a0, n - 1)
-                SNn[li + size(SNn,1)÷2, j, n] = _N2n(p, k, a0, n - 1)
+                PNn[li+size(PNn, 1)÷2, j, n] = _N2n(p, k, a0, n - 1)
+                SNn[li+size(SNn, 1)÷2, j, n] = _N2n(p, k, a0, n - 1)
             end
         end
     end
 end
 
 function solve_single!(alloc::Preallocated, data::SolverData{Parameters{_S,Vacuum,Uniaxial}})::Nothing where {_S}
-    
+
     params = data.params
     pre = data.precomputed
 
@@ -235,7 +235,7 @@ function solve_single!(alloc::Preallocated, data::SolverData{Parameters{_S,Vacuu
 
         # Process blocks contiguously
         half_rows = size(PM, 1) ÷ 2
-        
+
         # First process all upper blocks
         for j in 1:2:size(PM, 2)
             lj = 1 + j ÷ 2
@@ -255,10 +255,10 @@ function solve_single!(alloc::Preallocated, data::SolverData{Parameters{_S,Vacuu
             for i in 1:half_rows
                 idx = sFys_pqidxs[i, lj]
 
-                PM[i + half_rows, j] += PMn[i + half_rows, j, n] * sFys[idx]
-                PM[i + half_rows, j+1] += PMn[i + half_rows, j+1, n] * sFys[idx]
-                SM[i + half_rows, j] += SMn[i + half_rows, j, n] * sFys[idx]
-                SM[i + half_rows, j+1] += SMn[i + half_rows, j+1, n] * sFys[idx]
+                PM[i+half_rows, j] += PMn[i+half_rows, j, n] * sFys[idx]
+                PM[i+half_rows, j+1] += PMn[i+half_rows, j+1, n] * sFys[idx]
+                SM[i+half_rows, j] += SMn[i+half_rows, j, n] * sFys[idx]
+                SM[i+half_rows, j+1] += SMn[i+half_rows, j+1, n] * sFys[idx]
             end
         end
 
@@ -274,8 +274,8 @@ function solve_single!(alloc::Preallocated, data::SolverData{Parameters{_S,Vacuu
             # Lower block
             for i in 1:half_rows
                 idx = sFys_pqidxs[i, kj]
-                PN[i + half_rows, j] += PNn[i + half_rows, j, n] * sFys[idx]
-                SN[i + half_rows, j] += SNn[i + half_rows, j, n] * sFys[idx]
+                PN[i+half_rows, j] += PNn[i+half_rows, j, n] * sFys[idx]
+                SN[i+half_rows, j] += SNn[i+half_rows, j, n] * sFys[idx]
             end
         end
     end
