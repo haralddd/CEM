@@ -68,8 +68,8 @@ function precompute!(pre::Precomputed, params::Parameters{_S,Vacuum,Uniaxial})::
     PMn21 = @view PMn[half+1:end, 1:half, :]
     PMn22 = @view PMn[half+1:end, half+1:end, :]
 
-    PNn1 = @view PNn[1:half, 1:half, :]
-    PNn2 = @view PNn[1:half, half+1:end, :]
+    PNn1 = @view PNn[1:half, :, :]
+    PNn2 = @view PNn[half+1:end, :, :]
 
     SMn11 = @view SMn[1:half, 1:half, :]
     SMn12 = @view SMn[1:half, half+1:end, :]
@@ -99,10 +99,10 @@ function precompute!(pre::Precomputed, params::Parameters{_S,Vacuum,Uniaxial})::
                 q = qs[qidx]
                 a0 = alpha0(q)
                 ap = alpha_p(q, A, μεpe)
-                PMn11[pidx, qidx, n] = _M11n(a0, n)
-                PMn12[pidx, qidx, n] = _M12n(ap, n)
-                PMn21[pidx, qidx, n] = _M21n(p, q, a0, n)
-                PMn22[pidx, qidx, n] = _M22n(p, q, ap, εpe, εpa, n)
+                PMn11[pidx, qidx, n] = _M11n(a0, n-1)
+                PMn12[pidx, qidx, n] = _M12n(ap, n-1)
+                PMn21[pidx, qidx, n] = _M21n(p, q, a0, n-1)
+                PMn22[pidx, qidx, n] = _M22n(p, q, ap, εpe, εpa, n-1)
             end
         end
     end
@@ -113,8 +113,8 @@ function precompute!(pre::Precomputed, params::Parameters{_S,Vacuum,Uniaxial})::
                 p = ps[pidx]
                 k = ks[kidx]
                 a0 = alpha0(k)
-                PNn1[pidx, kidx, n] = _N1n(a0, n)
-                PNn2[pidx, kidx, n] = _N2n(p, k, a0, n)
+                PNn1[pidx, kidx, n] = _N1n(a0, n-1)
+                PNn2[pidx, kidx, n] = _N2n(p, k, a0, n-1)
             end
         end
     end
@@ -139,10 +139,10 @@ function precompute!(pre::Precomputed, params::Parameters{_S,Vacuum,Uniaxial})::
                 q = qs[qidx]
                 a0 = alpha0(q)
                 as = alpha_s(q, μεpa)
-                SMn11[pidx, qidx, n] = _M11n(a0, n)
-                SMn12[pidx, qidx, n] = _M12n(as, n)
-                SMn21[pidx, qidx, n] = _M21n(p, q, a0, n)
-                SMn22[pidx, qidx, n] = _M22n(p, q, as, μpe, μpa, n)
+                SMn11[pidx, qidx, n] = _M11n(a0, n-1)
+                SMn12[pidx, qidx, n] = _M12n(as, n-1)
+                SMn21[pidx, qidx, n] = _M21n(p, q, a0, n-1)
+                SMn22[pidx, qidx, n] = _M22n(p, q, as, μpe, μpa, n-1)
             end
         end
     end
@@ -153,8 +153,8 @@ function precompute!(pre::Precomputed, params::Parameters{_S,Vacuum,Uniaxial})::
                 p = ps[pidx]
                 k = ks[kidx]
                 a0 = alpha0(k)
-                SNn1[pidx, kidx, n] = _N1n(a0, n)
-                SNn2[pidx, kidx, n] = _N2n(p, k, a0, n)
+                SNn1[pidx, kidx, n] = _N1n(a0, n-1)
+                SNn2[pidx, kidx, n] = _N2n(p, k, a0, n-1)
             end
         end
     end
@@ -189,8 +189,8 @@ function solve_single!(alloc::Preallocated, data::SolverData{Parameters{_S,Vacuu
     PMn21 = @view PMn[half+1:end, 1:half, :]
     PMn22 = @view PMn[half+1:end, half+1:end, :]
 
-    PNn1 = @view PNn[1:half, 1:half, :]
-    PNn2 = @view PNn[1:half, half+1:end, :]
+    PNn1 = @view PNn[1:half, :, :]
+    PNn2 = @view PNn[half+1:end, :, :]
 
     SMn11 = @view SMn[1:half, 1:half, :]
     SMn12 = @view SMn[1:half, half+1:end, :]
@@ -206,23 +206,28 @@ function solve_single!(alloc::Preallocated, data::SolverData{Parameters{_S,Vacuu
     SM = alloc.SMpq
     SN = alloc.SNpk
 
-    PM11 = @view PM[1:half, 1:half, :]
-    PM12 = @view PM[1:half, half+1:end, :]
-    PM21 = @view PM[half+1:end, 1:half, :]
-    PM22 = @view PM[half+1:end, half+1:end, :]
+    PM .= 0.0
+    PN .= 0.0
+    SM .= 0.0
+    SN .= 0.0
+
+    PM11 = @view PM[1:half, 1:half]
+    PM12 = @view PM[1:half, half+1:end]
+    PM21 = @view PM[half+1:end, 1:half]
+    PM22 = @view PM[half+1:end, half+1:end]
 
     PN1 = @view PN[1:half, :]
     PN2 = @view PN[half+1:end, :]
 
-    SM11 = @view SM[1:half, 1:half, :]
-    SM12 = @view SM[1:half, half+1:end, :]
-    SM21 = @view SM[half+1:end, 1:half, :]
-    SM22 = @view SM[half+1:end, half+1:end, :]
+    SM11 = @view SM[1:half, 1:half]
+    SM12 = @view SM[1:half, half+1:end]
+    SM21 = @view SM[half+1:end, 1:half]
+    SM22 = @view SM[half+1:end, half+1:end]
 
     SN1 = @view SN[1:half, :]
     SN2 = @view SN[half+1:end, :]
 
-    for n in reverse(axes(PM11n, 3))
+    for n in reverse(axes(PMn11, 3))
         for i in eachindex(Fys)
             Fys[i] = ys[i]^(n - 1)
         end
@@ -233,15 +238,15 @@ function solve_single!(alloc::Preallocated, data::SolverData{Parameters{_S,Vacuu
         for j in axes(PM11, 2)
             for i in axes(PM11, 1)
                 idx = sFys_pqidxs[i, j]
-                PM11[i, j, n] += PMn11[i, j, n] * sFys[idx]
-                PM12[i, j, n] += PMn12[i, j, n] * sFys[idx]
-                PM21[i, j, n] += PMn21[i, j, n] * sFys[idx]
-                PM22[i, j, n] += PMn22[i, j, n] * sFys[idx]
+                PM11[i, j] += PMn11[i, j, n] * sFys[idx]
+                PM12[i, j] += PMn12[i, j, n] * sFys[idx]
+                PM21[i, j] += PMn21[i, j, n] * sFys[idx]
+                PM22[i, j] += PMn22[i, j, n] * sFys[idx]
 
-                SM11[i, j, n] += SMn11[i, j, n] * sFys[idx]
-                SM12[i, j, n] += SMn12[i, j, n] * sFys[idx]
-                SM21[i, j, n] += SMn21[i, j, n] * sFys[idx]
-                SM22[i, j, n] += SMn22[i, j, n] * sFys[idx]
+                SM11[i, j] += SMn11[i, j, n] * sFys[idx]
+                SM12[i, j] += SMn12[i, j, n] * sFys[idx]
+                SM21[i, j] += SMn21[i, j, n] * sFys[idx]
+                SM22[i, j] += SMn22[i, j, n] * sFys[idx]
             end
         end
         for (j, kj) in enumerate(kis)

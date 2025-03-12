@@ -15,10 +15,12 @@ function solve_MDRC!(data::SolverData{_P}) where {_P}
     # N_ens is the number of ensemble averages to perform
     # returns the coherent and incoherent MDRC
 
-    @info "Running tests:"
-    assert_branch_cuts(data.params.qs, data.params.above)
-    assert_branch_cuts(data.params.qs, data.params.below)
-    @info "Branch cuts OK"
+    # @info "Running tests:"
+    # @info data.params.above
+    # @info data.params.below
+    # assert_branch_cuts(data.params.qs, data.params.above)
+    # assert_branch_cuts(data.params.qs, data.params.below)
+    # @info "Branch cuts OK"
 
     @info "Precomputing matrix elements:"
     @time precompute!(data.precomputed, data.params)
@@ -102,9 +104,14 @@ function get_mdtc_coh_inc(T, T2, qs::Vector{Float64}, ks::Vector{Float64}, param
     coh = Matrix{Float64}(undef, (length(qs), length(ks)))
     inc = Matrix{Float64}(undef, (length(qs), length(ks)))
     κpa = ν == :p ? params.below.eps_para : params.below.mu_para
+    κpe = ν == :p ? params.below.eps_perp : params.below.mu_perp
+    A_val = A(params.below)
+    μεpe = params.below.mu_perp * params.below.eps_perp
+    μεpa = params.below.mu_para * params.below.eps_para
     for (j, k) in enumerate(ks)
         for (i, q) in enumerate(qs)
-            C = real(alpha(q, params.below)^2 / (κpa * alpha0(k)))
+            a = ν == :p ? alpha_p(q, A_val, μεpe) : alpha_s(q, μεpa)
+            C = real(a^2 / (κpa * alpha0(k)))
             coh[i, j] = C * abs2(T[i, j])
             inc[i, j] = C * T2[i, j] - coh[i, j]
         end

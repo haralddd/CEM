@@ -78,7 +78,7 @@ function save_mdtc_plots(data, θ0s, θs, title, file_prefix, folder)
         ax = Axis(fig[1, 1], title = title, xlabel=L"$\theta_t$ [deg]", ylabel=L"\text{MDTC}")
         θ0 = θ0s[i]
         ys = data[:, i]
-        ylims!(ax, (0,maximum(ys) .* 1.1))
+        ylims!(ax, (0,maximum(ys) .* 1.5))
         mdtc_plot!(ax, θs, ys, θ0)
         axislegend()
         save(folder / "$(file_prefix)_$(i).pdf", fig)
