@@ -135,7 +135,8 @@ Returns:
 - Matrix{ComplexF64}: Matrix of reflection coefficients [Nq × Nk]
 """
 function get_R(res::Results)
-    return res.R[1:2:end, :]
+    half = size(res.R, 1) ÷ 2
+    return res.R[1:half, :]
 end
 
 """
@@ -148,7 +149,8 @@ Returns:
 - Matrix{ComplexF64}: Matrix of transmission coefficients [Nq × Nk]
 """
 function get_T(res::Results)
-    return res.R[2:2:end, :]
+    half = size(res.R, 1) ÷ 2
+    return res.R[half+1:end, :]
 end
 
 """
@@ -161,7 +163,8 @@ Returns:
 - Matrix{Float64}: Matrix of |R|² values [Nq × Nk]
 """
 function get_R²(res::Results)
-    return res.R²[1:2:end, :]
+    half = size(res.R², 1) ÷ 2
+    return res.R²[1:half, :]
 end
 
 """
@@ -174,5 +177,6 @@ Returns:
 - Matrix{Float64}: Matrix of |T|² values [Nq × Nk]
 """
 function get_T²(res::Results)
-    return res.R²[2:2:end, :]
+    half = size(res.R², 1) ÷ 2
+    return res.R²[half+1:end, :]
 end
