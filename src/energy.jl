@@ -1,12 +1,21 @@
-function energy_ratio(R2, T2, ks, qs, A::ComplexF64, μεpa::ComplexF64, κpa::ComplexF64)
+function energy_ratio(R2, T2, ks, qs, params::Parameters{_S,Vacuum,Uniaxial}, ν=:p) where {_S}
     ret = zeros(size(R2, 2))
+    μpa = params.below.mu_para
+    μpe = params.below.mu_perp
+    εpa = params.below.eps_para
+    εpe = params.below.eps_perp
+    μεpa = μpa * εpa
+    Aval = A(params.below)
+    μεpe = μpe * εpe
+
+    κpa = ν == :p ? εpa : μpa
 
     for k_idx in eachindex(ks)  # For each incident angle
         k = ks[k_idx]
         a0k = alpha0(k)
         for (q_idx, q) in enumerate(qs)
             a0q = alpha0(q)
-            aq = alpha(q, A, μεpa)
+            aq = ν == :p ? alpha_p(q, Aval, μεpe) : alpha_s(q, μεpa)
 
             R_term = R2[q_idx, k_idx] * a0q / a0k
             T_term = T2[q_idx, k_idx] * real(aq / κpa) / a0k
@@ -35,12 +44,7 @@ function energy_ratio(R2, ks, qs)
 end
 
 function energy_conservation(P_res::Results, S_res::Results, params::Parameters{_S,Vacuum,Uniaxial}) where {_S}
-    μpa = params.below.mu_para
-    μpe = params.below.mu_perp
-    εpa = params.below.eps_para
-    εpe = params.below.eps_perp
-    μεpa = μpa * εpa
-    Aval = A(params.below)
+
     ks = params.ks
     qs = params.qs
 
@@ -50,8 +54,8 @@ function energy_conservation(P_res::Results, S_res::Results, params::Parameters{
     R2s = get_R²(S_res)[filt, :]
     T2s = get_T²(S_res)[filt, :]
 
-    P = energy_ratio(R2p, T2p, ks, qs[filt], Aval, μεpa, εpa)
-    S = energy_ratio(R2s, T2s, ks, qs[filt], Aval, μεpa, μpa)
+    P = energy_ratio(R2p, T2p, ks, qs[filt], params, :p)
+    S = energy_ratio(R2s, T2s, ks, qs[filt], params, :s)
 
     return P, S
 end
