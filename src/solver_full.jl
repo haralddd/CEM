@@ -3,62 +3,38 @@ Solves the full set of integral equations under the Rayleigh hypothesis.
 I.e. solves for both R and T, so double the equations of RRE which only uses R
 """
 
-function I(gamma, n)
+function I_pre(gamma, n)
     return _pre(n) * gamma^n / factorial(n)
 end
 
 function _M11n(a0, n)
-    return -I(-a0, n)
+    return -I_pre(-a0, n)
 end
 function _M12n(a, n)
-    return I(a, n)
+    return I_pre(a, n)
 end
 function _M21n(p, q, a0, n)
-    return (-1)^n * _pre(n) / factorial(n) * (q * (q - p) * a0^(n-1) + a0^(n+1))
+    return _pre(n) / factorial(n) * (q * (q - p) * (-a0)^(n-1) + (-a0)^(n+1))
 end
 function _M22n(p, q, a, kperp, kpara, n)
-    return _pre(n)/(kperp * kpara * factorial(n))*(kpara * (q * (p - q)) * a^(n-1) + kperp * a^(n+1))
+    return _pre(n) / factorial(n) * ((q * (p - q)) * a^(n-1) / kperp - a^(n+1) / kpara)
 end
-function _N1n(a0, n) # TODO: Check correct signs and such
-    return I(a0, n)
+function _N1n(a0, n)
+    return I_pre(a0, n)
 end
-function _N2n(p, k, a0, n) # TODO: Check correct signs and such
-    return (k * (k - p) / a0 + a0) * I(a0, n)
-end
-
-# n=0 specializations, I(n=0) = δ(p-q) from the Fourier integral, since ζ^0 = 1
-δ(x) = (x ≈ 0.0) ? 1.0 : 0.0  # Allow for machine epsilon
-function _M110(p, q)
-    return -δ(p - q)
-end
-function _M120(p, q)
-    return δ(p - q)
-end
-function _M210(p, q, a0)
-    return δ(p - q) * a0
-end
-function _M220(p, q, a, kpara)
-    return δ(p - q) * a / kpara
-end
-function _N10(p, k)
-    return δ(p - k)
-end
-function _N20(p, k, a0)
-    return δ(p - k) * a0
+function _N2n(p, k, a0, n)
+    return _pre(n) / factorial(n) * (k * (p - k) * a0^(n-1) - a0^(n+1))
 end
 
 function A(u::Uniaxial)
     return √((u.mu_para * u.eps_para) / (u.mu_perp * u.eps_perp))
 end
 
-function alpha(q::Float64, A::ComplexF64, μεpa::ComplexF64)::ComplexF64
-    return A * √(μεpa - q^2)
+function alpha_p(q::Float64, A::ComplexF64, μεpe::ComplexF64)::ComplexF64
+    return A * √(μεpe - q^2)
 end
-
-function alpha(q::Float64, uni::Uniaxial)::ComplexF64
-    _A = A(uni)
-    μεpa = uni.mu_para * uni.eps_para
-    return alpha(q, _A, μεpa)
+function alpha_s(q::Float64, μεpa::ComplexF64)::ComplexF64
+    return √(μεpa - q^2)
 end
 
 function precompute!(pre::Precomputed, params::Parameters{_S,Vacuum,Uniaxial})::Nothing where {_S}
@@ -68,6 +44,7 @@ function precompute!(pre::Precomputed, params::Parameters{_S,Vacuum,Uniaxial})::
     μpa = params.below.mu_para
     A = √((μpa * εpa) / (μpe * εpe))
     μεpa = μpa * εpa
+    μεpe = μpe * εpe
 
     qs = params.qs
     ps = params.ps
@@ -78,120 +55,83 @@ function precompute!(pre::Precomputed, params::Parameters{_S,Vacuum,Uniaxial})::
     SMn = pre.SMpqn
     SNn = pre.SNpkn
 
+    PMn .= 0.0
+    PNn .= 0.0
+    SMn .= 0.0
+    SNn .= 0.0
+
+    half = length(ps)
+    @assert half == size(PMn, 1) ÷ 2 == size(SMn, 1) ÷ 2 == size(PNn, 1) ÷ 2 == size(SNn, 1) ÷ 2
+
+    PM11 = @view PMn[1:half, 1:half, :]
+    PM12 = @view PMn[1:half, half+1:end, :]
+    PM21 = @view PMn[half+1:end, 1:half, :]
+    PM22 = @view PMn[half+1:end, half+1:end, :]
+
+    PN1 = @view PNn[1:half, 1:half, :]
+    PN2 = @view PNn[1:half, half+1:end, :]
+
+    SM11 = @view SMn[1:half, 1:half, :]
+    SM12 = @view SMn[1:half, half+1:end, :]
+    SM21 = @view SMn[half+1:end, 1:half, :]
+    SM22 = @view SMn[half+1:end, half+1:end, :]
+
+    SN1 = @view SNn[1:half, :, :]
+    SN2 = @view SNn[half+1:end, :, :]
+
+    # --- nu = p ---
     # n = 0
-    for j in 1:2:size(PMn, 2) # Process column pairs
-        lj = 1 + j ÷ 2 # Linear idx for q
-        
-        # First block: all M11 and M12 elements
-        for i in 1:2:size(PMn, 1)
-            li = 1 + i ÷ 2 # Linear idx for p
-            p = ps[li]
-            q = qs[lj]
-            a = alpha(q, A, μεpa)
-            a0 = alpha0(q)
-
-            PMn[li, j, 1] = _M110(p, q)
-            PMn[li, j+1, 1] = _M120(p, q)
-            SMn[li, j, 1] = _M110(p, q)
-            SMn[li, j+1, 1] = _M120(p, q)
-        end
-
-        # Second block: all M21 and M22 elements
-        for i in 1:2:size(PMn, 1)
-            li = 1 + i ÷ 2
-            p = ps[li]
-            q = qs[lj]
-            a = alpha(q, A, μεpa)
-            a0 = alpha0(q)
-
-            PMn[li + size(PMn,1)÷2, j, 1] = _M210(p, q, a0)
-            PMn[li + size(PMn,1)÷2, j+1, 1] = _M220(p, q, a, εpa)
-            SMn[li + size(SMn,1)÷2, j, 1] = _M210(p, q, a0)
-            SMn[li + size(SMn,1)÷2, j+1, 1] = _M220(p, q, a, μpa)
-        end
+    for i in axes(PM11, 1)
+        p = ps[i]
+        a0 = alpha0(p)
+        ap = alpha_p(p, A, μεpe)
+        PM11[i, i, 1] = -1
+        PM12[i, i, 1] = 1
+        PM21[i, i, 1] = -a0
+        PM22[i, i, 1] = -ap/εpa
     end
-    for j in axes(PNn, 2)
-        # First block: all N1 elements
-        for i in 1:2:size(PNn, 1)
-            li = 1 + i ÷ 2
-            p = ps[li]
-            k = ks[j]
-            a0 = alpha0(k)
-
-            PNn[li, j, 1] = _N10(p, k)
-            SNn[li, j, 1] = _N10(p, k)
-        end
-
-        # Second block: all N2 elements
-        for i in 1:2:size(PNn, 1)
-            li = 1 + i ÷ 2
-            p = ps[li]
-            k = ks[j]
-            a0 = alpha0(k)
-
-            PNn[li + size(PNn,1)÷2, j, 1] = _N20(p, k, a0)
-            SNn[li + size(SNn,1)÷2, j, 1] = _N20(p, k, a0)
-        end
-    end
-
     # n > 0
-    for n in axes(PMn, 3)[2:end]
-        for j in 1:2:size(PMn, 2)
-            lj = 1 + j ÷ 2
-
-            # First block: M11 and M12 elements
-            for i in 1:2:size(PMn, 1)
-                li = 1 + i ÷ 2
-                p = ps[li]
-                q = qs[lj]
-                a = alpha(q, A, μεpa)
+    for n in axes(PM11, 3)[2:end]
+        for qidx in axes(PM11, 2)
+            for pidx in axes(PM11, 1)
+                p = ps[pidx]
+                q = qs[qidx]
                 a0 = alpha0(q)
-
-                PMn[li, j, n] = _M11n(a0, n - 1)
-                PMn[li, j+1, n] = _M12n(a, n - 1)
-                SMn[li, j, n] = _M11n(a0, n - 1)
-                SMn[li, j+1, n] = _M12n(a, n - 1)
-            end
-
-            # Second block: M21 and M22 elements
-            for i in 1:2:size(PMn, 1)
-                li = 1 + i ÷ 2
-                p = ps[li]
-                q = qs[lj]
-                a = alpha(q, A, μεpa)
-                a0 = alpha0(q)
-
-                PMn[li + size(PMn,1)÷2, j, n] = _M21n(p, q, a0, n - 1)
-                PMn[li + size(PMn,1)÷2, j+1, n] = _M22n(p, q, a, εpa, εpe, n - 1)
-                SMn[li + size(SMn,1)÷2, j, n] = _M21n(p, q, a0, n - 1)
-                SMn[li + size(SMn,1)÷2, j+1, n] = _M22n(p, q, a, μpa, μpe, n - 1)
-            end
-        end
-
-        for j in axes(PNn, 2)
-            # First block: N1 elements
-            for i in 1:2:size(PNn, 1)
-                li = 1 + i ÷ 2
-                p = ps[li]
-                k = ks[j]
-                a0 = alpha0(k)
-
-                PNn[li, j, n] = _N1n(a0, n - 1)
-                SNn[li, j, n] = _N1n(a0, n - 1)
-            end
-
-            # Second block: N2 elements
-            for i in 1:2:size(PNn, 1)
-                li = 1 + i ÷ 2
-                p = ps[li]
-                k = ks[j]
-                a0 = alpha0(k)
-
-                PNn[li + size(PNn,1)÷2, j, n] = _N2n(p, k, a0, n - 1)
-                SNn[li + size(SNn,1)÷2, j, n] = _N2n(p, k, a0, n - 1)
+                ap = alpha_p(q, A, μεpe)
+                PM11[pidx, qidx, n] = _M11n(a0, n)
+                PM12[pidx, qidx, n] = _M12n(ap, n)
+                PM21[pidx, qidx, n] = _M21n(p, q, a0, n)
+                PM22[pidx, qidx, n] = _M22n(p, q, ap, εpe, εpa, n)
             end
         end
     end
+
+    for kidx in axes(PN1, 2)
+        for qidx
+
+
+    for pidx in axes(N1, 1)
+        for kidx in axes(N1, 2)
+            p = ps[pidx]
+            k = ks[kidx]
+            N1[pidx, kidx] = _N1n(a0, k)
+            N2[pidx, kidx] = _N2n(p, k, a0)
+        end
+    end
+
+    # --- nu = s ---
+    # n = 0 for nu=s
+    for i in axes(PM11, 1)
+        p = ps[i]
+        a0 = alpha0(p)
+        as = alpha_s(p, μεpa)
+        SM11[i, i, 1] = -1
+        SM12[i, i, 1] = 1
+        SM21[i, i, 1] = -a0
+        SM22[i, i, 1] = -as/μpa
+    end
+
+    return nothing
 end
 
 function solve_single!(alloc::Preallocated, data::SolverData{Parameters{_S,Vacuum,Uniaxial}})::Nothing where {_S}
