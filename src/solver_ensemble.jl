@@ -41,7 +41,7 @@ function solve_MDRC!(data::SolverData{_P}) where {_P}
         allocs = [Preallocated(data.params) for _ in 1:Nthreads]
         lk = ReentrantLock()
 
-        @time Threads.@threads :static for _ in 1:Niters
+        @time Threads.@threads :static for _ in (show_iter ? ProgressBar(1:Niters) : 1:Niters)
             tidx = Threads.threadid()
             _alloc = allocs[tidx]
 
@@ -51,9 +51,6 @@ function solve_MDRC!(data::SolverData{_P}) where {_P}
                 iter += 1
                 observe!(data.P_res, _alloc.PNpk, iter)
                 observe!(data.S_res, _alloc.SNpk, iter)
-                if show_iter
-                    @info "Iter: $iter / $Niters"
-                end
                 if do_debug
                     P_energy, S_energy = energy_conservation(abs2(_alloc.PNpk), abs2(_alloc.SNpk), data.params)
                     @debug "P_energy: $P_energy"
@@ -64,15 +61,12 @@ function solve_MDRC!(data::SolverData{_P}) where {_P}
     else
         @info "Mainloop: Running $Niters iters sequentially."
         alloc = Preallocated(data.params)
-        @time for n in 1:Niters
+        @time for n in (show_iter ? ProgressBar(1:Niters) : 1:Niters)
             generate_surface!(alloc, data.params)
             solve_single!(alloc, data)
             observe!(data.P_res, alloc.PNpk, n)
             observe!(data.S_res, alloc.SNpk, n)
             iter += 1
-            if show_iter
-                @info "Iter: $iter / $Niters"
-            end
             if do_debug
                 P_energy, S_energy = energy_conservation(abs2(alloc.PNpk), abs2(alloc.SNpk), data.params)
                 @debug "P_energy: $P_energy"
@@ -110,7 +104,7 @@ function get_mdtc_coh_inc(T, T2, qs::Vector{Float64}, ks::Vector{Float64}, param
     κpa = ν == :p ? params.below.eps_para : params.below.mu_para
     for (j, k) in enumerate(ks)
         for (i, q) in enumerate(qs)
-            C = real(alpha(q, params.below) * alpha0(q) / (κpa * alpha0(k)))
+            C = real(alpha(q, params.below)^2 / (κpa * alpha0(k)))
             coh[i, j] = C * abs2(T[i, j])
             inc[i, j] = C * T2[i, j] - coh[i, j]
         end
@@ -137,16 +131,15 @@ function calc_mdrc(data::SolverData)
     θss = asind.(qs[mask])
     θ0s = data.params.θs
 
-    @assert all(ks .≈ sind.(θis))
+    @assert all(ks .≈ sind.(θ0s))
     Rp = data.P_res.R
     R2p = data.P_res.R²
 
     Rs = data.S_res.R
     R2s = data.S_res.R²
-    Lx = data.params.Lx
 
-    coh_p, inc_p = get_mdrc_coh_inc(Rp[mask, :], R2p[mask, :], qs[mask], ks, Lx)
-    coh_s, inc_s = get_mdrc_coh_inc(Rs[mask, :], R2s[mask, :], qs[mask], ks, Lx)
+    coh_p, inc_p = get_mdrc_coh_inc(Rp[mask, :], R2p[mask, :], qs[mask], ks, params)
+    coh_s, inc_s = get_mdrc_coh_inc(Rs[mask, :], R2s[mask, :], qs[mask], ks, params)
 
     return PlotData(coh_p, inc_p, coh_s, inc_s, θss, θ0s)
 end
@@ -195,8 +188,8 @@ function θte(uni::Uniaxial, θ0::Float64)
     μpe = uni.mu_perp
     μpa = uni.mu_para
 
-    ne2 = real(μpe*εpe)
-    no2 = real(μpa*εpa)
+    ne2 = abs(μpe*εpe)
+    no2 = abs(μpa*εpa)
     n(θ) = 1/√((cosd(θ)^2)/no2 + (sind(θ)^2)/ne2)
     f(θ) = n(θ)*sind(θ) - sind(θ0)
 

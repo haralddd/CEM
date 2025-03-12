@@ -109,7 +109,8 @@ function precompute!(pre::Precomputed, params::Parameters{_S,Vacuum,Uniaxial})::
     for kidx in axes(PN1, 2)
         for qidx
 
-
+        end
+    end
     for pidx in axes(N1, 1)
         for kidx in axes(N1, 2)
             p = ps[pidx]
@@ -135,7 +136,7 @@ function precompute!(pre::Precomputed, params::Parameters{_S,Vacuum,Uniaxial})::
 end
 
 function solve_single!(alloc::Preallocated, data::SolverData{Parameters{_S,Vacuum,Uniaxial}})::Nothing where {_S}
-    
+
     params = data.params
     pre = data.precomputed
 
@@ -174,7 +175,7 @@ function solve_single!(alloc::Preallocated, data::SolverData{Parameters{_S,Vacuu
 
         # Process blocks contiguously
         half_rows = size(PM, 1) ÷ 2
-        
+
         # First process all upper blocks
         for j in 1:2:size(PM, 2)
             lj = 1 + j ÷ 2
@@ -194,10 +195,10 @@ function solve_single!(alloc::Preallocated, data::SolverData{Parameters{_S,Vacuu
             for i in 1:half_rows
                 idx = sFys_pqidxs[i, lj]
 
-                PM[i + half_rows, j] += PMn[i + half_rows, j, n] * sFys[idx]
-                PM[i + half_rows, j+1] += PMn[i + half_rows, j+1, n] * sFys[idx]
-                SM[i + half_rows, j] += SMn[i + half_rows, j, n] * sFys[idx]
-                SM[i + half_rows, j+1] += SMn[i + half_rows, j+1, n] * sFys[idx]
+                PM[i+half_rows, j] += PMn[i+half_rows, j, n] * sFys[idx]
+                PM[i+half_rows, j+1] += PMn[i+half_rows, j+1, n] * sFys[idx]
+                SM[i+half_rows, j] += SMn[i+half_rows, j, n] * sFys[idx]
+                SM[i+half_rows, j+1] += SMn[i+half_rows, j+1, n] * sFys[idx]
             end
         end
 
@@ -213,8 +214,8 @@ function solve_single!(alloc::Preallocated, data::SolverData{Parameters{_S,Vacuu
             # Lower block
             for i in 1:half_rows
                 idx = sFys_pqidxs[i, kj]
-                PN[i + half_rows, j] += PNn[i + half_rows, j, n] * sFys[idx]
-                SN[i + half_rows, j] += SNn[i + half_rows, j, n] * sFys[idx]
+                PN[i+half_rows, j] += PNn[i+half_rows, j, n] * sFys[idx]
+                SN[i+half_rows, j] += SNn[i+half_rows, j, n] * sFys[idx]
             end
         end
     end

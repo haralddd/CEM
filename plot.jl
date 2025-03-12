@@ -91,7 +91,7 @@ function make_plots(data::SolverData, fname="default", dir="plots")
     mkpath(folder)
 
     mdrc_data = calc_mdrc(data)
-    θis = mdrc_data.θis
+    θ0s = mdrc_data.θ0s
     θss = mdrc_data.θs
 
     cp = mdrc_data.coh_p
@@ -99,15 +99,15 @@ function make_plots(data::SolverData, fname="default", dir="plots")
     cs = mdrc_data.coh_s
     is = mdrc_data.inc_s
 
-    @debug "θis: $θis"
+    @debug "θ0s: $θ0s"
     @debug "θss: $θss"
 
     # P-polarization
     # Incoherent MDRC
-    save_mdrc_plots(cp, θis, θss, L"\text{Coherent MDRC, }\nu = p", "mdrc-p-coh", folder)
-    save_mdrc_plots(ip, θis, θss, L"\text{Incoherent MDRC, }\nu = p", "mdrc-p-incoh", folder)
-    save_mdrc_plots(cs, θis, θss, L"\text{Coherent MDRC, }\nu = s", "mdrc-s-coh", folder)
-    save_mdrc_plots(is, θis, θss, L"\text{Incoherent MDRC, }\nu = s", "mdrc-s-incoh", folder)
+    save_mdrc_plots(cp, θ0s, θss, L"\text{Coherent MDRC, }\nu = p", "mdrc-p-coh", folder)
+    save_mdrc_plots(ip, θ0s, θss, L"\text{Incoherent MDRC, }\nu = p", "mdrc-p-incoh", folder)
+    save_mdrc_plots(cs, θ0s, θss, L"\text{Coherent MDRC, }\nu = s", "mdrc-s-coh", folder)
+    save_mdrc_plots(is, θ0s, θss, L"\text{Incoherent MDRC, }\nu = s", "mdrc-s-incoh", folder)
 
     @info "Saved plots to $(folder)"
 end
