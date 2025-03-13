@@ -13,25 +13,23 @@ const DEFAULT_OUTPUT = DEFAULT_PATH / "output"
 const DEFAULT_PLOTDIR = DEFAULT_PATH / "plots"
 mkpath(DEFAULT_PLOTDIR)
 mkpath(DEFAULT_OUTPUT)
-function mdrc_plot!(ax, xs, ys, x0)
-    x0 = round(x0, digits=1)
+function mdrc_plot!(ax, xs, ys, θ0)
+    θ0 = round(θ0, digits=1)
     lines!(ax,
         xs, ys,
         linestyle=:solid,
         linewidth=0.5,
         color=:red)
     vlines!(ax,
-        [-x0, x0],
-        label=L"\theta_0=\pm %$x0",
+        [-θ0, θ0],
+        label=L"\theta_0=\pm %$θ0",
         color=:red,
         linestyle=:dot,
         linewidth=1.0)
     return
 end
 
-function mdtc_plot!(ax, xs, ys, x0s)
-
-    @assert length(x0s) == 2 "Should be exactly 2 Fresnel angles for mdtc plot"
+function mdtc_plot!(ax, xs, ys, θto, θte)
 
     lines!(ax,
         xs, ys,
@@ -40,18 +38,18 @@ function mdtc_plot!(ax, xs, ys, x0s)
         color=:red)
 
     
-    xo = round(x0s[1], digits=1) # Ordinary wave direction
+    θo = round(θto, digits=1) # Ordinary wave direction
     vlines!(ax,
-        [-xo, xo],
-        label=L"\theta_o=\pm %$xo",
+        [-θo, θo],
+        label=L"\theta_o=\pm %$θo",
         color=:red,
         linestyle=:dot,
         linewidth=1.0)
 
-    xe = round(x0s[2], digits=1) # Extraordinary wave direction
+    θe = round(θte, digits=1) # Extraordinary wave direction
     vlines!(ax,
-        [-xe, xe],
-        label=L"\theta_e=\pm %$xe",
+        [-θe, θe],
+        label=L"\theta_e=\pm %$θe",
         color=:red,
         linestyle=:dash,
         linewidth=1.0)
@@ -65,21 +63,22 @@ function save_mdrc_plots(data, θ0s, θs, title, file_prefix, folder)
         ax = Axis(fig[1, 1], title = title, xlabel=L"$\theta_s$ [deg]", ylabel=L"\text{MDRC}")
         θ0 = θ0s[i]
         ys = data[:, i]
-        ylims!(ax, (0,maximum(ys) .* 1.2))
+        ylims!(ax, (minimum(ys), maximum(ys) .* 1.2))
         mdrc_plot!(ax, θs, ys, θ0)
         axislegend()
         save(folder / "$(file_prefix)_$(i).pdf", fig)
     end
 end
 
-function save_mdtc_plots(data, θ0s, θs, title, file_prefix, folder)
+function save_mdtc_plots(data, θtos, θtes, θs, title, file_prefix, folder)
     for i in axes(data, 2)
         fig = Figure(fontsize=24)
         ax = Axis(fig[1, 1], title = title, xlabel=L"$\theta_t$ [deg]", ylabel=L"\text{MDTC}")
-        θ0 = θ0s[i]
+        θto = θtos[i]
+        θte = θtes[i]
         ys = data[:, i]
-        ylims!(ax, (0,maximum(ys) .* 1.2))
-        mdtc_plot!(ax, θs, ys, θ0)
+        ylims!(ax, (minimum(ys), maximum(ys) .* 1.2))
+        mdtc_plot!(ax, θs, ys, θto, θte)
         axislegend()
         save(folder / "$(file_prefix)_$(i).pdf", fig)
     end
@@ -118,32 +117,34 @@ function make_plots(data::SolverData{Parameters{_S,Vacuum,Uniaxial}}, fname="def
     mkpath(folder)
 
     mdrc = calc_mdrc(data)
-    mdtc = calc_mdtc(data)
-    θss = mdrc.θ0s
-    θts = mdtc.θ0s
-    θs = mdrc.θs
+    mdtc_p, mdtc_s = calc_mdtc(data)
 
-    @debug "θs: $θs"
-    @debug "θss: $θss"
-    @debug "θts: $θts"
+    @debug "mdrc: $mdrc"
+    @debug "mdtc_p: $mdtc_p"
+    @debug "mdtc_s: $mdtc_s"
 
-    dq = data.params.dq
-    @info "∑MDRC_s = $((sum(mdrc.coh_s) + sum(mdrc.inc_s))*dq)"
-    @info "∑MDRC_p = $((sum(mdrc.coh_p) + sum(mdrc.inc_p))*dq)" 
-    @info "∑MDTC_s = $((sum(mdtc.coh_s) + sum(mdtc.inc_s))*dq)"
-    @info "∑MDTC_p = $((sum(mdtc.coh_p) + sum(mdtc.inc_p))*dq)"
+    @info "∑MDRC_s = $(sum(mdrc.coh_s) + sum(mdrc.inc_s))"
+    @info "∑MDRC_p = $(sum(mdrc.coh_p) + sum(mdrc.inc_p))"
+    @info "∑MDTC_s = $(sum(mdtc_s.coh) + sum(mdtc_s.inc))"
+    @info "∑MDTC_p = $(sum(mdtc_p.coh) + sum(mdtc_p.inc))"
 
+    @info "mdtc_p.θs: $(mdtc_p.θs)"
+    @info "mdtc_s.θs: $(mdtc_s.θs)"
+    @info "mdtc_p.θtos: $(mdtc_p.θtos)"
+    @info "mdtc_p.θtes: $(mdtc_p.θtes)"
+    @info "mdtc_s.θtos: $(mdtc_s.θtos)"
+    @info "mdtc_s.θtes: $(mdtc_s.θtes)"
     # P-polarization
     # Incoherent MDRC
-    save_mdrc_plots(mdrc.coh_p, θss, θs, L"\text{Coherent MDRC, }\nu = p", "mdrc-p-coh", folder)
-    save_mdrc_plots(mdrc.inc_p, θss, θs, L"\text{Incoherent MDRC, }\nu = p", "mdrc-p-incoh", folder)
-    save_mdrc_plots(mdrc.coh_s, θss, θs, L"\text{Coherent MDRC, }\nu = s", "mdrc-s-coh", folder)
-    save_mdrc_plots(mdrc.inc_s, θss, θs, L"\text{Incoherent MDRC, }\nu = s", "mdrc-s-incoh", folder)
+    save_mdrc_plots(mdrc.coh_p, mdrc.θ0s, mdrc.θs, L"\text{Coherent MDRC, }\nu = p", "mdrc-p-coh", folder)
+    save_mdrc_plots(mdrc.inc_p, mdrc.θ0s, mdrc.θs, L"\text{Incoherent MDRC, }\nu = p", "mdrc-p-incoh", folder)
+    save_mdrc_plots(mdrc.coh_s, mdrc.θ0s, mdrc.θs, L"\text{Coherent MDRC, }\nu = s", "mdrc-s-coh", folder)
+    save_mdrc_plots(mdrc.inc_s, mdrc.θ0s, mdrc.θs, L"\text{Incoherent MDRC, }\nu = s", "mdrc-s-incoh", folder)
 
-    save_mdtc_plots(mdtc.coh_p, θts, θs, L"\text{Coherent MDTC, }\nu = p", "mdtc-p-coh", folder)
-    save_mdtc_plots(mdtc.inc_p, θts, θs, L"\text{Incoherent MDTC, }\nu = p", "mdtc-p-incoh", folder)
-    save_mdtc_plots(mdtc.coh_s, θts, θs, L"\text{Coherent MDTC, }\nu = s", "mdtc-s-coh", folder)
-    save_mdtc_plots(mdtc.inc_s, θts, θs, L"\text{Incoherent MDTC, }\nu = s", "mdtc-s-incoh", folder)
+    save_mdtc_plots(mdtc_p.coh, mdtc_p.θtos, mdtc_p.θtes, mdtc_p.θs, L"\text{Coherent MDTC, }\nu = p", "mdtc-p-coh", folder)
+    save_mdtc_plots(mdtc_p.inc, mdtc_p.θtos, mdtc_p.θtes, mdtc_p.θs, L"\text{Incoherent MDTC, }\nu = p", "mdtc-p-incoh", folder)
+    save_mdtc_plots(mdtc_s.coh, mdtc_s.θtos, mdtc_s.θtes, mdtc_s.θs, L"\text{Coherent MDTC, }\nu = s", "mdtc-s-coh", folder)
+    save_mdtc_plots(mdtc_s.inc, mdtc_s.θtos, mdtc_s.θtes, mdtc_s.θs, L"\text{Incoherent MDTC, }\nu = s", "mdtc-s-incoh", folder)
 
 
     @info "Saved plots to $(folder)"

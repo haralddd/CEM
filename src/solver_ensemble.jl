@@ -81,6 +81,27 @@ function solve_MDRC!(data::SolverData{_P}) where {_P}
     return nothing
 end
 
+struct MdrcPlotData
+    coh_p::Matrix{Float64}
+    inc_p::Matrix{Float64}
+    coh_s::Matrix{Float64}
+    inc_s::Matrix{Float64}
+    θs::Vector{Float64}
+    θ0s::Vector{Float64}
+end
+
+struct MdtcPlotData
+    coh::Matrix{Float64}
+    inc::Matrix{Float64}
+    θs::Vector{Float64}
+    θtes::Vector{Float64}
+    θtos::Vector{Float64}
+end
+
+function θt(q::Float64, alpha::Float64)
+    return 90.0 - atand(alpha, q)
+end
+
 function get_mdrc_coh_inc(R, R2, qs::Vector{Float64}, ks::Vector{Float64}, params::Parameters)
     Lx = params.Lx
     λ = params.lambda
@@ -97,7 +118,7 @@ function get_mdrc_coh_inc(R, R2, qs::Vector{Float64}, ks::Vector{Float64}, param
     return coh, inc
 end
 
-function get_mdtc_coh_inc(T, T2, qs::Vector{Float64}, ks::Vector{Float64}, params::Parameters, ν::Symbol = :p)
+function get_mdtc_coh_inc(T, T2, qs::Vector{Float64}, ks::Vector{Float64}, params::Parameters, ν::Symbol=:p)
     Lx = params.Lx
     λ = params.lambda
 
@@ -117,15 +138,6 @@ function get_mdtc_coh_inc(T, T2, qs::Vector{Float64}, ks::Vector{Float64}, param
         end
     end
     return coh, inc
-end
-
-struct PlotData
-    coh_p::Matrix{Float64}
-    inc_p::Matrix{Float64}
-    coh_s::Matrix{Float64}
-    inc_s::Matrix{Float64}
-    θs::Vector{Float64}
-    θ0s::Vector{Union{Float64,Tuple{Float64,Float64}}}
 end
 
 "Returns coherent and incoherent MDRC calculated from ⟨R⟩ and ⟨R²⟩"
@@ -148,7 +160,7 @@ function calc_mdrc(data::SolverData)
     coh_p, inc_p = get_mdrc_coh_inc(Rp[mask, :], R2p[mask, :], qs[mask], ks, params)
     coh_s, inc_s = get_mdrc_coh_inc(Rs[mask, :], R2s[mask, :], qs[mask], ks, params)
 
-    return PlotData(coh_p, inc_p, coh_s, inc_s, θss, θ0s)
+    return MdrcPlotData(coh_p, inc_p, coh_s, inc_s, θss, θ0s)
 end
 
 "Returns coherent and incoherent MDRC calculated from ⟨R⟩ and ⟨R²⟩"
@@ -171,48 +183,30 @@ function calc_mdrc(data::SolverData{Parameters{_S,Vacuum,Uniaxial}}) where _S
     coh_p, inc_p = get_mdrc_coh_inc(Rp[mask, :], R2p[mask, :], qs[mask], ks, params)
     coh_s, inc_s = get_mdrc_coh_inc(Rs[mask, :], R2s[mask, :], qs[mask], ks, params)
 
-    dq = params.dq
-    @info "∑MDRC_s = $((sum(coh_s) + sum(inc_s))*dq)"
-    @info "∑MDRC_p = $((sum(coh_p) + sum(inc_p))*dq)"
-
-    return PlotData(coh_p, inc_p, coh_s, inc_s, θss, θ0s)
+    return MdrcPlotData(coh_p, inc_p, coh_s, inc_s, θss, θ0s)
 end
 
-
-
-function θto(uni::Uniaxial, θ0::Float64)
-    μpa = uni.mu_para
-    εpa = uni.eps_para
-    no = √(μpa*εpa)
-
-    return asind(real(no)*sind(θ0))
-
-end
-
-function θte(uni::Uniaxial, θ0::Float64)
-    εpe = uni.eps_perp
-    εpa = uni.eps_para
-    μpe = uni.mu_perp
-    μpa = uni.mu_para
-
-    ne2 = abs(μpe*εpe)
-    no2 = abs(μpa*εpa)
-    n(θ) = 1/√((cosd(θ)^2)/no2 + (sind(θ)^2)/ne2)
-    f(θ) = n(θ)*sind(θ) - sind(θ0)
-
-    return find_zero(f, θ0)
-end
-
-"Returns coherent and incoherent MDTC calculated from ⟨T⟩ and ⟨T²⟩"
+"Returns coherent and incoherent MDTC calculated from ⟨T⟩ and ⟨T²⟩, returns tuple of (MDTC p, MDTC s)"
 function calc_mdtc(data::SolverData{Parameters{_S,Vacuum,Uniaxial}}) where _S
     params = data.params
     qs = params.qs
     ks = params.ks
     below = data.params.below
+    μεpe = below.mu_perp * below.eps_perp
+    μεpa = below.mu_para * below.eps_para
+    A = sqrt(μεpa/μεpe)
 
-    mask = qs .>= -1.0 .&& qs .<= 1.0
-    θts = asind.(qs[mask])
-    θ0s = [(θto(below, θ0), θte(below, θ0)) for θ0 in params.θs]
+    # Transmission index ellipsoid is larger than reflection
+    mask = qs .>= -sqrt(real(μεpa)) .&& qs .<= sqrt(real(μεpa))
+    
+    ap = real.(alpha_p.(qs[mask], A, μεpe))
+    as = real.(alpha_s.(qs[mask], μεpa))
+    
+    θtp = θt.(qs[mask], ap)
+    θts = θt.(qs[mask], as)
+    
+    θtes = [θt.(k, real(alpha_p(k, A, μεpe))) for k in ks]
+    θtos = [θt.(k, real(alpha_s(k, μεpa))) for k in ks]
 
     Tp = get_T(data.P_res)
     T2p = get_T²(data.P_res)
@@ -220,13 +214,8 @@ function calc_mdtc(data::SolverData{Parameters{_S,Vacuum,Uniaxial}}) where _S
     Ts = get_T(data.S_res)
     T2s = get_T²(data.S_res)
 
-
     coh_p, inc_p = get_mdtc_coh_inc(Tp[mask, :], T2p[mask, :], qs[mask], ks, params, :p)
     coh_s, inc_s = get_mdtc_coh_inc(Ts[mask, :], T2s[mask, :], qs[mask], ks, params, :s)
 
-    dq = params.dq
-    @info "∑MDTC_s = $((sum(coh_s) + sum(inc_s))*dq)"
-    @info "∑MDTC_p = $((sum(coh_p) + sum(inc_p))*dq)"
-
-    return PlotData(coh_p, inc_p, coh_s, inc_s, θts, θ0s)
+    return MdtcPlotData(coh_p, inc_p, θtp, θtes, θtos), MdtcPlotData(coh_s, inc_s, θts, θtes, θtos)
 end
