@@ -14,7 +14,7 @@ const DEFAULT_PLOTDIR = DEFAULT_PATH / "plots"
 mkpath(DEFAULT_PLOTDIR)
 mkpath(DEFAULT_OUTPUT)
 function mdrc_plot!(ax, xs, ys, θ0)
-    θ0 = round(θ0, digits=1)
+    θ0 = round(θ0, digits=2)
     lines!(ax,
         xs, ys,
         linestyle=:solid,
@@ -38,7 +38,7 @@ function mdtc_plot!(ax, xs, ys, θto, θte)
         color=:red)
 
     
-    θo = round(θto, digits=1) # Ordinary wave direction
+    θo = round(θto, digits=2) # Ordinary wave direction
     vlines!(ax,
         [-θo, θo],
         label=L"\theta_o=\pm %$θo",
@@ -46,7 +46,7 @@ function mdtc_plot!(ax, xs, ys, θto, θte)
         linestyle=:dot,
         linewidth=1.0)
 
-    θe = round(θte, digits=1) # Extraordinary wave direction
+    θe = round(θte, digits=2) # Extraordinary wave direction
     vlines!(ax,
         [-θe, θe],
         label=L"\theta_e=\pm %$θe",
@@ -128,12 +128,8 @@ function make_plots(data::SolverData{Parameters{_S,Vacuum,Uniaxial}}, fname="def
     @info "∑MDTC_s = $(sum(mdtc_s.coh) + sum(mdtc_s.inc))"
     @info "∑MDTC_p = $(sum(mdtc_p.coh) + sum(mdtc_p.inc))"
 
-    @info "mdtc_p.θs: $(mdtc_p.θs)"
-    @info "mdtc_s.θs: $(mdtc_s.θs)"
     @info "mdtc_p.θtos: $(mdtc_p.θtos)"
     @info "mdtc_p.θtes: $(mdtc_p.θtes)"
-    @info "mdtc_s.θtos: $(mdtc_s.θtos)"
-    @info "mdtc_s.θtes: $(mdtc_s.θtes)"
     # P-polarization
     # Incoherent MDRC
     save_mdrc_plots(mdrc.coh_p, mdrc.θ0s, mdrc.θs, L"\text{Coherent MDRC, }\nu = p", "mdrc-p-coh", folder)
