@@ -63,7 +63,7 @@ function save_mdrc_plots(data, θ0s, θs, title, file_prefix, folder)
         ax = Axis(fig[1, 1], title = title, xlabel=L"$\theta_s$ [deg]", ylabel=L"\text{MDRC}")
         θ0 = θ0s[i]
         ys = data[:, i]
-        ylims!(ax, (minimum(ys), maximum(ys) .* 1.2))
+        ylims!(ax, (minimum(ys), maximum(ys) .* 1.3))
         mdrc_plot!(ax, θs, ys, θ0)
         axislegend()
         save(folder / "$(file_prefix)_$(i).pdf", fig)
@@ -77,7 +77,7 @@ function save_mdtc_plots(data, θtos, θtes, θs, title, file_prefix, folder)
         θto = θtos[i]
         θte = θtes[i]
         ys = data[:, i]
-        ylims!(ax, (minimum(ys), maximum(ys) .* 1.2))
+        ylims!(ax, (minimum(ys), maximum(ys) .* 1.3))
         mdtc_plot!(ax, θs, ys, θto, θte)
         axislegend()
         save(folder / "$(file_prefix)_$(i).pdf", fig)
@@ -130,6 +130,15 @@ function make_plots(data::SolverData{Parameters{_S,Vacuum,Uniaxial}}, fname="def
 
     @info "mdtc_p.θtos: $(mdtc_p.θtos)"
     @info "mdtc_p.θtes: $(mdtc_p.θtes)"
+
+    @info "mdtc_p.θs: $(mdtc_p.θs[1]):$(mdtc_p.θs[end])"
+    @info "mdtc_s.θs: $(mdtc_s.θs[1]):$(mdtc_s.θs[end])"
+
+    @info "qs len $(length(data.params.qs))"
+    @info "θtp len $(length(mdtc_p.θs))"
+    @info "θts len $(length(mdtc_s.θs))"
+    
+
     # P-polarization
     # Incoherent MDRC
     save_mdrc_plots(mdrc.coh_p, mdrc.θ0s, mdrc.θs, L"\text{Coherent MDRC, }\nu = p", "mdrc-p-coh", folder)

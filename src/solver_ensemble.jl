@@ -99,7 +99,7 @@ struct MdtcPlotData
 end
 
 function θt(q::Float64, alpha::Float64)
-    return 90.0 - atand(alpha, q)
+    return atand(q, alpha)
 end
 
 function get_mdrc_coh_inc(R, R2, qs::Vector{Float64}, ks::Vector{Float64}, params::Parameters)
@@ -197,13 +197,14 @@ function calc_mdtc(data::SolverData{Parameters{_S,Vacuum,Uniaxial}}) where _S
     A = sqrt(μεpa/μεpe)
 
     # Transmission index ellipsoid is larger than reflection
-    mask = qs .>= -sqrt(real(μεpa)) .&& qs .<= sqrt(real(μεpa))
+    mask_p = qs .>= -sqrt(real(μεpe)) .&& qs .<= sqrt(real(μεpe))
+    mask_s = qs .>= -sqrt(real(μεpa)) .&& qs .<= sqrt(real(μεpa))
     
-    ap = real.(alpha_p.(qs[mask], A, μεpe))
-    as = real.(alpha_s.(qs[mask], μεpa))
+    ap = real.(alpha_p.(qs[mask_p], A, μεpe))
+    as = real.(alpha_s.(qs[mask_s], μεpa))
     
-    θtp = θt.(qs[mask], ap)
-    θts = θt.(qs[mask], as)
+    θtp = θt.(qs[mask_p], ap)
+    θts = θt.(qs[mask_s], as)
     
     θtes = [θt.(k, real(alpha_p(k, A, μεpe))) for k in ks]
     θtos = [θt.(k, real(alpha_s(k, μεpa))) for k in ks]
@@ -214,8 +215,8 @@ function calc_mdtc(data::SolverData{Parameters{_S,Vacuum,Uniaxial}}) where _S
     Ts = get_T(data.S_res)
     T2s = get_T²(data.S_res)
 
-    coh_p, inc_p = get_mdtc_coh_inc(Tp[mask, :], T2p[mask, :], qs[mask], ks, params, :p)
-    coh_s, inc_s = get_mdtc_coh_inc(Ts[mask, :], T2s[mask, :], qs[mask], ks, params, :s)
+    coh_p, inc_p = get_mdtc_coh_inc(Tp[mask_p, :], T2p[mask_p, :], qs[mask_p], ks, params, :p)
+    coh_s, inc_s = get_mdtc_coh_inc(Ts[mask_s, :], T2s[mask_s, :], qs[mask_s], ks, params, :s)
 
     return MdtcPlotData(coh_p, inc_p, θtp, θtes, θtos), MdtcPlotData(coh_s, inc_s, θts, θtes, θtos)
 end

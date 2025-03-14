@@ -115,8 +115,14 @@ struct Parameters{SurfT<:RandomSurface, AboveT<:Material, BelowT<:Material}
         @debug "xks has zero: $(any(xks .== 0.0))"
         @assert Q > 4 "Q (= $(Q)) should be greater than 4, which is determined by spatial resolution, Q=π/dx, with dx = Lx/Nx"
 
-        if BelowT == Uniaxial && Q/2 < sqrt(below.mu_para * below.eps_para)
-            @error "Q/2 ($Q/2) is smaller than the square root of the product of mu and eps, $(sqrt(below.mu_para * below.eps_para)). Not all transmission coefficients can be resolved"
+        if BT == Uniaxial
+            no = sqrt(below.mu_para * below.eps_para)
+            ne = sqrt(below.mu_perp * below.eps_perp)
+            @debug "no: $no"
+            @debug "ne: $ne"
+            if Q/2 < real(no) || Q/2 < real(ne)
+                @error "Q/2 ($Q/2) is smaller than no=$(no) or ne=$(ne). Not all transmission coefficients can be resolved."
+            end
         end
 
         ps = -Q/2:dq:Q/2
