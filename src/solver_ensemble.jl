@@ -197,8 +197,8 @@ function calc_mdtc(data::SolverData{Parameters{_S,Vacuum,Uniaxial}}) where _S
     A = sqrt(μεpa/μεpe)
 
     # Transmission index ellipsoid is larger than reflection
-    mask_p = qs .>= -sqrt(real(μεpe)) .&& qs .<= sqrt(real(μεpe))
-    mask_s = qs .>= -sqrt(real(μεpa)) .&& qs .<= sqrt(real(μεpa))
+    mask_p = qs .>= -real(sqrt(μεpe)) .&& qs .<= real(sqrt(μεpe))
+    mask_s = qs .>= -real(sqrt(μεpa)) .&& qs .<= real(sqrt(μεpa))
     
     ap = real.(alpha_p.(qs[mask_p], A, μεpe))
     as = real.(alpha_s.(qs[mask_s], μεpa))
