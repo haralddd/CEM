@@ -63,7 +63,7 @@ function save_mdrc_plots(data, θ0s, θs, title, file_prefix, folder)
         ax = Axis(fig[1, 1], title = title, xlabel=L"$\theta_s$ [deg]", ylabel=L"\text{MDRC}")
         θ0 = θ0s[i]
         ys = data[:, i]
-        ylims!(ax, (minimum(ys), maximum(ys) .* 1.3))
+        ylims!(ax, (minimum(ys), maximum(ys) .* 1.3 + 1e-6))
         mdrc_plot!(ax, θs, ys, θ0)
         axislegend()
         save(folder / "$(file_prefix)_$(i).pdf", fig)
@@ -77,7 +77,7 @@ function save_mdtc_plots(data, θtos, θtes, θs, title, file_prefix, folder)
         θto = θtos[i]
         θte = θtes[i]
         ys = data[:, i]
-        ylims!(ax, (minimum(ys), maximum(ys) .* 1.3))
+        ylims!(ax, (minimum(ys), maximum(ys) .* 1.3 + 1e-6))
         mdtc_plot!(ax, θs, ys, θto, θte)
         axislegend()
         save(folder / "$(file_prefix)_$(i).pdf", fig)

@@ -61,7 +61,7 @@ function generate_surface!(pre::Preallocated, params::Parameters{SurfT,_MA,_MB})
     return nothing
 end
 function generate_surface!(pre::Preallocated, ::Parameters{FlatSurface,_MA,_MB})::Nothing where {_MA,_MB}
-    pre.ys .= 1e-6
+    pre.ys .= 0.0
     return nothing
 end
 function generate_surface!(pre::Preallocated, params::Parameters{SingleBumpSurface,_MA,_MB})::Nothing where {_MA,_MB}
