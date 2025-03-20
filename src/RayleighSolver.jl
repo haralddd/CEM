@@ -24,7 +24,7 @@ import Base.+
 
 include("Material.jl")
 export Material, Vacuum, Isotropic, Uniaxial
-export A, ptilde, alpha, alpha0
+export A, ptilde, alpha, alpha0, alpha_p, alpha_s
 
 include("RandomSurface.jl")
 export RandomSurface, FlatSurface, GaussianSurface
