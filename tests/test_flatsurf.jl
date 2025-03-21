@@ -39,7 +39,10 @@ eps_perp = 6.84+0.0im
 # eps_perp = ema_eps_perp(0.5, eps_silver, eps_glass)
 below = Uniaxial(eps_perp, eps_para, 1.0+0.0im, 1.0+0.0im)
 
-data = SolverData(Parameters(surf=surf, θs=θs, above=above, below=below))
+Nx = 4*2048
+data = SolverData(Parameters(surf=surf, θs=θs, above=above, below=below, Nx=Nx, Ni=1))
+θs2 = unique(data.params.θs)
+data = SolverData(Parameters(surf=surf, θs=θs2, above=above, below=below, Nx=Nx, Ni=1))
 prealloc = Preallocated(data.params)
 precompute!(data.precomputed, data.params)
 generate_surface!(prealloc, data.params)
@@ -56,8 +59,10 @@ Rs = R.(as, a0, below.mu_para)
 
 plt = plot(θs, abs2.(Rp), label=L"\textrm{Analytical}\ R^p", legendfontsize=12, color=:blue)
 plot!(θs, abs2.(Rs), label=L"\textrm{Analytical}\ R^s", color=:red)
-scatter!(θs, abs2.(Rp), label=L"\textrm{Numerical}\ R^p", color=:blue, markersize=2)
-scatter!(θs, abs2.(Rs), label=L"\textrm{Numerical}\ R^s", color=:red, markersize=2)
+
+kis = data.params.kis
+scatter!(θs2, [abs2.(prealloc.PNpk[ki, i] for (i,ki) in enumerate(kis))], label=L"\textrm{Numerical}\ R^p", color=:blue, markersize=2)
+scatter!(θs2, [abs2.(prealloc.SNpk[ki, i] for (i,ki) in enumerate(kis))], label=L"\textrm{Numerical}\ R^s", color=:red, markersize=2)
 # ylims!(0.0, 1.05)
 xticks!(0:10:90)
 
