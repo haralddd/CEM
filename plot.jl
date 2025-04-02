@@ -2,6 +2,7 @@ using RayleighSolver
 
 using CairoMakie
 using LaTeXStrings
+using Colors
 CairoMakie.activate!(type="svg")
 
 function /(x::AbstractString, y::AbstractString)
@@ -13,54 +14,63 @@ const DEFAULT_OUTPUT = DEFAULT_PATH / "output"
 const DEFAULT_PLOTDIR = DEFAULT_PATH / "plots"
 mkpath(DEFAULT_PLOTDIR)
 mkpath(DEFAULT_OUTPUT)
-function mdrc_plot!(ax, xs, ys, θ0)
-    θ0 = round(θ0, digits=2)
+function mdrc_plot!(ax, xs, ys, θ0; color=:red)
+    θ0 = round(θ0, digits=1)
+    vlines!(ax,
+        [-θ0, θ0],
+        color=(color, 0.5),
+        linestyle=:dash,
+        linewidth=1.0)
     lines!(ax,
         xs, ys,
         linestyle=:solid,
-        linewidth=0.5,
-        color=:red)
-    vlines!(ax,
-        [-θ0, θ0],
-        label=L"\theta_0=\pm %$θ0",
-        color=:red,
-        linestyle=:dot,
-        linewidth=1.0)
+        linewidth=1.0,
+        color=color,
+        label=L"\theta_0=%$θ0")
     return
 end
 
-function mdtc_plot!(ax, xs, ys, θto, θte)
+function mdtc_plot!(ax, xs, ys, θto, θte; color=:red)
 
-    lines!(ax,
-        xs, ys,
-        linestyle=:solid,
-        linewidth=0.5,
-        color=:red)
 
     
     θo = round(θto, digits=2) # Ordinary wave direction
     vlines!(ax,
         [-θo, θo],
         label=L"\theta_o=\pm %$θo",
-        color=:red,
-        linestyle=:dot,
+        color=(color, 0.5),
+        linestyle=:dash,
         linewidth=1.0)
 
     θe = round(θte, digits=2) # Extraordinary wave direction
     vlines!(ax,
         [-θe, θe],
         label=L"\theta_e=\pm %$θe",
-        color=:red,
+        color=(color, 0.5),
         linestyle=:dash,
         linewidth=1.0)
 
+    lines!(ax,
+        xs, ys,
+        linestyle=:solid,
+        linewidth=1.0,
+        color=color)
+        
     return
 end
 
 function save_mdrc_plots(data, θ0s, θs, title, file_prefix, folder)
+    # Individual plots
     for i in axes(data, 2)
-        fig = Figure(fontsize=24)
-        ax = Axis(fig[1, 1], title = title, xlabel=L"$\theta_s$ [deg]", ylabel=L"\text{MDRC}")
+        fig = Figure(fontsize=24, size=(800, 600))
+        ax = Axis(fig[1, 1],
+            title = title,
+            xlabel=L"$\theta_s$ [deg]",
+            ylabel=L"\text{MDRC}",
+            xticks= -90:30:90,
+            xgridvisible=false,
+            ygridvisible=false
+        )
         θ0 = θ0s[i]
         ys = data[:, i]
         ylims!(ax, (minimum(ys), maximum(ys) .* 1.3 + 1e-6))
@@ -68,12 +78,51 @@ function save_mdrc_plots(data, θ0s, θs, title, file_prefix, folder)
         axislegend()
         save(folder / "$(file_prefix)_$(i).pdf", fig)
     end
+
+    # Combined plot
+    fig_combined = Figure(fontsize=24, size=(800, 600))
+    ax_combined = Axis(fig_combined[1, 1], 
+        title = title, 
+        xlabel=L"$\theta_s$ [deg]", 
+        ylabel=L"\text{MDRC}", 
+        xticks= -90:30:90,
+        xgridvisible=false,
+        ygridvisible=false
+    )
+    # Use a color scheme that's distinct and print-friendly
+    if size(data, 2) > 3
+        colors = distinguishable_colors(size(data, 2), [colorant"white", colorant"black"], dropseed=true)
+    else
+        colors = [:blue, :red, :green]
+    end
+    # Plot all angles in the same figure
+    for i in axes(data, 2)
+        ys = data[:, i]
+        θ0 = θ0s[i]
+        mdrc_plot!(ax_combined, θs, ys, θ0, color=colors[i])
+    end
+    
+    # Set y limits based on all data
+    ylims!(ax_combined, (minimum(data), maximum(data) .* 1.3 + 1e-6))
+    axislegend()
+    save(folder / "$(file_prefix)_combined.pdf", fig_combined)
 end
 
 function save_mdtc_plots(data, θtos, θtes, θs, title, file_prefix, folder)
+    # Individual plots
     for i in axes(data, 2)
-        fig = Figure(fontsize=24)
-        ax = Axis(fig[1, 1], title = title, xlabel=L"$\theta_t$ [deg]", ylabel=L"\text{MDTC}")
+        fig = Figure(fontsize=24, size=(800, 600))
+        ax = Axis(fig[1, 1],
+            title = title,
+            xlabel=L"$\theta_t$ [deg]",
+            ylabel=L"\text{MDTC}",
+            xticks= -90:30:90,
+            xgridvisible=false,
+            ygridvisible=false
+        )
+        for θ in -90:30:90
+            vlines!(ax, θ, color=:gray90, linewidth=0.5)
+        end
         θto = θtos[i]
         θte = θtes[i]
         ys = data[:, i]
@@ -82,6 +131,36 @@ function save_mdtc_plots(data, θtos, θtes, θs, title, file_prefix, folder)
         axislegend()
         save(folder / "$(file_prefix)_$(i).pdf", fig)
     end
+
+    # Combined plot
+    fig_combined = Figure(fontsize=24, size=(800, 600))
+    ax_combined = Axis(fig_combined[1, 1], 
+        title = title, 
+        xlabel=L"$\theta_t$ [deg]", 
+        ylabel=L"\text{MDTC}", 
+        xticks= -90:30:90,
+        xgridvisible=false,
+        ygridvisible=false
+    )
+    
+    # Use a color scheme that's distinct and print-friendly
+    if size(data, 2) > 3
+        colors = distinguishable_colors(size(data, 2), [colorant"white", colorant"black"], dropseed=true)
+    else
+        colors = [:blue, :red, :green]
+    end
+    # Plot all angles in the same figure
+    for i in axes(data, 2)
+        ys = data[:, i]
+        θto = θtos[i]
+        θte = θtes[i]
+        mdtc_plot!(ax_combined, θs, ys, θto, θte, color=colors[i])
+    end
+    
+    # Set y limits based on all data
+    ylims!(ax_combined, (minimum(data), maximum(data) .* 1.3 + 1e-6))
+    axislegend()
+    save(folder / "$(file_prefix)_combined.pdf", fig_combined)
 end
 
 function make_plots(data::SolverData, fname="default", dir="plots")
