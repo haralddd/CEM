@@ -31,14 +31,20 @@ surf = FlatSurface()
 above = Vacuum()
 
 # TiO2
-# eps_para = 3.62+0.0im
-# eps_perp = 6.84+0.0im
+eps_tio2_para = 3.62+0.0im
+eps_tio2_perp = 6.84+0.0im
+
+# Gold and glass layered
+eps_gold = -11.740+1.2611im
+eps_glass = 2.25+0.0im
+eps_gg_perp = ema_eps_perp(0.2, eps_gold, eps_glass)
+eps_gg_para = ema_eps_para(0.2, eps_gold, eps_glass)
 
 # Silver and glass layered
 eps_silver = -17.5+0.48im
-eps_glass = 2.25+0.0im
-eps_para = ema_eps_para(0.5, eps_silver, eps_glass)
-eps_perp = ema_eps_perp(0.5, eps_silver, eps_glass)
+eps_glass = 2.25 + 0.0im
+eps_perp = ema_eps_perp(0.2, eps_silver, eps_glass)
+eps_para = ema_eps_para(0.2, eps_silver, eps_glass)
 below = Uniaxial(eps_perp, eps_para, 1.0+0.0im, 1.0+0.0im)
 
 Nx = 2*2048
