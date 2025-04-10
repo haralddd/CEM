@@ -37,15 +37,17 @@ eps_tio2_perp = 6.84+0.0im
 # Gold and glass layered
 eps_gold = -11.740+1.2611im
 eps_glass = 2.25+0.0im
-eps_gg_perp = ema_eps_perp(0.2, eps_gold, eps_glass)
-eps_gg_para = ema_eps_para(0.2, eps_gold, eps_glass)
+eps_gg_perp = ema_eps_perp(0.165, eps_gold, eps_glass)
+eps_gg_para = ema_eps_para(0.165, eps_gold, eps_glass)
+
 
 # Silver and glass layered
 eps_silver = -17.5+0.48im
 eps_glass = 2.25 + 0.0im
-eps_perp = ema_eps_perp(0.2, eps_silver, eps_glass)
-eps_para = ema_eps_para(0.2, eps_silver, eps_glass)
-below = Uniaxial(eps_perp, eps_para, 1.0+0.0im, 1.0+0.0im)
+eps_sg_perp = ema_eps_perp(0.2, eps_silver, eps_glass)
+eps_sg_para = ema_eps_para(0.2, eps_silver, eps_glass)
+below = Uniaxial(eps_sg_perp, eps_sg_para, 1.0+0.0im, 1.0+0.0im)
+
 
 Nx = 2*2048
 data = SolverData(Parameters(surf=surf, θs=θs, above=above, below=below, Nx=Nx, Ni=1))
@@ -58,7 +60,7 @@ solve_single!(prealloc, data)
 
 
 ks = sind.(θs)
-ap = alpha_p.(ks, A(below), eps_perp)
+ap = alpha_p.(ks, A(below), eps_para)
 as = alpha_s.(ks, eps_para)
 a0 = alpha0.(ks)
 
@@ -88,7 +90,7 @@ xticks!(0:10:90)
 savefig(plt, "plots/fresnel_ema_a100nm.pdf")
 
 pl_ks = sind.(pl_θs)
-ap = alpha_p.(pl_ks, A(below), eps_perp)
+ap = alpha_p.(pl_ks, A(below), eps_para)
 as = alpha_s.(pl_ks, eps_para)
 a0 = alpha0.(pl_ks)
 Rp = R.(ap, a0, below.eps_para)

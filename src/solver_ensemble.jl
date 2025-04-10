@@ -131,7 +131,7 @@ function get_mdtc_coh_inc(T, T2, qs::Vector{Float64}, ks::Vector{Float64}, param
     μεpa = params.below.mu_para * params.below.eps_para
     for (j, k) in enumerate(ks)
         for (i, q) in enumerate(qs)
-            a = ν == :p ? alpha_p(q, A_val, μεpe) : alpha_s(q, μεpa)
+            a = ν == :p ? alpha_p(q, A_val, μεpa) : alpha_s(q, μεpa)
             C = Lx/2π * real(a^2 / (κpa * alpha0(k)))
             coh[i, j] = C * abs2(T[i, j])
             inc[i, j] = C * T2[i, j] - coh[i, j]
@@ -200,13 +200,13 @@ function calc_mdtc(data::SolverData{Parameters{_S,Vacuum,Uniaxial}}) where _S
     mask_p = qs .>= -real(sqrt(μεpe)) .&& qs .<= real(sqrt(μεpe))
     mask_s = qs .>= -real(sqrt(μεpa)) .&& qs .<= real(sqrt(μεpa))
     
-    ap = real.(alpha_p.(qs[mask_p], A, μεpe))
+    ap = real.(alpha_p.(qs[mask_p], A, μεpa))
     as = real.(alpha_s.(qs[mask_s], μεpa))
     
     θtp = θt.(qs[mask_p], ap)
     θts = θt.(qs[mask_s], as)
     
-    θtes = [θt.(k, real(alpha_p(k, A, μεpe))) for k in ks]
+    θtes = [θt.(k, real(alpha_p(k, A, μεpa))) for k in ks]
     θtos = [θt.(k, real(alpha_s(k, μεpa))) for k in ks]
 
     Tp = get_T(data.P_res)

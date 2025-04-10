@@ -6,7 +6,6 @@ function energy_ratio(R2, T2, ks, qs, params::Parameters{_S,Vacuum,Uniaxial}, ν
     εpe = params.below.eps_perp
     μεpa = μpa * εpa
     Aval = A(params.below)
-    μεpe = μpe * εpe
 
     κpa = ν == :p ? εpa : μpa
 
@@ -15,7 +14,7 @@ function energy_ratio(R2, T2, ks, qs, params::Parameters{_S,Vacuum,Uniaxial}, ν
         a0k = alpha0(k)
         for (q_idx, q) in enumerate(qs)
             a0q = alpha0(q)
-            aq = ν == :p ? alpha_p(q, Aval, μεpe) : alpha_s(q, μεpa)
+            aq = ν == :p ? alpha_p(q, Aval, μεpa) : alpha_s(q, μεpa)
 
             R_term = R2[q_idx, k_idx] * a0q / a0k
             T_term = T2[q_idx, k_idx] * real(aq / κpa) / a0k
