@@ -45,8 +45,8 @@ observe!(data.P_res, prealloc.PNpk, 1)
 observe!(data.S_res, prealloc.SNpk, 1)
 
 # Get the reflection coefficients from the solver
-Rp_values = get_R(data.P_res)
-Rs_values = get_R(data.S_res)
+Rp_values = get_A(data.P_res)
+Rs_values = get_A(data.S_res)
 
 # Get the transmission coefficients from the solver
 Tp_values = get_T(data.P_res)

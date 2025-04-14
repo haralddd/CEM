@@ -48,9 +48,9 @@ function energy_conservation(P_res::Results, S_res::Results, params::Parameters{
     qs = params.qs
 
     filt = -1.0 .<= qs .<= 1.0
-    R2p = get_R²(P_res)[filt, :]
+    R2p = get_A²(P_res)[filt, :]
     T2p = get_T²(P_res)[filt, :]
-    R2s = get_R²(S_res)[filt, :]
+    R2s = get_A²(S_res)[filt, :]
     T2s = get_T²(S_res)[filt, :]
 
     P = energy_ratio(R2p, T2p, ks, qs[filt], params, :p)
@@ -74,5 +74,5 @@ function energy_conservation(PR2::Matrix{Float64}, SR2::Matrix{Float64}, params:
 end
 
 function energy_conservation(P_res::Results, S_res::Results, params::Parameters{_S,Vacuum,Isotropic}) where {_S}
-    energy_conservation(P_res.R², S_res.R², params)
+    energy_conservation(P_res.A², S_res.A², params)
 end

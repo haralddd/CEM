@@ -140,7 +140,7 @@ function get_mdtc_coh_inc(T, T2, qs::Vector{Float64}, ks::Vector{Float64}, param
     return coh, inc
 end
 
-"Returns coherent and incoherent MDRC calculated from ⟨R⟩ and ⟨R²⟩"
+"Returns coherent and incoherent MDRC calculated from ⟨A⟩ and ⟨A²⟩"
 function calc_mdrc(data::SolverData)
     params = data.params
     qs = params.qs
@@ -151,11 +151,11 @@ function calc_mdrc(data::SolverData)
     θ0s = data.params.θs
 
     @assert all(ks .≈ sind.(θ0s))
-    Rp = data.P_res.R
-    R2p = data.P_res.R²
+    Rp = data.P_res.A
+    R2p = data.P_res.A²
 
-    Rs = data.S_res.R
-    R2s = data.S_res.R²
+    Rs = data.S_res.A
+    R2s = data.S_res.A²
 
     coh_p, inc_p = get_mdrc_coh_inc(Rp[mask, :], R2p[mask, :], qs[mask], ks, params)
     coh_s, inc_s = get_mdrc_coh_inc(Rs[mask, :], R2s[mask, :], qs[mask], ks, params)
@@ -163,7 +163,7 @@ function calc_mdrc(data::SolverData)
     return MdrcPlotData(coh_p, inc_p, coh_s, inc_s, θss, θ0s)
 end
 
-"Returns coherent and incoherent MDRC calculated from ⟨R⟩ and ⟨R²⟩"
+"Returns coherent and incoherent MDRC calculated from ⟨A⟩ and ⟨A²⟩"
 function calc_mdrc(data::SolverData{Parameters{_S,Vacuum,Uniaxial}}) where _S
     params = data.params
     qs = params.qs
@@ -174,11 +174,11 @@ function calc_mdrc(data::SolverData{Parameters{_S,Vacuum,Uniaxial}}) where _S
     θ0s = data.params.θs
 
     @assert all(ks .≈ sind.(θ0s))
-    Rp = get_R(data.P_res)
-    R2p = get_R²(data.P_res)
+    Rp = get_A(data.P_res)
+    R2p = get_A²(data.P_res)
 
-    Rs = get_R(data.S_res)
-    R2s = get_R²(data.S_res)
+    Rs = get_A(data.S_res)
+    R2s = get_A²(data.S_res)
 
     coh_p, inc_p = get_mdrc_coh_inc(Rp[mask, :], R2p[mask, :], qs[mask], ks, params)
     coh_s, inc_s = get_mdrc_coh_inc(Rs[mask, :], R2s[mask, :], qs[mask], ks, params)
