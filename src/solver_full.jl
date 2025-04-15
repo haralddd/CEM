@@ -27,11 +27,11 @@ function _N2n(p, k, a0, n)
 end
 
 function A(u::Uniaxial)
-    return √((u.mu_para * u.eps_para) / (u.mu_perp * u.eps_perp))
+    return (u.mu_para * u.eps_para) / (u.mu_perp * u.eps_perp)
 end
 
-function alpha_p(q::Float64, A::ComplexF64, μεpe::ComplexF64)::ComplexF64
-    return A * √(μεpe - q^2)
+function alpha_p(q::Float64, A::ComplexF64, μεpa::ComplexF64)::ComplexF64
+    return √(μεpa - A * q^2)
 end
 function alpha_s(q::Float64, μεpa::ComplexF64)::ComplexF64
     return √(μεpa - q^2)
@@ -85,7 +85,7 @@ function precompute!(pre::Precomputed, params::Parameters{_S,Vacuum,Uniaxial})::
     for i in axes(PMn11, 1)
         p = ps[i]
         a0 = alpha0(p)
-        ap = alpha_p(p, A, μεpe)
+        ap = alpha_p(p, A, μεpa)
         PMn11[i, i, 1] = -1
         PMn12[i, i, 1] = 1
         PMn21[i, i, 1] = -a0
@@ -98,7 +98,7 @@ function precompute!(pre::Precomputed, params::Parameters{_S,Vacuum,Uniaxial})::
                 p = ps[pidx]
                 q = qs[qidx]
                 a0 = alpha0(q)
-                ap = alpha_p(q, A, μεpe)
+                ap = alpha_p(q, A, μεpa)
                 PMn11[pidx, qidx, n] = _M11n(a0, n-1)
                 PMn12[pidx, qidx, n] = _M12n(ap, n-1)
                 PMn21[pidx, qidx, n] = _M21n(p, q, a0, n-1)

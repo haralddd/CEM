@@ -1,23 +1,25 @@
-# Preallocated structs which are mutated in place. These should be thread local.
+"""
+    Results(Nq, Nk)
+    Results(params::Parameters)
 
+Results is a struct which contains all preallocated matrices which are used in surface generation and the solution of the system of equations.
+The array values of the members are mutated in place, thus each thread should have its own copy of this struct.
+"""
 struct Results
-    R::Matrix{ComplexF64}
-    R²::Matrix{Float64}
+    A::Matrix{ComplexF64}
+    A²::Matrix{Float64}
     σ²::Matrix{Float64}
     κ::Matrix{Float64}
 
     function Results(Nq::Int, Nk::Int)
-        R = zeros(ComplexF64, Nq, Nk)
-        R² = zeros(Float64, Nq, Nk)
+        A = zeros(ComplexF64, Nq, Nk)
+        A² = zeros(Float64, Nq, Nk)
         σ² = zeros(Float64, Nq, Nk)
         κ = zeros(Float64, Nq, Nk)
-        return new(R, R², σ², κ)
+        return new(A, A², σ², κ)
     end
     function Results(params::Parameters)
         return Results(length(params.qs), length(params.ks))
-    end
-    function Results(params::Parameters{_S, Vacuum, Uniaxial}) where {_S}
-        return Results(2*length(params.qs), length(params.ks))
     end
 end
 
@@ -27,6 +29,8 @@ end
 
 Preallocated is a struct which contains all preallocated matrices which are used in surface generation and the solution of the system of equations.
 The array values of the members are mutated in place, thus each thread should have its own copy of this struct.
+For the full scattering integral solver, both R and T are stored in the data members
+for more efficient solving of the linear system.
 """
 struct Preallocated
     PMpq::Matrix{ComplexF64}
@@ -67,33 +71,24 @@ end
 
 "Updates all observables in `res::Results` with the observation `x`"
 function observe!(res::Results, x, n)
-    R = res.R
-    R² = res.R²
+    A = res.A
+    A² = res.A²
     σ² = res.σ²
     κ = res.κ
 
-    for I in eachindex(R)
-        R[I] = observe(R[I], x[I], n)
+    for I in eachindex(A)
+        A[I] = observe(A[I], x[I], n)
     end
 
-    for I in eachindex(R²)
-        R²[I] = observe(R²[I], abs2(x[I]), n)
+    for I in eachindex(A²)
+        A²[I] = observe(A²[I], abs2(x[I]), n)
     end
 
     for I in eachindex(σ²)
-        var = abs2(x[I] - R[I])
+        var = abs2(x[I] - A[I])
         σ²[I] = observe(σ²[I], var, n)
         κ[I] = observe(κ[I], var^2, n)
     end
-end
-
-"""
-Convenience version of the above.
-Updates both `pre.P_res` and `pre.S_res` with linear system solutions stored in `pre.PNpk` and `pre.SNpk`
-"""
-function observe!(pre::Preallocated, n::Int)
-    observe!(pre.P_res, pre.PNpk, n)
-    observe!(pre.S_res, pre.SNpk, n)
 end
 
 
@@ -102,81 +97,24 @@ Adds the results `obs` to `out` with the weight `N/divisor`.
 Used to combine several means with different number of iterations, typically after multithreading
 """
 function combine!(out::Results, obs::Results, N::Int, divisor::Int)
-    R = out.R
-    R² = out.R²
+    A = out.A
+    A² = out.A²
     σ² = out.σ²
     κ = out.κ
 
-    for I in eachindex(R)
-        R[I] += obs.R[I] * N / divisor
+    for I in eachindex(A)
+        A[I] += obs.A[I] * N / divisor
     end
 
-    for I in eachindex(R)
-        R²[I] += obs.R²[I] * N / divisor
+    for I in eachindex(A)
+        A²[I] += obs.A²[I] * N / divisor
     end
 
-    for I in eachindex(R)
+    for I in eachindex(A)
         σ²[I] += obs.σ²[I] * N / divisor
     end
 
-    for I in eachindex(R)
+    for I in eachindex(A)
         κ[I] += obs.κ[I] * N / divisor
     end
-
-end
-
-"""
-    get_R(res::Results)
-
-Extract reflection coefficients from Results. For the full solver, R values are stored
-at odd indices (1:2:end) in the Results matrix.
-
-Returns:
-- Matrix{ComplexF64}: Matrix of reflection coefficients [Nq × Nk]
-"""
-function get_R(res::Results)
-    half = size(res.R, 1) ÷ 2
-    return res.R[1:half, :]
-end
-
-"""
-    get_T(res::Results)
-
-Extract transmission coefficients from Results. For the full solver, T values are stored
-at even indices (2:2:end) in the Results matrix.
-
-Returns:
-- Matrix{ComplexF64}: Matrix of transmission coefficients [Nq × Nk]
-"""
-function get_T(res::Results)
-    half = size(res.R, 1) ÷ 2
-    return res.R[half+1:end, :]
-end
-
-"""
-    get_R²(res::Results)
-
-Extract squared magnitude of reflection coefficients from Results.
-For the full solver, R² values are stored at odd indices (1:2:end).
-
-Returns:
-- Matrix{Float64}: Matrix of |R|² values [Nq × Nk]
-"""
-function get_R²(res::Results)
-    half = size(res.R², 1) ÷ 2
-    return res.R²[1:half, :]
-end
-
-"""
-    get_T²(res::Results)
-
-Extract squared magnitude of transmission coefficients from Results.
-For the full solver, T² values are stored at even indices (2:2:end).
-
-Returns:
-- Matrix{Float64}: Matrix of |T|² values [Nq × Nk]
-"""
-function get_T²(res::Results)
-    half = size(res.R², 1) ÷ 2
-    return res.R²[half+1:end, :]
 end

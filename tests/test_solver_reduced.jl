@@ -53,7 +53,7 @@ function plot_Rmean()
     qs = data.params.qs
     ks = data.params.ks
     mask = qs .>= -1.0 .&& qs .<= 1.0
-    R = data.P_res.R
+    R = data.P_res.A
 
     plot()
     plot!(qs[mask], [abs2.(R[mask, i]) for i in axes(R, 2)])
@@ -71,7 +71,7 @@ function test_save_data()
     mask = qs .>= -1.0 .&& qs .<= 1.0
     display(mask)
     display(size(mask))
-    R = data.P_res.R
+    R = data.P_res.A
 
     plt1 = plot()
     plot!(qs[mask], [abs2.(R[mask, i]) for i in axes(R, 2)])
@@ -80,7 +80,7 @@ function test_save_data()
     # rm("test_save.jdl2")
     save_solver_data("test_save", data)
     loaded_data = load_solver_data("test_save")
-    R_ld = loaded_data.P_res.R
+    R_ld = loaded_data.P_res.A
 
     plt2 = plot()
     plot!(qs[mask], [abs2.(R_ld[mask, i]) for i in axes(R, 2)])

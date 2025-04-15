@@ -41,13 +41,16 @@ export Precomputed
 export precompute!, validate
 
 include("Preallocated.jl")
-export Preallocated, Results, get_R, get_T, get_R², get_T²
+export Preallocated, Results, get_A, get_T, get_A², get_T²
 
 include("random_surface_generator.jl")
 export generate_surface!
 
 include("SolverData.jl")
 export SolverData
+
+include("compute_t.jl")
+export compute_t_matrix, compute_t_matrix_full
 
 include("solver_reduced.jl")
 include("solver_full.jl")
