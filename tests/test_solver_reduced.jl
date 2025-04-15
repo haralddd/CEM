@@ -4,8 +4,8 @@ using LinearAlgebra
 using Statistics
 
 function test_observation()
-    N = 10000000
-    A = rand(N)*1.e-6 .+ 1.0
+    N = Int(1e8)
+    A = rand(N) .* 1e6
 
     @info "mean(A) = $(mean(A))"
 

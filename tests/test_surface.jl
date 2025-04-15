@@ -1,4 +1,5 @@
 include("testconfig.jl")
+using LaTeXStrings
 using Statistics
 using Peaks
 
@@ -108,17 +109,6 @@ function test_surf(data::SolverData)
     println("δ = $(d)")
     println("Numerical  = $(rms)")
 end
-const iters = 100000
-test_gaussian() = test_surf(default_gaussian_config(iters))
-test_gaussian2() = test_surf(default_gaussian_config(iters, 200*632.8e-9))
-test_gaussian3() = test_surf(default_gaussian_config(iters, 50*632.8e-9))
-test_rect() = test_surf(default_rectangular_config(iters))
-
-test_gaussian()
-test_rect()
-
-using Plots
-using LaTeXStrings
 function make_plot(data::SolverData, label="")
     params = data.params
     alloc = Preallocated(params)
@@ -135,5 +125,21 @@ function make_plot(data::SolverData, label="")
     plt = plot(xs, ys, xlabel=L"x_1\ [\mu m]", ylabel=L"\zeta(x_1)\ [\mu m]", ylims=ylims, label=nothing)
     savefig(plt, "plots/$label.pdf")
 end
-make_plot(SolverData(Parameters(surf=GaussianSurface(30.0e-9, 400.0e-9))), "gaussian_surf")
-make_plot(SolverData(Parameters(surf=RectangularSurface(30.0e-9, 0.10, 1.10))), "rect_surf")
+
+if (abspath(PROGRAM_FILE) == @__FILE__) 
+    iters = 100000
+    test_gaussian1() = test_surf(default_gaussian_config(iters, 200 * 632.8e-9))
+    test_gaussian2() = test_surf(default_gaussian_config(iters, 100 * 632.8e-9))
+    test_gaussian3() = test_surf(default_gaussian_config(iters, 50*632.8e-9))
+    test_rect() = test_surf(default_rectangular_config(iters))
+
+    test_gaussian1()
+    test_gaussian2()
+    test_gaussian3()
+    test_rect()
+
+    using Plots
+    using LaTeXStrings
+    make_plot(SolverData(Parameters(surf=GaussianSurface(30.0e-9, 400.0e-9))), "gaussian_surf")
+    make_plot(SolverData(Parameters(surf=RectangularSurface(30.0e-9, 0.10, 1.10))), "rect_surf")
+end

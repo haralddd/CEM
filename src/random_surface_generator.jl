@@ -24,8 +24,8 @@ end
 
 Generate random surface of the given type and overwrites sp.ys in-place
 Reverts to generic Fourier filtering function, which requires correlation(k, params.surf::T) to be implemented
-""" 
-function generate_surface!(pre::Preallocated, params::Parameters{SurfT,_MA,_MB})::Nothing where {SurfT <: RandomSurface, _MA, _MB}
+"""
+function generate_surface!(pre::Preallocated, params::Parameters{SurfT,_MA,_MB})::Nothing where {SurfT<:RandomSurface,_MA,_MB}
     d = params.surf.d
     xks = params.xks
     rng = params.rng
@@ -34,24 +34,35 @@ function generate_surface!(pre::Preallocated, params::Parameters{SurfT,_MA,_MB})
 
     ys = pre.ys
     Fys = pre.Fys
-    sFys = pre.sFys
 
-    A = 1/sqrt(params.dx)
+    A = 1 / sqrt(params.dx)
 
     # Generate random phases
     randn!(rng, ys)
+
     @inbounds for i in eachindex(Fys)
-        Fys[i] = ys[i] * d
+        Fys[i] = ys[i]
     end
 
     FFT * Fys # In place FFT
-    # fftshift!(sFys, Fys)
+    # n = length(Fys)
+    # randn!(rng, @view Fys[1:n÷2+1])
 
     @inbounds for i in eachindex(Fys)
-        Fys[i] *= sqrt(correlation(xks[i], params.surf))*A
+        Fys[i] *= A * d * sqrt(correlation(xks[i], params.surf))
     end
 
-    # ifftshift!(Fys, sFys)
+    # @inbounds for i in 1:n÷2+1
+    #     Fys[i] *= A * d * sqrt(correlation(xks[i], params.surf))
+    # end
+    # # Enforce Hermitian symmetry for negative frequencies
+    # @inbounds for i in (n÷2+2):n
+    #     Fys[i] = conj(Fys[n-i+2])  # Conjugate symmetry F(-k) = F*(k)
+    # end
+    # # Special case for Nyquist frequency (if n is even)
+    # if n % 2 == 0
+    #     Fys[n÷2+1] = real(Fys[n÷2+1])
+    # end
     IFFT * Fys # in place Inverse FFT
 
     @inbounds for i in eachindex(ys)

@@ -6,15 +6,17 @@ using BenchmarkTools
 function profile_gaussian_surfacegen()
     @info "Gaussian surface generation"
     data = default_gaussian_config()
-    bench = @benchmark generate_surface!($data.sp, $data.params)
+    pre = Preallocated(data.params)
+    bench = @benchmark generate_surface!($pre, $data.params)
     display(bench)
 end
 
 function profile_rectangular_surfacegen()
     @info "Rectangular surface generation"
     data = default_rectangular_config()
+    pre = Preallocated(data.params)
     
-    bench = @benchmark generate_surface!($data.sp, $data.params)
+    bench = @benchmark generate_surface!($pre, $data.params)
     display(bench)
 end
 
