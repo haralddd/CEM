@@ -87,17 +87,16 @@ function plot_scaling_results(gaussian_results, rect_results)
     # Separate plots for each error metric
     plot_metrics = ["mean_error", "rms_error", "slope_error", "dist_error"]
     plot_titles = [L"\langle \zeta(x) \rangle", L"\langle \delta \rangle", L"\langle s \rangle", L"\langle D \rangle"]
-    
-    axes = []
-    
+
+    # Save plots
+    mkpath("plots/resolution_scaling")
     for (metric, title) in zip(plot_metrics, plot_titles)
         fig = Figure(size = (800, 500), fontsize=24)
         ax = Axis(fig[1, 1],
             title = title,
             xlabel = L"N_x",
-            ylabel = L"$\mathrm{Relative\ Error} \ [\%]$",
-            xscale = log10,
-            yscale = log10)
+            ylabel = L"$\mathrm{Relative\ Error} \ [%]$",
+            xticks = [2048, 4096, 6144, 8192])
         
         # For Gaussian surface
         scatter!(ax, gaussian_results.Nx, gaussian_results[:, metric] * 100, 
@@ -107,21 +106,14 @@ function plot_scaling_results(gaussian_results, rect_results)
         scatter!(ax, rect_results.Nx, rect_results[:, metric] * 100, 
                  label = L"\mathrm{West-O'Donnell}", marker = :rect, markersize = 12, color = :crimson)
         
+        ylims!(ax, 0, nothing)
         # Add legend
         axislegend(ax, position = :rt)
-        
-        push!(axes, ax)
+        save("plots/resolution_scaling/$(metric)_scaling.pdf", fig)
+
     end
     
-    # Save plots
-    mkpath("plots/resolution_scaling")
-    
-    # Save individual plots
-    for (i, metric) in enumerate(plot_metrics)
-        save("plots/resolution_scaling/$(metric)_scaling.pdf", plots[i])
-    end
-    
-    return combined_fig
+    return nothing
 end
 
 # Run the scaling tests
@@ -133,7 +125,7 @@ function run_scaling_tests()
     lambda = 632.8e-9
     Lx = 100 * lambda
     
-    Nx_values = range(1024, 8192, step=1024)
+    Nx_values = range(2048, 8192, step=1024)
     
     # Lower iterations for faster testing (adjust based on your needs)
     iters = 2000
@@ -146,15 +138,14 @@ function run_scaling_tests()
     
     # Plot the results
     println("Plotting results...")
-    combined_plot = plot_scaling_results(gaussian_results, rect_results)
+    plot_scaling_results(gaussian_results, rect_results)
     
     println("Results saved to plots/ directory")
-    return combined_plot, gaussian_results, rect_results
+    return gaussian_results, rect_results
 end
 
 # Execute tests
-combined_fig, gaussian_results, rect_results = run_scaling_tests()
-display(combined_fig)
+gaussian_results, rect_results = run_scaling_tests()
 
 # Print the data tables
 println("\nGaussian Surface Results:")
