@@ -22,21 +22,20 @@ struct SolverData{ParametersType}
 end
 
 
-function observe!(data::SolverData{Parameters{_S,Vacuum,Uniaxial}}, pre::Preallocated, n::Int) where {_S}
-    half = size(pre.PNpk, 2) ÷ 2
-    Rp = @view pre.PNpk[1:half, :]
-    Rs = @view pre.SNpk[1:half, :]
-    Tp = @view pre.PNpk[half+1:end, :]
-    Ts = @view pre.SNpk[half+1:end, :]
-    observe!(data.Rp, Rp, n)
-    observe!(data.Rs, Rs, n)
-    observe!(data.Tp, Tp, n)
-    observe!(data.Ts, Ts, n)
-end
-
-function observe!(data::SolverData{PT}, pre::Preallocated, n::Int) where {PT}
-    observe!(data.Rp, pre.PNpk, n)
-    observe!(data.Rs, pre.SNpk, n)
-    calculate_T!(data, pre, n)
-
+function observe!(data::SolverData, pre::Preallocated, n::Int, type::Symbol=:full)
+    if type == :full
+        half = size(pre.PNpk, 2) ÷ 2
+        Rp = @view pre.PNpk[1:half, :]
+        Rs = @view pre.SNpk[1:half, :]
+        Tp = @view pre.PNpk[half+1:end, :]
+        Ts = @view pre.SNpk[half+1:end, :]
+        observe!(data.Rp, Rp, n)
+        observe!(data.Rs, Rs, n)
+        observe!(data.Tp, Tp, n)
+        observe!(data.Ts, Ts, n)
+    elseif type == :rre
+        observe!(data.Rp, pre.PNpk, n)
+        observe!(data.Rs, pre.SNpk, n)
+        calculate_T!(data, pre, n)
+    end
 end

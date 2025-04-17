@@ -36,6 +36,15 @@ end
 function alpha_s(q::Float64, μεpa::ComplexF64)::ComplexF64
     return √(μεpa - q^2)
 end
+function alpha_p(q::Float64, mat::Uniaxial)::ComplexF64
+    _A = A(mat)
+    μεpa = mat.mu_para*mat.eps_para
+    return alpha_p(q, _A, μεpa)
+end
+function alpha_s(q::Float64, mat::Uniaxial)::ComplexF64
+    μεpa = mat.mu_para*mat.eps_para
+    return alpha_s(q, μεpa)
+end
 
 function precompute!(pre::Precomputed, params::Parameters{_S,Vacuum,Uniaxial})::Nothing where {_S}
     εpe = params.below.eps_perp
@@ -162,10 +171,9 @@ function precompute!(pre::Precomputed, params::Parameters{_S,Vacuum,Uniaxial})::
     return nothing
 end
 
-function solve_single!(alloc::Preallocated, data::SolverData{Parameters{_S,Vacuum,Uniaxial}})::Nothing where {_S}
+function solve_single!(alloc::Preallocated, pre::Precomputed, data::SolverData{Parameters{_S,Vacuum,Uniaxial}})::Nothing where {_S}
 
     params = data.params
-    pre = data.precomputed
 
     FFT = params.FFT
 

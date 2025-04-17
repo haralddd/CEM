@@ -64,6 +64,7 @@ struct Preallocated
     end
 end
 
+
 "Iteratively update observable like so: ⟨A⟩ₙ = (n-1)/n ⟨A⟩ₙ₋₁ + Aₙ/n"
 function observe(obs, x, n)
     return obs + (x - obs) / n
