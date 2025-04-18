@@ -24,12 +24,11 @@ import Base.+
 
 include("Material.jl")
 export Material, Vacuum, Isotropic, Uniaxial
-export A, ptilde, alpha, alpha0, alpha_p, alpha_s
+export A, alpha, alpha0, alpha_p, alpha_s
 
 include("RandomSurface.jl")
 export RandomSurface, FlatSurface, GaussianSurface
-export SingleBumpSurface, RectangularSurface
-export scale
+export SingleBumpSurface, RectangularSurface, scale
 
 include("Parameters.jl")
 export Polarization, PolarizationP, PolarizationS
@@ -41,7 +40,7 @@ export Precomputed
 export precompute!, validate
 
 include("Preallocated.jl")
-export Preallocated, Results, get_A, get_T, get_A², get_T²
+export Preallocated, Results, get_A, get_A², observe, observe!
 
 include("random_surface_generator.jl")
 export generate_surface!
@@ -52,10 +51,11 @@ export SolverData
 include("compute_t.jl")
 export compute_t_matrix, compute_t_matrix_full
 
-include("solver_reduced.jl")
-include("solver_full.jl")
+include("solver_reduced_isotropic.jl")
+include("solver_reduced_uniaxial.jl")
+include("solver_full_uniaxial.jl")
 export PlotData
-export solve_single!, precompute!, observe, observe!
+export solve_single!, precompute!
 
 include("energy.jl")
 export energy_conservation, energy_ratio

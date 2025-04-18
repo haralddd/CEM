@@ -1,3 +1,13 @@
+"""
+    assert_branch_cuts(qs, material)
+
+Validates that the branch cuts are correctly defined for all wavenumbers in `qs`.
+Ensures that the imaginary part of alpha is non-negative and the real part is non-negative.
+
+# Arguments:
+- `qs`: Vector of wavenumbers to check
+- `material`: Material object containing the properties to calculate alpha
+"""
 function assert_branch_cuts(qs, material)
     for q in qs
         @assert imag(alpha(q, material)) >= 0.0
@@ -6,14 +16,17 @@ function assert_branch_cuts(qs, material)
 end
 
 
+"""
+    solve_MDRC!(data::SolverData{_P}) where {_P}
 
+Solves the Rayleigh problem for multiple surface realizations and computes ensemble averages.
+Handles both multi-threaded and single-threaded computation depending on the system configuration.
+
+# Arguments:
+- `data`: [`SolverData`](@ref) - Contains the parameters, preallocated steps, and output structures
+"""
 function solve_MDRC!(data::SolverData{_P}) where {_P}
-    # Solve the Rayleigh problem for a given Parameters struct
-    # sp is the preallocated surface struct, containing the preallocated output, this is mutated in place
-    # params is the Parameters struct, containing the constant parameters for the calculation
-    # surf_generator! is a function that generates the surface sp.ys for each iteration
-    # N_ens is the number of ensemble averages to perform
-    # returns the coherent and incoherent MDRC
+
 
     # @info "Running tests:"
     # @info data.params.above
@@ -23,8 +36,9 @@ function solve_MDRC!(data::SolverData{_P}) where {_P}
     # @info "Branch cuts OK"
 
     @info "Precomputing matrix elements:"
-    @time precompute!(data.precomputed, data.params)
-    validate(data.precomputed)
+    precomputed = Precomputed(data.params)
+    @time precompute!(precomputed, data.params)
+    validate(precomputed)
     do_debug = get(ENV, "JULIA_DEBUG", "") != ""
     show_iter = get(ENV, "JULIA_SHOWITERS", "") == "true"
     @info "debug: $do_debug"
@@ -48,7 +62,7 @@ function solve_MDRC!(data::SolverData{_P}) where {_P}
             _alloc = allocs[tidx]
 
             generate_surface!(_alloc, data.params)
-            solve_single!(_alloc, data)
+            solve_single!(_alloc, precomputed, data)
             @lock lk begin
                 iter += 1
                 observe!(data.P_res, _alloc.PNpk, iter)
@@ -65,7 +79,7 @@ function solve_MDRC!(data::SolverData{_P}) where {_P}
         alloc = Preallocated(data.params)
         @time for n in (show_iter ? ProgressBar(1:Niters) : 1:Niters)
             generate_surface!(alloc, data.params)
-            solve_single!(alloc, data)
+            solve_single!(alloc, precomputed, data)
             observe!(data.P_res, alloc.PNpk, n)
             observe!(data.S_res, alloc.SNpk, n)
             iter += 1
@@ -81,6 +95,19 @@ function solve_MDRC!(data::SolverData{_P}) where {_P}
     return nothing
 end
 
+"""
+    MdrcPlotData
+
+Structure containing coherent and incoherent mean differential reflection coefficients for plotting.
+
+# Fields:
+- `coh_p`: Matrix of coherent P-polarization MDRC values
+- `inc_p`: Matrix of incoherent P-polarization MDRC values
+- `coh_s`: Matrix of coherent S-polarization MDRC values
+- `inc_s`: Matrix of incoherent S-polarization MDRC values
+- `θs`: Vector of scattering angles (degrees)
+- `θ0s`: Vector of incident angles (degrees)
+"""
 struct MdrcPlotData
     coh_p::Matrix{Float64}
     inc_p::Matrix{Float64}
@@ -90,6 +117,18 @@ struct MdrcPlotData
     θ0s::Vector{Float64}
 end
 
+"""
+    MdtcPlotData
+
+Structure containing coherent and incoherent mean differential transmission coefficients for plotting.
+
+# Fields:
+- `coh`: Matrix of coherent MDTC values
+- `inc`: Matrix of incoherent MDTC values
+- `θs`: Vector of scattering angles (degrees)
+- `θtes`: Vector of extraordinary transmitted angles (degrees)
+- `θtos`: Vector of ordinary transmitted angles (degrees)
+"""
 struct MdtcPlotData
     coh::Matrix{Float64}
     inc::Matrix{Float64}
@@ -98,10 +137,34 @@ struct MdtcPlotData
     θtos::Vector{Float64}
 end
 
+"""
+    θt(q::Float64, alpha::Float64)
+
+Calculates the transmission angle in degrees from the wavenumber and alpha value.
+
+# Arguments:
+- `q`: Wavenumber component
+- `alpha`: Alpha value for the material
+"""
 function θt(q::Float64, alpha::Float64)
     return atand(q, alpha)
 end
 
+"""
+    get_mdrc_coh_inc(R, R2, qs::Vector{Float64}, ks::Vector{Float64}, params::Parameters)
+
+Calculates the coherent and incoherent mean differential reflection coefficients.
+
+# Arguments:
+- `R`: Matrix of ensemble-averaged reflection amplitudes
+- `R2`: Matrix of ensemble-averaged squared reflection amplitudes
+- `qs`: Vector of scattered wavenumbers
+- `ks`: Vector of incident wavenumbers
+- `params`: [`Parameters`](@ref) containing simulation parameters
+
+# Returns:
+- Tuple of (coherent MDRC, incoherent MDRC) matrices
+"""
 function get_mdrc_coh_inc(R, R2, qs::Vector{Float64}, ks::Vector{Float64}, params::Parameters)
     Lx = params.Lx
     λ = params.lambda
@@ -118,6 +181,22 @@ function get_mdrc_coh_inc(R, R2, qs::Vector{Float64}, ks::Vector{Float64}, param
     return coh, inc
 end
 
+"""
+    get_mdtc_coh_inc(T, T2, qs::Vector{Float64}, ks::Vector{Float64}, params::Parameters, ν::Symbol=:p)
+
+Calculates the coherent and incoherent mean differential transmission coefficients.
+
+# Arguments:
+- `T`: Matrix of ensemble-averaged transmission amplitudes
+- `T2`: Matrix of ensemble-averaged squared transmission amplitudes
+- `qs`: Vector of scattered wavenumbers
+- `ks`: Vector of incident wavenumbers
+- `params`: [`Parameters`](@ref) containing simulation parameters
+- `ν`: Polarization, either `:p` or `:s`
+
+# Returns:
+- Tuple of (coherent MDTC, incoherent MDTC) matrices
+"""
 function get_mdtc_coh_inc(T, T2, qs::Vector{Float64}, ks::Vector{Float64}, params::Parameters, ν::Symbol=:p)
     Lx = params.Lx
     λ = params.lambda
@@ -140,7 +219,18 @@ function get_mdtc_coh_inc(T, T2, qs::Vector{Float64}, ks::Vector{Float64}, param
     return coh, inc
 end
 
-"Returns coherent and incoherent MDRC calculated from ⟨A⟩ and ⟨A²⟩"
+
+"""
+    calc_mdrc(data::SolverData)
+
+Returns coherent and incoherent MDRC calculated from ⟨A⟩ and ⟨A²⟩.
+
+# Arguments:
+- `data`: [`SolverData`](@ref) containing the simulation results
+
+# Returns:
+- [`MdrcPlotData`](@ref) structure with coherent and incoherent reflection coefficients
+"""
 function calc_mdrc(data::SolverData)
     params = data.params
     qs = params.qs
@@ -163,7 +253,18 @@ function calc_mdrc(data::SolverData)
     return MdrcPlotData(coh_p, inc_p, coh_s, inc_s, θss, θ0s)
 end
 
-"Returns coherent and incoherent MDRC calculated from ⟨A⟩ and ⟨A²⟩"
+"""
+    calc_mdrc(data::SolverData{Parameters{_S,Vacuum,Uniaxial}}) where _S
+
+Specialized implementation of calc_mdrc for Vacuum-Uniaxial interface.
+Returns coherent and incoherent MDRC calculated from ⟨A⟩ and ⟨A²⟩.
+
+# Arguments:
+- `data`: [`SolverData`](@ref) containing the simulation results for a Vacuum-Uniaxial interface
+
+# Returns:
+- [`MdrcPlotData`](@ref) structure with coherent and incoherent reflection coefficients
+"""
 function calc_mdrc(data::SolverData{Parameters{_S,Vacuum,Uniaxial}}) where _S
     params = data.params
     qs = params.qs
@@ -186,7 +287,18 @@ function calc_mdrc(data::SolverData{Parameters{_S,Vacuum,Uniaxial}}) where _S
     return MdrcPlotData(coh_p, inc_p, coh_s, inc_s, θss, θ0s)
 end
 
-"Returns coherent and incoherent MDTC calculated from ⟨T⟩ and ⟨T²⟩, returns tuple of (MDTC p, MDTC s)"
+"""
+    calc_mdtc(data::SolverData{Parameters{_S,Vacuum,Uniaxial}}) where _S
+
+Specialized implementation of calc_mdtc for Vacuum-Uniaxial interface.
+Returns coherent and incoherent MDTC calculated from ⟨T⟩ and ⟨T²⟩.
+
+# Arguments:
+- `data`: [`SolverData`](@ref) containing the simulation results for a Vacuum-Uniaxial interface
+
+# Returns:
+- [`MdtcPlotData`](@ref) structure with coherent and incoherent transmission coefficients
+"""
 function calc_mdtc(data::SolverData{Parameters{_S,Vacuum,Uniaxial}}) where _S
     params = data.params
     qs = params.qs

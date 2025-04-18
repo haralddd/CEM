@@ -26,25 +26,7 @@ function _N2n(p, k, a0, n)
     return _pre(n) / factorial(n) * (k * (p - k) * a0^(n - 1) - a0^(n + 1))
 end
 
-function A(u::Uniaxial)
-    return (u.mu_para * u.eps_para) / (u.mu_perp * u.eps_perp)
-end
 
-function alpha_p(q::Float64, A::ComplexF64, μεpa::ComplexF64)::ComplexF64
-    return √(μεpa - A * q^2)
-end
-function alpha_s(q::Float64, μεpa::ComplexF64)::ComplexF64
-    return √(μεpa - q^2)
-end
-function alpha_p(q::Float64, mat::Uniaxial)::ComplexF64
-    _A = A(mat)
-    μεpa = mat.mu_para*mat.eps_para
-    return alpha_p(q, _A, μεpa)
-end
-function alpha_s(q::Float64, mat::Uniaxial)::ComplexF64
-    μεpa = mat.mu_para*mat.eps_para
-    return alpha_s(q, μεpa)
-end
 
 function precompute!(pre::Precomputed, params::Parameters{_S,Vacuum,Uniaxial})::Nothing where {_S}
     εpe = params.below.eps_perp
