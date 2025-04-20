@@ -80,6 +80,6 @@ function generate_surface!(pre::Preallocated, params::Parameters{SingleBumpSurfa
     δ = surf.d
     a = surf.a
 
-    pre.ys .= δ * exp.((-0.5 * params.xs / a) .^ 2)
+    pre.ys .= δ * exp.(-0.5 * (params.xs / a) .^ 2)
     return nothing
 end

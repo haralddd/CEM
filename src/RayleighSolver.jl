@@ -36,17 +36,14 @@ export Parameters
 export get_angles, get_scale, get_scaled_params
 
 include("Precomputed.jl")
-export Precomputed
-export precompute!, validate
+export Precomputed, precompute!, validate
 
 include("Preallocated.jl")
-export Preallocated, Results, get_A, get_A², observe, observe!
+export SolverData, Preallocated, Results, get_A, get_A², observe, observe!
 
 include("random_surface_generator.jl")
 export generate_surface!
 
-include("SolverData.jl")
-export SolverData
 
 include("compute_t.jl")
 export compute_t_matrix, compute_t_matrix_full
@@ -55,13 +52,16 @@ include("solver_reduced_isotropic.jl")
 include("solver_reduced_uniaxial.jl")
 include("solver_full_uniaxial.jl")
 export PlotData
-export solve_single!, precompute!
+export solve_single_full!, solve_single_reduced!, solve_single!, precompute!
 
 include("energy.jl")
 export energy_conservation, energy_ratio
 
 include("solver_ensemble.jl")
-export solve_MDRC!, calc_mdrc, calc_mdtc
+export solve_ensemble!
+
+include("calc_plotdata.jl")
+export MdrcPlotData, MdtcPlotData, calc_mdrc, calc_mdtc
 
 
 include("utils.jl")

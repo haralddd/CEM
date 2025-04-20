@@ -1,4 +1,4 @@
-function energy_ratio(R2, T2, ks, qs, params::Parameters{_S,Vacuum,Uniaxial}, ν=:p) where {_S}
+function energy_ratio(R2, T2, ks, qs, params::Parameters, ν=:p)
     ret = zeros(size(R2, 2))
     μpa = params.below.mu_para
     μpe = params.below.mu_perp
@@ -42,37 +42,29 @@ function energy_ratio(R2, ks, qs)
     return ret
 end
 
-function energy_conservation(P_res::Results, S_res::Results, params::Parameters{_S,Vacuum,Uniaxial}) where {_S}
+function energy_conservation(data::SolverData)
+    params = data.params
+    
 
     ks = params.ks
     qs = params.qs
 
-    filt = -1.0 .<= qs .<= 1.0
-    R2p = get_A²(P_res)[filt, :]
-    T2p = get_T²(P_res)[filt, :]
-    R2s = get_A²(S_res)[filt, :]
-    T2s = get_T²(S_res)[filt, :]
+    if data.solver_type == :reduced
+        filt = -1.0 .<= qs .<= 1.0
+        R2p = data.Rp.A²[filt, :]
+        R2s = data.Rs.A²[filt, :]
 
-    P = energy_ratio(R2p, T2p, ks, qs[filt], params, :p)
-    S = energy_ratio(R2s, T2s, ks, qs[filt], params, :s)
+        P = energy_ratio(R2p, ks, qs[filt])
+        S = energy_ratio(R2s, ks, qs[filt])
+    elseif data.solver_type == :full
+        R2p = data.Rp.A²
+        T2p = data.Tp.A²
+        R2s = data.Rs.A²
+        T2s = data.Ts.A²
 
-    return P, S
-end
-
-function energy_conservation(PR2::Matrix{Float64}, SR2::Matrix{Float64}, params::Parameters{_S,Vacuum,Isotropic}) where {_S}
-    ks = params.ks
-    qs = params.qs
-
-    filt = qs .>= -1.0 .&& qs .<= 1.0
-    R2p = PR2[filt, :]
-    R2s = SR2[filt, :]
-
-    P = energy_ratio(R2p, ks, qs[filt])
-    S = energy_ratio(R2s, ks, qs[filt])
+        P = energy_ratio(R2p, T2p, ks, qs, params, :p)
+        S = energy_ratio(R2s, T2s, ks, qs, params, :s)
+    end
 
     return P, S
-end
-
-function energy_conservation(P_res::Results, S_res::Results, params::Parameters{_S,Vacuum,Isotropic}) where {_S}
-    energy_conservation(P_res.A², S_res.A², params)
 end

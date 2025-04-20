@@ -11,6 +11,16 @@ function M_invariant!(::Array{ComplexF64,3}, params::Parameters{_S,_A,_B}, nu::S
     @error "Not implemented for $(typeof(params))"
 end
 
+"""
+    function N_invariant!(N::Array{ComplexF64, 3}, parameters::Parameters{SurfT<:RandomSurface, Above<:Material, Below<:Material})
+
+Calculates the surface invariant part of the Npk matrix. 
+Invariant under surface change
+"""
+function N_invariant!(::Array{ComplexF64,3}, ::Parameters{_S,_A,_B}, nu::Symbol)::Nothing where {_S<:RandomSurface,_A<:Material,_B<:Material}
+    @error "Not implemented for $(typeof(params))"
+end
+
 function _M_isotropic_ker(p::Float64, q::Float64, params::Parameters, kappa::ComplexF64, n::Int)::ComplexF64
     a0 = alpha(q, params.above)
     a = alpha(p, params.below)
@@ -50,15 +60,6 @@ function M_invariant!(Mpqn::Array{ComplexF64,3}, params::Parameters{_S,Vacuum,Is
 end
 
 
-"""
-    function N_invariant!(N::Array{ComplexF64, 3}, parameters::Parameters{SurfT<:RandomSurface, Above<:Material, Below<:Material})
-
-Calculates the surface invariant part of the Npk matrix. 
-Invariant under surface change
-"""
-function N_invariant!(::Array{ComplexF64,3}, ::Parameters{_S,_A,_B}, nu::Symbol)::Nothing where {_S<:RandomSurface,_A<:Material,_B<:Material}
-    @error "Not implemented for $(typeof(params))"
-end
 
 
 function _N_isotropic_ker(p::Float64, k::Float64, params::Parameters, kappa::ComplexF64, n::Int)::ComplexF64
@@ -97,9 +98,14 @@ function N_invariant!(Npkn::Array{ComplexF64,3}, params::Parameters{_S,Vacuum,Is
     return nothing
 end
 
+function solve_single_reduced!(alloc::Preallocated, pre::Precomputed, data::SolverData{T})::Nothing where {T}
+    @error "Not implemented for $(typeof(data))"
+end
+
+
 
 """
-    function solve_single!(pre::Preallocated, data::SolverData)::Nothing
+    function solve_single_reduced!(alloc::Preallocated, pre::Precomputed, data::SolverData{Parameters{_S,Vacuum,Isotropic}})::Nothing where {_S}
 
 Calculates the preallocated surface integral.
 Matrix Mpqn is preallocated and contains the invariant parts of the Mpq matrix.
@@ -110,7 +116,7 @@ Overwrites sp.Mpq with the LU factorization in the linear solution process.
 # Arguments:
 - `data`: [`SolverData`](@ref) - Contains the parameters, preallocated steps, output
 """
-function solve_single!(alloc::Preallocated, pre::Precomputed, data::SolverData{Parameters{_S,Vacuum,Isotropic}})::Nothing where {_S}
+function solve_single_reduced!(alloc::Preallocated, pre::Precomputed, data::SolverData{Parameters{_S,Vacuum,Isotropic}})::Nothing where {_S}
 
     params = data.params
     

@@ -36,7 +36,7 @@ function M_invariant!(Mpqn::Array{ComplexF64,3}, params::Parameters{_S,Vacuum,Un
     qs = params.qs
     below = params.below
 
-    @assert params.mu_para == params.mu_perp "Uniaxial material must have isotropic permeability to use Reduced Uniaxial solver"
+    @assert below.mu_para == below.mu_perp "Uniaxial material must have isotropic permeability to use Reduced Uniaxial solver"
 
     # Define parameters based on polarization
     kappa_para = nu == :p ? below.eps_para : below.mu_para
@@ -104,9 +104,9 @@ function N_invariant!(Npkn::Array{ComplexF64,3}, params::Parameters{_S,Vacuum,Un
 end
 
 """
-    function solve_single!(alloc::Preallocated, pre::Precomputed, data::SolverData{Parameters{_S,Vacuum,Uniaxial}})::Nothing where {_S}
+    function solve_single_reduced!(alloc::Preallocated, pre::Precomputed, data::SolverData{Parameters{_S,Vacuum,Uniaxial}})::Nothing where {_S}
 
-Calculates the surface integral for a given surface realization in a uniaxial material.
+Calculates the surface integral for a given surface realization in a uniaxial material using the reduced method.
 Uses the precomputed invariant parts of M and N matrices.
 
 # Arguments:
@@ -114,7 +114,7 @@ Uses the precomputed invariant parts of M and N matrices.
 - `pre`: [`Precomputed`](@ref) structure containing precomputed values
 - `data`: [`SolverData`](@ref) structure containing the parameters and results
 """
-function solve_single!(alloc::Preallocated, pre::Precomputed, data::SolverData{Parameters{_S,Vacuum,Uniaxial}})::Nothing where {_S}
+function solve_single_reduced!(alloc::Preallocated, pre::Precomputed, data::SolverData{Parameters{_S,Vacuum,Uniaxial}})::Nothing where {_S}
     params = data.params
 
     FFT = params.FFT

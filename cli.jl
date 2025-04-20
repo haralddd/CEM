@@ -144,6 +144,20 @@ function config_creation_prompt(path=DEFAULT_INPUT)::Parameters
     println("Material below the interface (-)")
     below = material_prompt()
 
+    print("Solver method [1:reduced|2:full|3:composite] (=reduced): ")
+    input = readline()
+    input = input == "" ? "1" : input
+    solver_method = if input == "1" || lowercase(input) == "reduced"
+        :reduced
+    elseif input == "2" || lowercase(input) == "full"
+        :full
+    elseif input == "3" || lowercase(input) == "composite"
+        :composite
+    else
+        @warn "Unknown solver method: $input, using reduced"
+        :reduced
+    end
+    
     print("Seed [Int64 >= 0] (= random seed): ")
     input = readline()
     seed = parse(Int64, input == "" ? "-1" : input)
@@ -167,11 +181,20 @@ function config_creation_prompt(path=DEFAULT_INPUT)::Parameters
     # save_ensemble_iters(path / input, iters)
 
 
-    print("Save as filename [=\"default.jld2\"]: ")
+    # Create a default filename using the pattern name_iters_solvertype.jld2
+    default_name = isinteractive() ? "simulation" : splitext(basename(PROGRAM_FILE))[1]
+    default_filename = "$(default_name)_$(iters)_$(solver_method).jld2"
+    
+    print("Save as filename [=\"$(default_filename)\"]: ")
     input = readline()
-    input = input == "" ? "default.jld2" : input
-    save_spa_config(path / input, params,
-        override=Dict(:seed => seed) # Override the seed to generate random seed using the input
+    filename = input == "" ? default_filename : input
+    
+    save_spa_config(path / filename, params,
+        override=Dict(
+            :seed => seed,  # Override the seed to generate random seed using the input
+            :iters => iters,
+            :solver_method => solver_method
+        )
     )
 
     return params
@@ -188,6 +211,7 @@ function cli_help()
     run [Int|name] - run a configuration file
         out [label] - output file label following the run command
         iters [Int] - number of ensemble iters, default 100
+        solver [full|reduced|composite] - solver method
     list - show list of loadable configurations in \'path\'
         and optionally run or show information
 
@@ -219,16 +243,16 @@ function cli_info(filepath)
     return
 end
 
-function cli_run(filepath, iters = 100)
+function cli_run(filepath, iters = 100, solver_type = :reduced)
     params = load_spa_config(filepath)
     display(params)
 
     @info "Initializing SolverData..."
-    data = SolverData(params, iters)
+    data = SolverData(params, iters, solver_type)
     @debug "CLI Init: SolverData complete"
 
     @info "Solving system of equations..."
-    @time solve_MDRC!(data)
+    @time solve_ensemble!(data)
 
     if (idx = args_findoption("out")) !== nothing
         @assert length(ARGS) > idx "Missing argument after 'out'"
@@ -245,7 +269,7 @@ function cli_run(filepath, iters = 100)
     return
 end
 
-function cli_file(arg, argval, confpath, iters = 100)
+function cli_file(arg, argval, confpath, iters = 100, solver_type = :reduced)
     file_name = ""
     try
         files = get_jld_files(confpath)
@@ -260,7 +284,7 @@ function cli_file(arg, argval, confpath, iters = 100)
         cli_info(filepath)
         exit(0)
     elseif (arg == "run")
-        cli_run(filepath, iters)
+        cli_run(filepath, iters, solver_type)
         exit(0)
     else
         error("Unknown single file argument: $(arg)")
@@ -270,7 +294,7 @@ end
 
 
 
-function cli_directory(input_path, iters = 100)
+function cli_directory(input_path, iters = 100, solver_type = :reduced)
     if (idx = args_findoption("list")) !== nothing
         cli_list(input_path)
         println("""
@@ -280,7 +304,7 @@ function cli_directory(input_path, iters = 100)
         input = readline()
 
         arg, argval = split(input, " ")
-        cli_file(arg, argval, input_path, iters)
+        cli_file(arg, argval, input_path, iters, solver_type)
     else
         error("Unknown action following input path: $(input_path)")
         exit(0)
@@ -312,6 +336,12 @@ function cli_main()
         iters = parse(Int64, ARGS[idx+1])
     end
 
+    solver_type = :reduced
+    if (idx = args_findoption("solver")) !== nothing
+        @assert length(ARGS) > idx "Missing argument after 'solver'"
+        solver_type = ARGS[idx+1]
+    end
+
     @debug input_path
     @debug isdir(input_path)
     @debug isfile(input_path)
@@ -327,16 +357,16 @@ function cli_main()
             cli_info(input_path)
         elseif isdir(input_path)
             @assert length(ARGS) > idx "Missing argument after 'info'"
-            cli_file("info", ARGS[idx+1], input_path, iters)
+            cli_file("info", ARGS[idx+1], input_path, iters, solver_type)
         end
     elseif (idx = args_findoption("run") !== nothing)
         if isfile(input_path)
-            cli_run(input_path, iters)
+            cli_run(input_path, iters, solver_type)
         elseif isdir(input_path)
             @assert length(ARGS) > idx "Missing argument after 'run'"
-            cli_file("run", ARGS[idx+1], input_path, iters)
+            cli_file("run", ARGS[idx+1], input_path, iters, solver_type)
         end
     elseif isdir(input_path)
-        cli_directory(input_path, iters)
+        cli_directory(input_path, iters, solver_type)
     end
 end

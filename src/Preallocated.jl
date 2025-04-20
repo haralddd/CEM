@@ -24,6 +24,31 @@ struct Results
 end
 
 """
+    Struct for the purpose of serialization.
+    Containing the results and parameters of a solver run
+
+"""
+struct SolverData{ParametersType}
+    params::ParametersType
+    Rp::Results
+    Rs::Results
+    Tp::Results
+    Ts::Results
+    iters::Int64
+    solver_type::Symbol
+
+    function SolverData(params::ParametersType, iters::Int64=1000, solver_type::Symbol=:full) where {ParametersType}
+        Rp = Results(params)
+        Rs = Results(params)
+        Tp = Results(params)
+        Ts = Results(params)
+        @assert solver_type in [:full, :reduced, :combined]
+        return new{ParametersType}(params, Rp, Rs, Tp, Ts, iters, solver_type)
+    end
+end
+
+
+"""
     Preallocated(Nx, Nq, Nk)
     Preallocated(params::Parameters)
 
@@ -56,13 +81,19 @@ struct Preallocated
 
         new(PMpq, PNpk, SMpq, SNpk, Fys, sFys, ys)
     end
-    function Preallocated(params::Parameters)::Preallocated
-        Preallocated(length(params.xs), length(params.qs), length(params.ks))
-    end
-    function Preallocated(params::Parameters{_S,Vacuum,Uniaxial}) where {_S}
-        Preallocated(length(params.xs), 2*length(params.qs), length(params.ks))
+    function Preallocated(data::SolverData)::Preallocated
+        Nx = length(data.params.xs)
+        Nq = length(data.params.qs)
+        Nk = length(data.params.ks)
+        if data.solver_type == :full
+            return Preallocated(Nx, 2*Nq, Nk)
+        else
+            return Preallocated(Nx, Nq, Nk)
+        end
     end
 end
+
+
 
 
 "Iteratively update observable like so: ⟨A⟩ₙ = (n-1)/n ⟨A⟩ₙ₋₁ + Aₙ/n"
@@ -89,6 +120,37 @@ function observe!(res::Results, x, n)
         var = abs2(x[I] - A[I])
         σ²[I] = observe(σ²[I], var, n)
         κ[I] = observe(κ[I], var^2, n)
+    end
+end
+
+"""
+    Updates all `Results` observables in `data::SolverData` with the observations from `pre::Preallocated`.
+    
+    # Arguments:
+    - `data`: [`SolverData`](@ref) containing the results and parameters
+    - `pre`: [`Preallocated`](@ref) containing precomputed values
+    - `n`: Number of iterations
+"""
+function observe!(data::SolverData, pre::Preallocated, n::Int)
+    solver_type = data.solver_type
+    if solver_type == :full
+        half = size(pre.PNpk, 2) ÷ 2
+        Rp = @view pre.PNpk[1:half, :]
+        Rs = @view pre.SNpk[1:half, :]
+        Tp = @view pre.PNpk[half+1:end, :]
+        Ts = @view pre.SNpk[half+1:end, :]
+        observe!(data.Rp, Rp, n)
+        observe!(data.Rs, Rs, n)
+        observe!(data.Tp, Tp, n)
+        observe!(data.Ts, Ts, n)
+    elseif solver_type == :reduced
+        observe!(data.Rp, pre.PNpk, n)
+        observe!(data.Rs, pre.SNpk, n)
+    elseif solver_type == :combined
+        @error "Combined solver currently not implemented"
+        observe!(data.Rp, pre.PNpk, n)
+        observe!(data.Rs, pre.SNpk, n)
+        calculate_T!(data, pre, n)
     end
 end
 
