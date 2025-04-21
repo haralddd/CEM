@@ -1,5 +1,4 @@
-const prefactors = [-1.0im, -1.0 + 0.0im, 1.0im, 1.0 + 0.0im] # Lookup table for imaginary prefactor
-_pre(n) = prefactors[mod1(n, 4)]
+
 
 """
     function M_invariant!(M::Array{ComplexF64, 3}, parameters::Parameters{SurfT<:RandomSurface, Above<:Material, Below<:Material})
@@ -102,7 +101,7 @@ function solve_single_reduced!(alloc::Preallocated, pre::Precomputed, data::Solv
     @error "Not implemented for $(typeof(data))"
 end
 
-
+#=
 
 """
     function solve_single_reduced!(alloc::Preallocated, pre::Precomputed, data::SolverData{Parameters{_S,Vacuum,Isotropic}})::Nothing where {_S}
@@ -183,3 +182,5 @@ function solve_single_reduced!(alloc::Preallocated, pre::Precomputed, data::Solv
 
     return nothing
 end
+
+=#

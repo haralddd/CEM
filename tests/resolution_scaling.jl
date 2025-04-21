@@ -11,7 +11,7 @@ CairoMakie.activate!(type = "pdf")
 
 function calculate_errors(data::SolverData, iters::Int)
     params = data.params
-    alloc = Preallocated(params)
+    alloc = Preallocated(data)
     surf = params.surf
     xs = params.xs
     dx = params.dx
@@ -62,12 +62,14 @@ function test_resolution_scaling(surf_type::Symbol, Nx_values, Lx, lambda, iters
         slope_error = Float64[],
         dist_error = Float64[]
     )
+
+    σ = 10.0e-9
     
     for Nx in Nx_values
         params = if surf_type == :gaussian
-            Parameters(Nx=Nx, Lx=Lx, lambda=lambda, surf=GaussianSurface(30.0e-9, 100.0e-9))
+            Parameters(Nx=Nx, Lx=Lx, lambda=lambda, surf=GaussianSurface(σ, 100.0e-9))
         elseif surf_type == :rectangular
-            Parameters(Nx=Nx, Lx=Lx, lambda=lambda, surf=RectangularSurface(30.0e-9, 0.70, 1.30))
+            Parameters(Nx=Nx, Lx=Lx, lambda=lambda, surf=RectangularSurface(σ, 0.70, 1.30))
         else
             error("Unknown surface type: $surf_type")
         end
@@ -86,7 +88,7 @@ end
 function plot_scaling_results(gaussian_results, rect_results)
     # Separate plots for each error metric
     plot_metrics = ["mean_error", "rms_error", "slope_error", "dist_error"]
-    plot_titles = [L"\langle \zeta(x) \rangle", L"\langle \delta \rangle", L"\langle s \rangle", L"\langle D \rangle"]
+    plot_titles = [L"\mathrm{Error\ in\ mean\ value}", L"\mathrm{Error\ in\ RMS\ height}", L"\mathrm{Error\ in\ mean\ slope}", L"\mathrm{Error\ in\ peak-valley\ distance}"]
 
     # Save plots
     mkpath("plots/resolution_scaling")
@@ -124,8 +126,11 @@ function run_scaling_tests()
     # Define parameters for the tests
     lambda = 632.8e-9
     Lx = 100 * lambda
+    k0 = 2π / lambda
     
     Nx_values = range(2048, 8192, step=1024)
+    @info "Q low: $(π / (Lx / Nx_values[1]) / k0)"
+    @info "Q high: $(π / (Lx / Nx_values[end]) / k0)"
     
     # Lower iterations for faster testing (adjust based on your needs)
     iters = 2000

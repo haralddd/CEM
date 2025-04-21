@@ -18,8 +18,12 @@ end
 function solve_single!(alloc::Preallocated, pre::Precomputed, data::SolverData)
     if data.solver_type == :full
         return solve_single_full!(alloc, pre, data)
-    elseif data.solver_type == :reduced || data.solver_type == :combined
+    elseif data.solver_type == :reduced
         return solve_single_reduced!(alloc, pre, data)
+    elseif data.solver_type == :hybrid
+        return solve_single_hybrid!(alloc, pre, data)
+    else
+        error("Unknown solver type: $(data.solver_type)")
     end
 end
 
@@ -34,9 +38,10 @@ Handles both multi-threaded and single-threaded computation depending on the sys
 """
 function solve_ensemble!(data::SolverData{_P}) where {_P}
     @info "Precomputing matrix elements:"
-    precomputed = Precomputed(data.params)
-    @time precompute!(precomputed, data.params)
+    precomputed = Precomputed(data)
+    @time precompute!(precomputed, data)
     validate(precomputed)
+
     do_debug = get(ENV, "JULIA_DEBUG", "") != ""
     show_iter = get(ENV, "JULIA_SHOWITERS", "") == "true"
     @info "debug: $do_debug"

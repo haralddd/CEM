@@ -35,24 +35,21 @@ export Polarization, PolarizationP, PolarizationS
 export Parameters
 export get_angles, get_scale, get_scaled_params
 
-include("Precomputed.jl")
-export Precomputed, precompute!, validate
 
 include("Preallocated.jl")
 export SolverData, Preallocated, Results, get_A, get_A², observe, observe!
 
+include("Precomputed.jl")
+export Precomputed, precompute!, validate
+
 include("random_surface_generator.jl")
 export generate_surface!
 
-
-include("compute_t.jl")
-export compute_t_matrix, compute_t_matrix_full
-
-include("solver_reduced_isotropic.jl")
 include("solver_reduced_uniaxial.jl")
+include("solver_hybrid_uniaxial.jl")
 include("solver_full_uniaxial.jl")
 export PlotData
-export solve_single_full!, solve_single_reduced!, solve_single!, precompute!
+export solve_single_full!, solve_single_hybrid!, solve_single_reduced!, solve_single!, precompute!
 
 include("energy.jl")
 export energy_conservation, energy_ratio

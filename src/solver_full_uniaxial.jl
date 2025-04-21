@@ -26,61 +26,54 @@ function _N2n(p, k, a0, n)
     return _pre(n) / factorial(n) * (k * (p - k) * a0^(n - 1) - a0^(n + 1))
 end
 
+"""
+    M_invariant_full!(Mpqn::Array{ComplexF64,3}, params::Parameters{ST,Vacuum,BT})::Nothing where {ST,BT}
 
-
-function precompute!(pre::Precomputed, params::Parameters{_S,Vacuum,Uniaxial})::Nothing where {_S}
-    εpe = params.below.eps_perp
-    εpa = params.below.eps_para
-    μpe = params.below.mu_perp
-    μpa = params.below.mu_para
-    A = √((μpa * εpa) / (μpe * εpe))
-    μεpa = μpa * εpa
-    μεpe = μpe * εpe
+Compute the M invariant matrices for both P and S polarizations for the full solver.
+"""
+function M_invariant_full!(Mpqn::Array{ComplexF64,3}, params::Parameters{ST,Vacuum,BT}, nu::Symbol)::Nothing where {ST,BT}
+    below = params.below
+    
+    if below isa Uniaxial
+        εpe = below.eps_perp
+        εpa = below.eps_para
+        μpe = below.mu_perp
+        μpa = below.mu_para
+        A = get_A(below)
+        kappa_perp = nu == :p ? εpe : μpe
+        kappa_para = nu == :p ? εpa : μpa
+        alpha_func = nu == :p ? (q -> alpha_p(q, below)) : (q -> alpha_s(q, below))
+    elseif below isa Isotropic
+        εpe = εpa = below.eps
+        μpe = μpa = below.mu
+        A = 1.0 + 0.0im
+        alpha_func = (q -> alpha(q, below))
+        kappa_perp = kappa_para = nu == :p ? εpe : μpe
+    else
+        error("Full solver only supports Vacuum-Uniaxial and Vacuum-Isotropic interfaces")
+    end
 
     qs = params.qs
     ps = params.ps
-    ks = params.ks
-
-    PMn = pre.PMpqn
-    PNn = pre.PNpkn
-    SMn = pre.SMpqn
-    SNn = pre.SNpkn
-
-    PMn .= 0.0
-    PNn .= 0.0
-    SMn .= 0.0
-    SNn .= 0.0
-
+    
     half = length(ps)
-    @assert half == size(PMn, 1) ÷ 2 == size(SMn, 1) ÷ 2 == size(PNn, 1) ÷ 2 == size(SNn, 1) ÷ 2
-
-    PMn11 = @view PMn[1:half, 1:half, :]
-    PMn12 = @view PMn[1:half, half+1:end, :]
-    PMn21 = @view PMn[half+1:end, 1:half, :]
-    PMn22 = @view PMn[half+1:end, half+1:end, :]
-
-    PNn1 = @view PNn[1:half, :, :]
-    PNn2 = @view PNn[half+1:end, :, :]
-
-    SMn11 = @view SMn[1:half, 1:half, :]
-    SMn12 = @view SMn[1:half, half+1:end, :]
-    SMn21 = @view SMn[half+1:end, 1:half, :]
-    SMn22 = @view SMn[half+1:end, half+1:end, :]
-
-    SNn1 = @view SNn[1:half, :, :]
-    SNn2 = @view SNn[half+1:end, :, :]
-
-    # --- nu = p ---
+    @assert half == size(Mpqn, 1) ÷ 2
+    
+    Mpqn11 = @view Mpqn[1:half, 1:half, :]
+    Mpqn12 = @view Mpqn[1:half, half+1:end, :]
+    Mpqn21 = @view Mpqn[half+1:end, 1:half, :]
+    Mpqn22 = @view Mpqn[half+1:end, half+1:end, :]
+    
     # M-elements
     # n = 0
-    for i in axes(PMn11, 1)
+    for i in axes(Mpqn11, 1)
         p = ps[i]
         a0 = alpha0(p)
-        ap = alpha_p(p, A, μεpa)
-        PMn11[i, i, 1] = -1
-        PMn12[i, i, 1] = 1
-        PMn21[i, i, 1] = -a0
-        PMn22[i, i, 1] = -ap / εpa
+        a = alpha_func(p)
+        Mpqn11[i, i, 1] = -1
+        Mpqn12[i, i, 1] = 1
+        Mpqn21[i, i, 1] = -a0
+        Mpqn22[i, i, 1] = -a / kappa_para
     end
     # n > 0
     for n in axes(PMn11, 3)[2:end]
@@ -89,71 +82,64 @@ function precompute!(pre::Precomputed, params::Parameters{_S,Vacuum,Uniaxial})::
                 p = ps[pidx]
                 q = qs[qidx]
                 a0 = alpha0(q)
-                ap = alpha_p(q, A, μεpa)
-                PMn11[pidx, qidx, n] = _M11n(a0, n-1)
-                PMn12[pidx, qidx, n] = _M12n(ap, n-1)
-                PMn21[pidx, qidx, n] = _M21n(p, q, a0, n-1)
-                PMn22[pidx, qidx, n] = _M22n(p, q, ap, εpe, εpa, n-1)
+                a = alpha_func(q)
+                Mpqn11[pidx, qidx, n] = _M11n(a0, n-1)
+                Mpqn12[pidx, qidx, n] = _M12n(a, n-1)
+                Mpqn21[pidx, qidx, n] = _M21n(p, q, a0, n-1)
+                Mpqn22[pidx, qidx, n] = _M22n(p, q, a, kappa_perp, kappa_para, n-1)
             end
         end
     end
-    # N-elements
-    for n in axes(PMn11, 3)
-        for kidx in axes(PNn1, 2)
-            for pidx in axes(PNn1, 1)
-                p = ps[pidx]
-                k = ks[kidx]
-                a0 = alpha0(k)
-                PNn1[pidx, kidx, n] = _N1n(a0, n-1)
-                PNn2[pidx, kidx, n] = _N2n(p, k, a0, n-1)
-            end
-        end
-    end
-
-    # --- nu = s ---
-    # M-elements
-    # n = 0
-    for i in axes(SMn11, 1)
-        p = ps[i]
-        a0 = alpha0(p)
-        as = alpha_s(p, μεpa)
-        SMn11[i, i, 1] = -1
-        SMn12[i, i, 1] = 1
-        SMn21[i, i, 1] = -a0
-        SMn22[i, i, 1] = -as / μpa
-    end
-    # n > 0
-    for n in axes(SMn11, 3)[2:end]
-        for qidx in axes(SMn11, 2)
-            for pidx in axes(SMn11, 1)
-                p = ps[pidx]
-                q = qs[qidx]
-                a0 = alpha0(q)
-                as = alpha_s(q, μεpa)
-                SMn11[pidx, qidx, n] = _M11n(a0, n-1)
-                SMn12[pidx, qidx, n] = _M12n(as, n-1)
-                SMn21[pidx, qidx, n] = _M21n(p, q, a0, n-1)
-                SMn22[pidx, qidx, n] = _M22n(p, q, as, μpe, μpa, n-1)
-            end
-        end
-    end
-    # N-elements
-    for n in axes(SNn1, 3)
-        for kidx in axes(SNn1, 2)
-            for pidx in axes(SNn1, 1)
-                p = ps[pidx]
-                k = ks[kidx]
-                a0 = alpha0(k)
-                SNn1[pidx, kidx, n] = _N1n(a0, n-1)
-                SNn2[pidx, kidx, n] = _N2n(p, k, a0, n-1)
-            end
-        end
-    end
-
     return nothing
 end
 
-function solve_single_full!(alloc::Preallocated, pre::Precomputed, data::SolverData{Parameters{_S,Vacuum,Uniaxial}})::Nothing where {_S}
+"""
+    N_invariant_full!(Npkn::Array{ComplexF64,3}, params::Parameters{ST,Vacuum,BT})::Nothing where {ST,BT}
+
+Compute the N invariant matrices for both P and S polarizations for the full solver.
+"""
+function N_invariant_full!(Npkn::Array{ComplexF64,3}, params::Parameters{ST,Vacuum,BT}, nu::Symbol)::Nothing where {ST,BT}
+    below = params.below
+
+    if below isa Uniaxial
+        kappa_para = nu == :p ? below.eps_para : below.mu_para
+        kappa_perp = nu == :p ? below.eps_perp : below.mu_perp
+    elseif below isa Isotropic
+        kappa_perp = kappa_para = nu == :p ? below.eps : below.mu
+    else
+        error("Uniaxial solver only supports Vacuum-Uniaxial and Vacuum-Isotropic interfaces")
+    end
+    
+    ps = params.ps
+    ks = params.ks
+    
+    half = length(ps)
+    @assert half == size(Npkn, 1) ÷ 2
+    
+    Npkn1 = @view Npkn[1:half, :, :]
+    Npkn2 = @view Npkn[half+1:end, :, :]
+    
+    # N-elements
+    for n in axes(Npkn1, 3)
+        for kidx in axes(Npkn1, 2)
+            for pidx in axes(Npkn1, 1)
+                p = ps[pidx]
+                k = ks[kidx]
+                a0 = alpha0(k)
+                Npkn1[pidx, kidx, n] = _N1n(a0, n-1)
+                Npkn2[pidx, kidx, n] = _N2n(p, k, a0, n-1)
+            end
+        end
+    end
+    
+    return nothing
+end
+
+function solve_single_full!(alloc::Preallocated, pre::Precomputed, data::SolverData)::Nothing
+    @error "Not implemented for $(typeof(data))"
+end
+
+function solve_single_full!(alloc::Preallocated, pre::Precomputed, data::SolverData{Parameters{ST,Vacuum,BT}})::Nothing where {ST,BT}
 
     params = data.params
 

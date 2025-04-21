@@ -1,7 +1,6 @@
 using RayleighSolver
-using Plots
+using CairoMakie
 using LaTeXStrings
-using CSV
 using DataFrames
 # Use the analytical expression for a flat surface to plot the reflection coefficients
 # Compare with the numerical results with a flat surface
@@ -35,10 +34,10 @@ eps_tio2_para = 3.62+0.0im
 eps_tio2_perp = 6.84+0.0im
 
 # Gold and glass layered
-eps_gold = -11.740+1.2611im
-eps_glass = 2.25+0.0im
-eps_gg_perp = ema_eps_perp(0.165, eps_gold, eps_glass)
-eps_gg_para = ema_eps_para(0.165, eps_gold, eps_glass)
+# # eps_gold = -11.740+1.2611im
+# # eps_glass = 2.25+0.0im
+# # eps_gg_perp = ema_eps_perp(0.165, eps_gold, eps_glass)
+# # eps_gg_para = ema_eps_para(0.165, eps_gold, eps_glass)
 
 
 # Silver and glass layered

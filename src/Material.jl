@@ -41,7 +41,7 @@ function alpha0(q)
     alpha(q, Vacuum())
 end
 
-function get_A(mat::Uniaxial)
+function get_A(mat::Uniaxial)::ComplexF64
     return (mat.mu_para * mat.eps_para) / (mat.mu_perp * mat.eps_perp)
 end
 

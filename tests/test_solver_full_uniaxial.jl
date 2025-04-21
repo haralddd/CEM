@@ -1,5 +1,5 @@
 include("testconfig.jl")
-using Plots
+using CairoMakie
 using LinearAlgebra
 using Statistics
 using Test
@@ -33,7 +33,7 @@ using Test
         
         # Preallocate and precompute
         precomputed = Precomputed(params)
-        precompute!(precomputed, params)
+        precompute_full!(precomputed, params)
         validate(precomputed)
         
         # Run the solver for a single realization
@@ -89,6 +89,7 @@ using Test
         P_energy, S_energy = energy_conservation(data)
         @test isapprox(P_energy[1], 1.0, rtol=1e-2)
         @test isapprox(S_energy[1], 1.0, rtol=1e-2)
+        @info "P_energy: $(P_energy[1]), S_energy: $(S_energy[1])"
     end
     
     @testset "Flat Surface - Anisotropic Uniaxial Medium" begin
@@ -108,7 +109,7 @@ using Test
         
         # Preallocate and precompute
         precomputed = Precomputed(params)
-        precompute!(precomputed, params)
+        precompute_full!(precomputed, params)
         validate(precomputed)
         
         # Run the solver for a single realization
@@ -121,6 +122,7 @@ using Test
         P_energy, S_energy = energy_conservation(data)
         @test isapprox(P_energy[1], 1.0, rtol=1e-2)
         @test isapprox(S_energy[1], 1.0, rtol=1e-2)
+        @info "P_energy: $(P_energy[1]), S_energy: $(S_energy[1])"
     end
     
     @testset "Flat Surface - Anisotropic Permeability" begin
@@ -141,7 +143,7 @@ using Test
         
         # Preallocate and precompute
         precomputed = Precomputed(params)
-        precompute!(precomputed, params)
+        precompute_full!(precomputed, params)
         validate(precomputed)
         
         # Run the solver for a single realization
@@ -154,6 +156,7 @@ using Test
         P_energy, S_energy = energy_conservation(data)
         @test isapprox(P_energy[1], 1.0, rtol=1e-2)
         @test isapprox(S_energy[1], 1.0, rtol=1e-2)
+        @info "P_energy: $(P_energy[1]), S_energy: $(S_energy[1])"
     end
     
     @testset "Gaussian Surface - Uniaxial Medium" begin
@@ -201,5 +204,6 @@ using Test
             @test isapprox(P_energy[i], 1.0, rtol=1e-2)
             @test isapprox(S_energy[i], 1.0, rtol=1e-2)
         end
+        @info "P_energy: $(P_energy), S_energy: $(S_energy)"
     end
 end

@@ -1,5 +1,4 @@
 include("testconfig.jl")
-using Plots
 using LinearAlgebra
 using Statistics
 using Test
@@ -10,8 +9,8 @@ using Test
     λ = 632.8  # wavelength in nm
     
     # Surface parameters
-    Nx = 2^10  # Number of discretization points
-    Lx = 50 * λ  # Length of the surface
+    Nx = 2^12  # Number of discretization points
+    Lx = 100 * λ  # Length of the surface
     
     # Material parameters
     ε_perp = -10.0 + 0.0im  # perpendicular permittivity (negative for high reflectivity)
@@ -28,15 +27,14 @@ using Test
         below = Uniaxial(ε_perp, ε_para, μ_perp, μ_para)
         
         # Create parameters and solver data
-        params = Parameters(surf=surface, above=above, below=below, Nx=Nx, Lx=Lx, lambda=λ, θs=[θ0], solver_method=:reduced)
+        params = Parameters(surf=surface, above=above, below=below, Nx=Nx, Lx=Lx, lambda=λ, θs=[θ0])
         
         # Create solver data
         data = SolverData(params, 1, :reduced)
         
         # Preallocate and precompute
-        precomputed = Precomputed(params)
-        precompute!(precomputed, params)
-        validate(precomputed)
+        precomputed = Precomputed(data)
+        precompute!(precomputed, data)
         
         # Run the solver for a single realization
         alloc = Preallocated(data)
@@ -80,8 +78,8 @@ using Test
     # Test random Gaussian surface with uniaxial medium
     @testset "Gaussian Surface - Uniaxial Medium" begin
         # Create a Gaussian surface with small roughness
-        σ = 0.05 * λ  # RMS height (smaller for better numerical stability)
-        ℓ = 1.0 * λ  # Correlation length
+        σ = 10.0e-9  # RMS height (smaller for better numerical stability)
+        ℓ = 100.0e-9  # Correlation length
         surface = GaussianSurface(σ, ℓ)
         
         # Use the same uniaxial material
@@ -90,7 +88,7 @@ using Test
         # More incident angles for a more comprehensive test
         θs = [10.0, 20.0, 30.0, 40.0, 50.0]
         
-        params = Parameters(surf=surface, above=above, below=below, Nx=Nx, Lx=Lx, lambda=λ, θs=θs, solver_method=:reduced)
+        params = Parameters(surf=surface, above=above, below=below, Nx=Nx, Lx=Lx, lambda=λ, θs=θs)
         
         # Create solver data
         iters = 5  # Small number for test purposes
@@ -111,8 +109,9 @@ using Test
     
     # Test for reflection with varying anisotropy ratios
     @testset "Reflection - Varying Anisotropy" begin
-        # Create flat surface and use common parameters
-        surface = FlatSurface()
+        σ = 10.0e-9
+        ℓ = 100.0e-9
+        surface = GaussianSurface(σ, ℓ)
         
         # Test different anisotropy ratios using reflective materials
         anisotropy_ratios = [1.0, 1.5, 2.0, 3.0]
@@ -124,43 +123,51 @@ using Test
             
             below = Uniaxial(ε_perp, anisotropic_para, μ_perp, μ_para)
             
-            params = Parameters(surf=surface, above=above, below=below, Nx=Nx, Lx=Lx, lambda=λ, θs=[θ0], solver_method=:reduced)
+            params = Parameters(surf=surface, above=above, below=below, Nx=Nx, Lx=Lx, lambda=λ, θs=[θ0])
             
             # Create solver data
             data = SolverData(params, 1, :reduced)
             
             # Preallocate and precompute
-            precomputed = Precomputed(params)
-            precompute!(precomputed, params)
-            validate(precomputed)
+            precomputed = Precomputed(data)
+            precompute!(precomputed, data)
             
             # Run the solver for a single realization
             alloc = Preallocated(data)
             generate_surface!(alloc, params)
             solve_single!(alloc, precomputed, data)
             
+            # Record results for observation
+            observe!(data, alloc, 1)
             
+            # Check energy conservation
+            P_energy, S_energy = energy_conservation(data)
+            @test isapprox(P_energy[1], 1.0, rtol=1e-2)
+            @test isapprox(S_energy[1], 1.0, rtol=1e-2)
+            @info "Anisotropy: $(ratio), P_energy: $(P_energy[1]), S_energy: $(S_energy[1])"
         end
     end
     
     # Test that μ_perp = μ_para assertion is enforced in the reduced solver
     @testset "Assertion for μ_perp = μ_para" begin
-        # Create a flat surface
-        surface = FlatSurface()
+        # Create a Gaussian surface
+        σ = 10.0e-9
+        ℓ = 100.0e-9
+        surface = GaussianSurface(σ, ℓ)
         
         # Create uniaxial medium with unequal permeability
-        different_para = -15.0 + 0.0im  # Different epsilon parallel
         different_mu = 1.2 + 0.0im      # Different mu parallel
         
-        below = Uniaxial(ε_perp, different_para, μ_perp, different_mu)
+        below = Uniaxial(ε_perp, ε_para, μ_perp, different_mu)
         
         # Create parameters with solver_method = :reduced
         # The assertion should fail during validation
-        params = Parameters(surf=surface, above=above, below=below, Nx=Nx, Lx=Lx, lambda=λ, θs=[θ0], solver_method=:reduced)
+        params = Parameters(surf=surface, above=above, below=below, Nx=Nx, Lx=Lx, lambda=λ, θs=[θ0])
         
         # When creating Parameters with solver_method=:reduced and Uniaxial with μ_perp ≠ μ_para,
         # the assertion should fail during precomputation
-        precomputed = Precomputed(params)
-        @test_throws ErrorException precompute!(precomputed, params)
+        data = SolverData(params, 1, :reduced)
+        precomputed = Precomputed(data)
+        @test_throws AssertionError precompute!(precomputed, data)
     end
 end

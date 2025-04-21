@@ -39,10 +39,10 @@ function config_fresnel_glass(Nθ)
     ))
 end
 
-function config_default_uniaxial()
+function config_default_uniaxial(;solver_type=:full)
     eps_para = 2.0
-    eps_perp = 5*eps_para
+    eps_perp = 2.0*eps_para
     return SolverData(Parameters(
         below=Uniaxial(eps_perp, eps_para, 1.0, 1.0)
-    ))
+    ),1,solver_type)
 end

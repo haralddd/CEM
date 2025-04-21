@@ -42,11 +42,35 @@ struct SolverData{ParametersType}
         Rs = Results(params)
         Tp = Results(params)
         Ts = Results(params)
-        @assert solver_type in [:full, :reduced, :combined]
+        @assert solver_type in [:full, :reduced, :hybrid]
         return new{ParametersType}(params, Rp, Rs, Tp, Ts, iters, solver_type)
     end
 end
 
+"""
+    HybridPreallocated(Nq, Nk)
+    HybridPreallocated(params::Parameters)
+
+HybridPreallocated is a struct which contains solution vectors for the hybrid solver.
+"""
+struct HybridPreallocated
+    PApq::Matrix{ComplexF64}
+    Pbpk::Matrix{ComplexF64}
+
+    SApq::Matrix{ComplexF64}
+    Sbpk::Matrix{ComplexF64}
+
+    function HybridPreallocated(Nq::Int, Nk::Int)
+        PApq = Matrix{ComplexF64}(undef, Nq, Nq)
+        Pbpk = Matrix{ComplexF64}(undef, Nq, Nk)
+        SApq = Matrix{ComplexF64}(undef, Nq, Nq)
+        Sbpk = Matrix{ComplexF64}(undef, Nq, Nk)
+        return new(PApq, Pbpk, SApq, Sbpk)
+    end
+    function HybridPreallocated(data::SolverData)
+        return HybridPreallocated(length(data.params.qs), length(data.params.ks))
+    end
+end
 
 """
     Preallocated(Nx, Nq, Nk)
@@ -68,7 +92,9 @@ struct Preallocated
     sFys::Vector{ComplexF64}
     ys::Vector{Float64}
 
-    function Preallocated(Nx::Int, Nq::Int, Nk::Int)::Preallocated
+    hybrid::Union{HybridPreallocated, Nothing}
+
+    function Preallocated(Nx::Int, Nq::Int, Nk::Int, hybrid::Union{HybridPreallocated, Nothing})::Preallocated
         PMpq = zeros(ComplexF64, Nq, Nq)
         PNpk = zeros(ComplexF64, Nq, Nk)
         
@@ -79,16 +105,18 @@ struct Preallocated
         Fys = similar(ys, ComplexF64)
         sFys = similar(Fys)
 
-        new(PMpq, PNpk, SMpq, SNpk, Fys, sFys, ys)
+        new(PMpq, PNpk, SMpq, SNpk, Fys, sFys, ys, hybrid)
     end
     function Preallocated(data::SolverData)::Preallocated
         Nx = length(data.params.xs)
         Nq = length(data.params.qs)
         Nk = length(data.params.ks)
         if data.solver_type == :full
-            return Preallocated(Nx, 2*Nq, Nk)
+            return Preallocated(Nx, 2*Nq, Nk, nothing)
+        elseif data.solver_type == :hybrid
+            return Preallocated(Nx, Nq, Nk, HybridPreallocated(data))
         else
-            return Preallocated(Nx, Nq, Nk)
+            return Preallocated(Nx, Nq, Nk, nothing)
         end
     end
 end
@@ -128,7 +156,7 @@ end
     
     # Arguments:
     - `data`: [`SolverData`](@ref) containing the results and parameters
-    - `pre`: [`Preallocated`](@ref) containing precomputed values
+    - `pre`: [`Preallocated`](@ref) containing preallocated values
     - `n`: Number of iterations
 """
 function observe!(data::SolverData, pre::Preallocated, n::Int)
@@ -146,11 +174,13 @@ function observe!(data::SolverData, pre::Preallocated, n::Int)
     elseif solver_type == :reduced
         observe!(data.Rp, pre.PNpk, n)
         observe!(data.Rs, pre.SNpk, n)
-    elseif solver_type == :combined
-        @error "Combined solver currently not implemented"
+    elseif solver_type == :hybrid
         observe!(data.Rp, pre.PNpk, n)
         observe!(data.Rs, pre.SNpk, n)
-        calculate_T!(data, pre, n)
+        observe!(data.Tp, pre.hybrid.Pbpk, n)
+        observe!(data.Ts, pre.hybrid.Sbpk, n)
+    else
+        error("Unknown solver type: $(solver_type)")
     end
 end
 

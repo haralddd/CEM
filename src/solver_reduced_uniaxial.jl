@@ -1,7 +1,9 @@
+const prefactors = [-1.0im, -1.0 + 0.0im, 1.0im, 1.0 + 0.0im] # Lookup table for imaginary prefactor
+_pre(n) = prefactors[mod1(n, 4)]
 
 function _M_uniaxial_ker(p::Float64, q::Float64, kappa_para::ComplexF64, kappa_perp::ComplexF64, alpha_func::Function, n::Int)::ComplexF64
     a = alpha_func(p)
-    a0 = alpha(q, params.above)
+    a0 = alpha0(q)
     da = a - a0
 
     return _pre(n) / factorial(n) * (
@@ -31,17 +33,23 @@ Implementation of M_invariant_uniaxial! for Vacuum-Uniaxial interface.
 - `params`: [`Parameters`](@ref) containing simulation parameters
 - `nu`: Polarization, either `:p` or `:s`
 """
-function M_invariant!(Mpqn::Array{ComplexF64,3}, params::Parameters{_S,Vacuum,Uniaxial}, nu::Symbol)::Nothing where {_S}
+function M_invariant_reduced!(Mpqn::Array{ComplexF64,3}, params::Parameters{ST,Vacuum,BT}, nu::Symbol)::Nothing where {ST,BT}
     ps = params.ps
     qs = params.qs
     below = params.below
 
-    @assert below.mu_para == below.mu_perp "Uniaxial material must have isotropic permeability to use Reduced Uniaxial solver"
-
-    # Define parameters based on polarization
-    kappa_para = nu == :p ? below.eps_para : below.mu_para
-    kappa_perp = nu == :p ? below.eps_perp : below.mu_perp
-    alpha_func = nu == :p ? (p -> alpha_p(p, below)) : (p -> alpha_s(p, below))
+    # Define parameters based on polarization and below material
+    if below isa Uniaxial
+        @assert below.mu_para == below.mu_perp "Uniaxial material must have isotropic permeability to use Reduced Uniaxial solver"
+        kappa_para = nu == :p ? below.eps_para : below.mu_para
+        kappa_perp = nu == :p ? below.eps_perp : below.mu_perp
+        alpha_func = nu == :p ? (q -> alpha_p(q, below)) : (q -> alpha_s(q, below))
+    elseif below isa Isotropic
+        kappa_perp = kappa_para = nu == :p ? below.eps : below.mu
+        alpha_func = (q -> alpha(q, below))
+    else
+        error("Uniaxial solver only supports Vacuum-Uniaxial and Vacuum-Isotropic interfaces")
+    end
 
     # n = 0
     Mpqn[:, :, 1] .= 0.0
@@ -70,24 +78,32 @@ end
 
 
 """
-    N_invariant!(Npkn::Array{ComplexF64,3}, params::Parameters{_S,Vacuum,Uniaxial}, nu::Symbol)::Nothing where {_S}
+    N_invariant_reduced!(Npkn::Array{ComplexF64,3}, params::Parameters{ST,Vacuum,BT}, nu::Symbol)::Nothing where {ST,BT}
 
-Implementation of N_invariant! for Vacuum-Uniaxial interface.
+Implementation of N_invariant_reduced! for Vacuum-Uniaxial or Vacuum-Isotropic interface.
 
 # Arguments:
 - `Npkn`: 3D array to store the precomputed matrix elements
 - `params`: [`Parameters`](@ref) containing simulation parameters
 - `nu`: Polarization, either `:p` or `:s`
 """
-function N_invariant!(Npkn::Array{ComplexF64,3}, params::Parameters{_S,Vacuum,Uniaxial}, nu::Symbol)::Nothing where {_S}
+function N_invariant_reduced!(Npkn::Array{ComplexF64,3}, params::Parameters{ST,Vacuum,BT}, nu::Symbol)::Nothing where {ST,BT}
     ps = params.ps
     ks = params.ks
     below = params.below
 
-    # Define parameters based on polarization
-    kappa_para = nu == :p ? below.eps_para : below.mu_para
-    kappa_perp = nu == :p ? below.eps_perp : below.mu_perp
-    alpha_func = nu == :p ? (p -> alpha_p(p, below)) : (p -> alpha_s(p, below))
+    # Define parameters based on polarization and below material
+    if below isa Uniaxial
+        @assert below.mu_para == below.mu_perp "Uniaxial material must have isotropic permeability to use Reduced Uniaxial solver"
+        kappa_para = nu == :p ? below.eps_para : below.mu_para
+        kappa_perp = nu == :p ? below.eps_perp : below.mu_perp
+        alpha_func = nu == :p ? (p -> alpha_p(p, below)) : (p -> alpha_s(p, below))
+    elseif below isa Isotropic
+        kappa_perp = kappa_para = nu == :p ? below.eps : below.mu
+        alpha_func = (p -> alpha(p, below))
+    else
+        error("Uniaxial solver only supports Vacuum-Uniaxial and Vacuum-Isotropic interfaces")
+    end
 
     # Process all n values
     @inbounds for n in axes(Npkn, 3)
@@ -104,7 +120,7 @@ function N_invariant!(Npkn::Array{ComplexF64,3}, params::Parameters{_S,Vacuum,Un
 end
 
 """
-    function solve_single_reduced!(alloc::Preallocated, pre::Precomputed, data::SolverData{Parameters{_S,Vacuum,Uniaxial}})::Nothing where {_S}
+    function solve_single_reduced!(alloc::Preallocated, pre::Precomputed, data::SolverData{Parameters{ST,Vacuum,BT}})::Nothing where {ST,BT}
 
 Calculates the surface integral for a given surface realization in a uniaxial material using the reduced method.
 Uses the precomputed invariant parts of M and N matrices.
@@ -114,7 +130,7 @@ Uses the precomputed invariant parts of M and N matrices.
 - `pre`: [`Precomputed`](@ref) structure containing precomputed values
 - `data`: [`SolverData`](@ref) structure containing the parameters and results
 """
-function solve_single_reduced!(alloc::Preallocated, pre::Precomputed, data::SolverData{Parameters{_S,Vacuum,Uniaxial}})::Nothing where {_S}
+function solve_single_reduced!(alloc::Preallocated, pre::Precomputed, data::SolverData{Parameters{ST,Vacuum,BT}})::Nothing where {ST,BT}
     params = data.params
 
     FFT = params.FFT

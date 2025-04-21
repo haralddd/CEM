@@ -2,57 +2,44 @@ include("testconfig.jl")
 
 using BenchmarkTools
 # using ProfileView
+function profile_uniaxial_reduced_single_solve()
+    @info "Default uniaxial reduced single solve"
+    data = config_default_uniaxial(solver_type=:reduced)
+    pre = Precomputed(data)
+    alloc = Preallocated(data)
+    precompute!(pre, data)
+    generate_surface!(alloc, data.params)
 
-function profile_gaussian_surfacegen()
-    @info "Gaussian surface generation"
-    data = default_gaussian_config()
-    pre = Preallocated(data.params)
-    bench = @benchmark generate_surface!($pre, $data.params)
-    display(bench)
+    @time solve_single!(alloc, pre, data)
+
+    # bench = @benchmark solve_single_reduced!($alloc, $pre, $data)
+    # display(bench)
 end
 
-function profile_rectangular_surfacegen()
-    @info "Rectangular surface generation"
-    data = default_rectangular_config()
-    pre = Preallocated(data.params)
-    
-    bench = @benchmark generate_surface!($pre, $data.params)
-    display(bench)
+function profile_uniaxial_hybrid_single_solve()
+    @info "Default uniaxial hybrid single solve"
+    data = config_default_uniaxial(solver_type=:hybrid)
+    pre = Precomputed(data)
+    alloc = Preallocated(data)
+    precompute!(pre, data)
+    generate_surface!(alloc, data.params)
+
+    @time solve_single!(alloc, pre, data)
+
+    # bench = @benchmark solve_single_hybrid!($alloc, $pre, $data)
+    # display(bench)
 end
 
-function profile_isotropic_precompute()
-    @info "Simple glass isotropic precompute"
-    data = config_glass_isotropic()
+function profile_uniaxial_full_single_solve()
+    @info "Default uniaxial full single solve"
+    data = config_default_uniaxial(solver_type=:full)
+    pre = Precomputed(data)
+    alloc = Preallocated(data)
+    precompute!(pre, data)
+    generate_surface!(alloc, data.params)
 
-    bench = @benchmark precompute!($data)
-    display(bench)
-end
+    @time solve_single!(alloc, pre, data)
 
-function profile_isotropic_single_solve()
-    @info "Simple glass isotropic single solve"
-    data = config_glass_isotropic()
-    precompute!(data)
-    generate_surface!(data.sp, data.params)
-
-    bench = @benchmark solve_single!($data)
-    display(bench)
-end
-
-function profile_isotropic_observe()
-    @info "Simple glass isotropic observe"
-    data = config_glass_isotropic()
-    precompute!(data)
-    generate_surface!(data.sp, data.params)
-    solve_single!(data)
-    bench = @benchmark observe!($data, 10)
-    display(bench)
-end
-
-function singlerun_isotropic_single_solve()
-    data = config_glass_isotropic()
-    precompute!(data)
-    generate_surface!(data.sp, data.params)
-    _, stats... = @timed solve_single!(data)
-    @info "Single Solve Total:"
-    display(stats.time)
+    # bench = @benchmark solve_single!($data)
+    # display(bench)
 end
