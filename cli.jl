@@ -22,8 +22,8 @@ function args_findoption(option)::Union{Nothing,Int}
     return findfirst(isequal(option), ARGS)
 end
 
-function get_jld_files(path)
-    return filter(x -> endswith(x, ".jld2"), readdir(path))
+function get_files(path)
+    return filter(x -> endswith(x, ".json"), readdir(path))
 end
 
 function interface_prompt()
@@ -143,20 +143,6 @@ function config_creation_prompt(path=DEFAULT_INPUT)::Parameters
     above = material_prompt()
     println("Material below the interface (-)")
     below = material_prompt()
-
-    print("Solver method [1:reduced|2:full|3:composite] (=reduced): ")
-    input = readline()
-    input = input == "" ? "1" : input
-    solver_method = if input == "1" || lowercase(input) == "reduced"
-        :reduced
-    elseif input == "2" || lowercase(input) == "full"
-        :full
-    elseif input == "3" || lowercase(input) == "composite"
-        :composite
-    else
-        @warn "Unknown solver method: $input, using reduced"
-        :reduced
-    end
     
     print("Seed [Int64 >= 0] (= random seed): ")
     input = readline()
@@ -175,27 +161,14 @@ function config_creation_prompt(path=DEFAULT_INPUT)::Parameters
         rescale=true,
     )
 
-    # print("Ensemble iters [Int64 >= 0] (= 1000): ")
-    # input = readline()
-    # iters = parse(Int64, input == "" ? "1000" : input)
-    # save_ensemble_iters(path / input, iters)
-
-
-    # Create a default filename using the pattern name_iters_solvertype.jld2
     default_name = isinteractive() ? "simulation" : splitext(basename(PROGRAM_FILE))[1]
-    default_filename = "$(default_name)_$(iters)_$(solver_method).jld2"
+    default_filename = "$(default_name).jld2"
     
     print("Save as filename [=\"$(default_filename)\"]: ")
     input = readline()
     filename = input == "" ? default_filename : input
     
-    save_spa_config(path / filename, params,
-        override=Dict(
-            :seed => seed,  # Override the seed to generate random seed using the input
-            :iters => iters,
-            :solver_method => solver_method
-        )
-    )
+    save_parameters(path / filename, params)
 
     return params
 end
@@ -211,7 +184,7 @@ function cli_help()
     run [Int|name] - run a configuration file
         out [label] - output file label following the run command
         iters [Int] - number of ensemble iters, default 100
-        solver [full|reduced|composite] - solver method
+        solver [full|reduced|hybrid] - solver method
     list - show list of loadable configurations in \'path\'
         and optionally run or show information
 
@@ -220,7 +193,7 @@ function cli_help()
 end
 
 function cli_list(path)
-    files = get_jld_files(path)
+    files = get_files(path)
     for (idx, file) in enumerate(files)
         println("$idx: $file")
     end
@@ -234,7 +207,7 @@ function cli_info(filepath)
     catch e
         @warn "No complete solver data found at '$(filepath)', if the file is a template configuration file, ignore this warning."
         try
-            params = load_spa_config(filepath)
+            params = load_parameters(filepath)
             display(params)
         catch
             error("File '$(filepath)' not found or file not valid")
@@ -244,7 +217,7 @@ function cli_info(filepath)
 end
 
 function cli_run(filepath, iters = 100, solver_type = :reduced)
-    params = load_spa_config(filepath)
+    params = load_parameters(filepath)
     display(params)
 
     @info "Initializing SolverData..."
@@ -272,7 +245,7 @@ end
 function cli_file(arg, argval, confpath, iters = 100, solver_type = :reduced)
     file_name = ""
     try
-        files = get_jld_files(confpath)
+        files = get_files(confpath)
         file_name = files[parse(Int64, argval)]
     catch
         file_name = argval
@@ -339,7 +312,7 @@ function cli_main()
     solver_type = :reduced
     if (idx = args_findoption("solver")) !== nothing
         @assert length(ARGS) > idx "Missing argument after 'solver'"
-        solver_type = ARGS[idx+1]
+        solver_type = Symbol(ARGS[idx+1])
     end
 
     @debug input_path

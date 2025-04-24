@@ -52,9 +52,9 @@ function Base.convert(::Type{Parameters}, dict::Dict)::Parameters
         Nx=dict[:Nx],
         θs=dict[:θs],
         Ni=dict[:Ni],
-        surf=dict[:surf],
-        above=dict[:above],
-        below=dict[:below],
+        surf=parse(RandomSurface, dict[:surf]),
+        above=parse(Material, dict[:above]),
+        below=parse(Material, dict[:below]),
         seed=dict[:seed],
         rescale=false
     )
@@ -76,11 +76,10 @@ function load_parameters(file::String)::Parameters
     # Ensure file has .json extension
     file = endswith(file, ".json") ? file : file * ".json"
 
-    dict = open(file, "r") do io
-        JSON3.parse(io)
-    end
+    json_str = read(file, String)
+    dict = Dict(JSON3.read(json_str))
 
-    return dict_to_params(dict)
+    return convert(Parameters, dict)
 end
 
 function save_solver_data(file::String, out::SolverData)

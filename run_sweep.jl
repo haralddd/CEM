@@ -27,7 +27,7 @@ for ar in metal_ratios
 
     data = SolverData(params, ens_iters, :reduced)
     solve_ensemble!(data)
-    save("output/sweep/metallic/$(ar).jld2", data)
+    save_solver_data("output/sweep/metallic/$(ar).jld2", data)
 end
 
 hyperbolic_ratios = [-0.5, 1.0, -1.0, -1.5]
@@ -38,5 +38,5 @@ for ar in hyperbolic_ratios
 
     data = SolverData(params, ens_iters, :reduced)
     solve_ensemble!(data)
-    save("output/sweep/hyperbolic/$(ar).jld2", data)
+    save_solver_data("output/sweep/hyperbolic/$(ar).jld2", data)
 end
