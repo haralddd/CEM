@@ -51,8 +51,8 @@ function M_invariant_reduced!(Mpqn::Array{ComplexF64,3}, params::Parameters{ST,V
         error("Uniaxial solver only supports Vacuum-Uniaxial and Vacuum-Isotropic interfaces")
     end
 
+    Mpqn .= 0.0+0.0im
     # n = 0
-    Mpqn[:, :, 1] .= 0.0
     @inbounds for i in axes(Mpqn, 1)
         p = ps[i]
         a0 = alpha0(p)
@@ -105,6 +105,7 @@ function N_invariant_reduced!(Npkn::Array{ComplexF64,3}, params::Parameters{ST,V
         error("Uniaxial solver only supports Vacuum-Uniaxial and Vacuum-Isotropic interfaces")
     end
 
+    Npkn .= 0.0+0.0im
     # Process all n values
     @inbounds for n in axes(Npkn, 3)
         for j in axes(Npkn, 2)

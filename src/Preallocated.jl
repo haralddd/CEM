@@ -162,7 +162,7 @@ end
 function observe!(data::SolverData, pre::Preallocated, n::Int)
     solver_type = data.solver_type
     if solver_type == :full
-        half = size(pre.PNpk, 2) ÷ 2
+        half = size(pre.PNpk, 1) ÷ 2
         Rp = @view pre.PNpk[1:half, :]
         Rs = @view pre.SNpk[1:half, :]
         Tp = @view pre.PNpk[half+1:end, :]

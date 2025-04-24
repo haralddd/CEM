@@ -76,9 +76,9 @@ function M_invariant_full!(Mpqn::Array{ComplexF64,3}, params::Parameters{ST,Vacu
         Mpqn22[i, i, 1] = -a / kappa_para
     end
     # n > 0
-    for n in axes(PMn11, 3)[2:end]
-        for qidx in axes(PMn11, 2)
-            for pidx in axes(PMn11, 1)
+    for n in axes(Mpqn11, 3)[2:end]
+        for qidx in axes(Mpqn11, 2)
+            for pidx in axes(Mpqn11, 1)
                 p = ps[pidx]
                 q = qs[qidx]
                 a0 = alpha0(q)

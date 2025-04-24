@@ -29,6 +29,15 @@ function _M_isotropic_ker(p::Float64, q::Float64, params::Parameters, kappa::Com
         (a + kappa * a0) * da^n)
 end
 
+function _N_isotropic_ker(p::Float64, k::Float64, params::Parameters, kappa::ComplexF64, n::Int)::ComplexF64
+    a = alpha(p, params.below)
+    a0 = alpha(k, params.above)
+    da = a + a0
+    return -_pre(n) / factorial(n) * (
+        (p + kappa * k) * (p - k) * da^(n - 1) +
+        (a - kappa * a0) * da^n)
+end
+
 function M_invariant!(Mpqn::Array{ComplexF64,3}, params::Parameters{_S,Vacuum,Isotropic}, nu::Symbol)::Nothing where {_S}
 
     ps = params.ps
@@ -58,17 +67,6 @@ function M_invariant!(Mpqn::Array{ComplexF64,3}, params::Parameters{_S,Vacuum,Is
     return nothing
 end
 
-
-
-
-function _N_isotropic_ker(p::Float64, k::Float64, params::Parameters, kappa::ComplexF64, n::Int)::ComplexF64
-    a = alpha(p, params.below)
-    a0 = alpha(k, params.above)
-    da = a + a0
-    return -_pre(n) / factorial(n) * (
-        (p + kappa * k) * (p - k) * da^(n - 1) +
-        (a - kappa * a0) * da^n)
-end
 function N_invariant!(Npkn::Array{ComplexF64,3}, params::Parameters{_S,Vacuum,Isotropic}, nu::Symbol)::Nothing where {_S}
 
     ps = params.ps
@@ -85,7 +83,7 @@ function N_invariant!(Npkn::Array{ComplexF64,3}, params::Parameters{_S,Vacuum,Is
     # end
 
     # n > 0
-    @inbounds for n in axes(Npkn, 3)[1:end]
+    @inbounds for n in axes(Npkn, 3)
         for j in axes(Npkn, 2)
             for i in axes(Npkn, 1)
                 p = ps[i]
