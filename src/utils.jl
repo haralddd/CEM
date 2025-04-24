@@ -71,25 +71,16 @@ end
 Base.show(params::Parameters) = println("Parameters($(["\n\t$(k)=$(v)" for (k, v) in get_scaled_params(params)]...)\n)")
 Base.display(params::Parameters) = Base.show(params)
 
-# Base.show(data::SolverData) = println("SolverData($(["\n\t$(k)=$(v)" for (k, v) in data]...)\n)")
-# Base.display(data::SolverData) = Base.show(data)
+"""Load parameters from a file, dispatching based on file extension"""
+function load_parameters(file::String)::Parameters
+    # Ensure file has .json extension
+    file = endswith(file, ".json") ? file : file * ".json"
 
-function save_spa_config(file::String, params::Parameters; override::Dict=Dict())
-    dict = convert(Dict, params)
-    for (k, v) in override
-        dict[k] = v
+    dict = open(file, "r") do io
+        JSON3.parse(io)
     end
 
-    file = split(file, '.')[end] != "jld2" ? file*".jld2" : file
-    jldopen(file, "a+") do io 
-        io["params"] = dict
-    end
-    return
-end
-
-function load_spa_config(file::String)::Parameters
-    file = split(file, '.')[end] != "jld2" ? file*".jld2" : file
-    return load(file, "params")
+    return dict_to_params(dict)
 end
 
 function save_solver_data(file::String, out::SolverData)
@@ -105,15 +96,22 @@ function load_solver_data(file::String)::SolverData
     return load(file, "solverdata")
 end
 
-function save_ensemble_iters(file::String, iters)
-    file = split(file, '.')[end] != "jld2" ? file*".jld2" : file
-    jldopen(file, "a+") do io
-        io["iters"] = iters
+# JSON save/load functions
+
+"""Save Parameters to a JSON file"""
+function save_parameters(file::String, params::Parameters; override::Dict=Dict())
+    dict = params_to_dict(params)
+    
+    # Apply overrides
+    for (k, v) in override
+        dict[string(k)] = v
+    end
+    
+    # Ensure file has .json extension
+    file = endswith(file, ".json") ? file : file * ".json"
+    
+    open(file, "w") do io
+        JSON3.pretty(io, dict) # Pretty print with 4-space indent
     end
     return
-end
-
-function load_ensemble_iters(file::String)
-    file = split(file, '.')[end] != "jld2" ? file*".jld2" : file
-    return load(file, "iters")
 end

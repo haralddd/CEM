@@ -13,7 +13,7 @@ using LinearAlgebra
 using FFTW
 using Statistics
 using Random: Xoshiro, randn!
-using JLD2, FileIO
+using JLD2, FileIO, JSON3
 using ProgressBars
 using Roots
 import Base.parse
@@ -63,7 +63,8 @@ export MdrcPlotData, MdtcPlotData, calc_mdrc, calc_mdtc
 
 include("utils.jl")
 export show, display, parse, convert
-export save_spa_config, load_spa_config
+export save_parameters, load_parameters
+export save_parameters_json, load_parameters_json
 export save_solver_data, load_solver_data
 export save_ensemble_iters, load_ensemble_iters
 export surface_prompt, config_creation_prompt, default_config_creation

@@ -63,9 +63,48 @@ struct Parameters{SurfT<:RandomSurface, AboveT<:Material, BelowT<:Material}
     FFT::FFT_Plan_t
     IFFT::IFFT_Plan_t
 
+    
+    """
+        Parameters(;
+            lambda=632.8e-9,
+            Lx=100,
+            Nx=2048,
+            θs=[0.0, 10.0, 20.0],
+            Ni=10,
+            surf=GaussianSurface(30.0e-9, 100.0e-9),
+            above=Vacuum(),
+            below=Isotropic(2.25 + 1e-6im, 1.0),
+            seed=-1,
+            rescale=true
+        )
+        
+    Constructor for the Parameters object that contains all simulation parameters.
+    
+    # Arguments
+    - `lambda::Float64`: Wavelength in meters, default is 632.8 nm (red laser light)
+    - `Lx::Float64`: Surface length in units of wavelength, default is 100λ
+    - `Nx::Int`: Number of discrete surface points, default is 2048 (must be even)
+    - `θs::Vector{Float64}`: Incident angles in degrees, default is [0°, 10°, 20°]
+    - `Ni::Int`: Number of terms in the Taylor expansion of I(γ|q), default is 10
+    - `surf::RandomSurface`: Surface type and parameters, default is Gaussian with height 30nm and correlation length 100nm
+    - `above::Material`: Material above the surface, default is Vacuum
+    - `below::Material`: Material below the surface, default is Isotropic with ε=2.25 + 1e-6im, μ=1.0
+    - `seed::Int`: Random seed for surface generation, default is -1 (random seed)
+    - `rescale::Bool`: Whether to rescale lengths by k₀=2π/λ, default is true
+    
+    # Returns
+    A fully initialized Parameters object with all computed parameters for the simulation.
+    
+    # Notes
+    - Surface length Lx is specified in units of wavelength, so Lx=100 means 100λ
+    - If rescale=true, all length units are internally converted to dimensionless units scaled by k₀
+    - The simulation requires Lx >> λ (at least 10λ)
+    - Nx must be even for proper FFT handling
+    - For the parameters to be JSON serializable, specify all required parameters with their full types
+    """
     function Parameters(;
         lambda=632.8e-9,
-        Lx=100*632.8e-9,
+        Lx=100,
         Nx=2048,
         θs=[0.0, 10.0, 20.0],
         Ni=10,
@@ -82,14 +121,9 @@ struct Parameters{SurfT<:RandomSurface, AboveT<:Material, BelowT<:Material}
         k0 = 2π / lambda # = ω/c, inverse length scale being used for dispersion relations and in real space
     
         # Assertions and warnings
-        @assert Lx / lambda > 10.0 "Surface length must be much larger than the wavelength, Lx >> lambda, but is Lx:$Lx and lambda:$lambda."
+        @assert Lx > 10.0 "Surface length must be much larger than the wavelength, Lx >> lambda, but is Lx:$Lx and lambda:$lambda."
     
-        # if typeof(below) == Isotropic
-        #     if imag(below.eps) + imag(below.mu) ≈ 0
-        #         @warn "Material below has no loss, adding small imaginary component to avoid singularities."
-        #         below = Isotropic(below.eps + 1e-4im, below.mu)
-        #     end
-        # end
+        Lx *= lambda
     
         if rescale
             Lx = Lx * k0
