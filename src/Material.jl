@@ -9,16 +9,26 @@ abstract type Material end
 
 struct Vacuum <: Material end
 
-struct Isotropic <: Material
+@kwdef struct Isotropic <: Material
     eps::ComplexF64
     mu::ComplexF64
 end
 
-struct Uniaxial <: Material
+@kwdef struct Uniaxial <: Material
     eps_perp::ComplexF64
     eps_para::ComplexF64
     mu_perp::ComplexF64
     mu_para::ComplexF64
+end
+
+function pretty(mat::Material)
+    io = IOBuffer()
+    println(io, "$(typeof(mat))(")
+    for field in fieldnames(mat)
+        println(io, "\t$field=$(getfield(mat, field)),")
+    end
+    println(io, ")")
+    return String(take!(io))
 end
 
 """

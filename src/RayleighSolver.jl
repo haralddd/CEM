@@ -13,7 +13,7 @@ using LinearAlgebra
 using FFTW
 using Statistics
 using Random: Xoshiro, randn!
-using JLD2, FileIO, JSON3
+using JLD2, FileIO
 using ProgressBars
 using Roots
 import Base.parse
@@ -31,13 +31,14 @@ export RandomSurface, FlatSurface, GaussianSurface
 export SingleBumpSurface, RectangularSurface, scale
 
 include("Parameters.jl")
-export Polarization, PolarizationP, PolarizationS
-export Parameters
+export ParametersConfig, Parameters
 export get_angles, get_scale, get_scaled_params
+export save_parameters_config, load_parameters_config
 
 
 include("Preallocated.jl")
 export SolverData, Preallocated, Results, get_A, get_A², observe, observe!
+export save_solver_data, load_solver_data, pretty
 
 include("Precomputed.jl")
 export Precomputed, precompute!, validate
@@ -59,15 +60,5 @@ export solve_ensemble!
 
 include("calc_plotdata.jl")
 export MdrcPlotData, MdtcPlotData, calc_mdrc, calc_mdtc
-
-
-include("utils.jl")
-export show, display, parse, convert
-export save_parameters, load_parameters
-export save_parameters_json, load_parameters_json
-export save_solver_data, load_solver_data
-export save_ensemble_iters, load_ensemble_iters
-export surface_prompt, config_creation_prompt, default_config_creation
-export default_params_for_surface_testing
 
 end # module RayleighSolver

@@ -23,7 +23,7 @@ function args_findoption(option)::Union{Nothing,Int}
 end
 
 function get_files(path)
-    return filter(x -> endswith(x, ".json"), readdir(path))
+    return filter(x -> endswith(x, ".conf") || endswith(x, ".jld2"), readdir(path))
 end
 
 function interface_prompt()
@@ -70,11 +70,11 @@ function interface_prompt()
     end
 end
 
-function material_prompt()
-    print("Material type [1:vacuum|2:isotropic|3:uniaxial] (=vacuum): ")
+function material_prompt(;default = "vacuum")
+    print("Material type [1:vacuum|2:isotropic|3:uniaxial] (default: $default): ")
     input = readline()
-    input = input == "" ? "vacuum" : input
-    if input == "3"
+    input = input == "" ? default : input
+    if input == "3" || input == "uniaxial"
         print("Uniaxial crystal ε⟂ [complex] (=1.0): ")
         input = readline()
         eps_perp = parse(ComplexF64, input == "" ? "1.0" : input)
@@ -92,7 +92,7 @@ function material_prompt()
         mu_para = parse(ComplexF64, input == "" ? "1.0" : input)
 
         return Uniaxial(eps_perp, eps_para, mu_perp, mu_para)
-    elseif input == "2"
+    elseif input == "2" || input == "isotropic"
         print("Isotropic ε [complex] (=1.0): ")
         input = readline()
         eps = parse(ComplexF64, input == "" ? "1.0" : input)
@@ -102,12 +102,18 @@ function material_prompt()
         mu = parse(ComplexF64, input == "" ? "1.0" : input)
 
         return Isotropic(eps, mu)
+    elseif input == "1" || input == "vacuum"
+        return Vacuum()
+    else
+        error("Unknown material type: $(input)")
     end
-
-    return Vacuum()
 end
 
-function config_creation_prompt(path=DEFAULT_INPUT)::Parameters
+function config_creation_prompt(path=DEFAULT_INPUT)::Nothing
+    if args_findoption("default") !== nothing
+        save_parameters_config(path / "default", ParametersConfig())
+        return
+    end
     print("Input for solver parameters input Parameters struct\n")
 
     print("lambda [nm] (=632.8): ")
@@ -131,7 +137,7 @@ function config_creation_prompt(path=DEFAULT_INPUT)::Parameters
 
     print("Lx [multiple of lambda] (=100): ")
     input = readline()
-    Lx = parse(Float64, input == "" ? "100" : input) * lambda
+    Lx = parse(Float64, input == "" ? "100" : input)
 
     print("Ni (=10): ")
     input = readline()
@@ -140,15 +146,15 @@ function config_creation_prompt(path=DEFAULT_INPUT)::Parameters
     surf = interface_prompt()
 
     println("Material above the interface (+)")
-    above = material_prompt()
+    above = material_prompt(default="vacuum")
     println("Material below the interface (-)")
-    below = material_prompt()
+    below = material_prompt(default="isotropic")
     
     print("Seed [Int64 >= 0] (= random seed): ")
     input = readline()
     seed = parse(Int64, input == "" ? "-1" : input)
 
-    params = Parameters(
+    params = ParametersConfig(
         lambda=lambda,
         Nx=Nx,
         θs=angles,
@@ -158,19 +164,18 @@ function config_creation_prompt(path=DEFAULT_INPUT)::Parameters
         above=above,
         below=below,
         seed=seed,
-        rescale=true,
     )
 
-    default_name = isinteractive() ? "simulation" : splitext(basename(PROGRAM_FILE))[1]
-    default_filename = "$(default_name).jld2"
+    default_name = splitext(basename(PROGRAM_FILE))[1]
+    default_filename = "$(default_name)"
     
     print("Save as filename [=\"$(default_filename)\"]: ")
     input = readline()
     filename = input == "" ? default_filename : input
     
-    save_parameters(path / filename, params)
+    save_parameters_config(path / filename, params)
 
-    return params
+    return nothing
 end
 
 function cli_help()
@@ -202,13 +207,12 @@ end
 
 function cli_info(filepath)
     try
-        data = load_solver_data(filepath)
-        display(data)
-    catch e
-        @warn "No complete solver data found at '$(filepath)', if the file is a template configuration file, ignore this warning."
+        params_config = load_parameters_config(filepath)
+        display(params_config)
+    catch
         try
-            params = load_parameters(filepath)
-            display(params)
+            data = load_solver_data(filepath)
+            display(data.params)
         catch
             error("File '$(filepath)' not found or file not valid")
         end
@@ -217,7 +221,8 @@ function cli_info(filepath)
 end
 
 function cli_run(filepath, iters = 100, solver_type = :reduced)
-    params = load_parameters(filepath)
+    params_config = load_parameters_config(filepath)
+    params = Parameters(params_config)
     display(params)
 
     @info "Initializing SolverData..."
