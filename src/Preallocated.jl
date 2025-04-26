@@ -218,7 +218,7 @@ Saves the solver data to a file
 function save_solver_data(file::String, out::SolverData)
     file = endswith(file, ".jld2") ? file : file * ".jld2"
     jldopen(file, "a+") do io
-        io["solver_data"] = out
+        io["solverdata"] = out
     end
     return
 end
@@ -228,5 +228,5 @@ Loads the solver data from a file
 """
 function load_solver_data(file::String)::SolverData
     file = split(file, '.')[end] != "jld2" ? file * ".jld2" : file
-    return load(file, "solver_data")
+    return load(file, "solverdata")
 end

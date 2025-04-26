@@ -1,9 +1,6 @@
 using RayleighSolver
-using CairoMakie
-using LaTeXStrings
-using JLD2, FileIO
 
-const eps_perp = -7.5 + 0.24im
+const eps = -7.5 + 0.24im
 const surf_rms = 10.0e-9
 const km = 0.782
 const kp = 1.366
@@ -22,8 +19,9 @@ above = Vacuum()
 metal_ratios = [0.5, 1.0, 1.5]
 mkpath("output/sweep/metallic")
 for ar in metal_ratios
-    below = Uniaxial(eps_perp, eps_perp*ar, 1.0 + 0.0im, 1.0 + 0.0im)
-    params = Parameters(surf=surface, above=above, below=below, Nx=Nx, Lx=Lx, lambda=λ, θs=θs)
+    below = Uniaxial(eps*ar, eps, 1.0 + 0.0im, 1.0 + 0.0im)
+    paramsconf = ParametersConfig(surf=surface, above=above, below=below, Nx=Nx, Lx=Lx, lambda=λ, θs=θs)
+    params = Parameters(paramsconf)
 
     data = SolverData(params, ens_iters, :reduced)
     solve_ensemble!(data)
@@ -31,12 +29,25 @@ for ar in metal_ratios
 end
 
 hyperbolic_ratios = [-0.5, 1.0, -1.0, -1.5]
-mkpath("output/sweep/hyperbolic")
+mkpath("output/sweep/hyperbolic_type1")
 for ar in hyperbolic_ratios
-    below = Uniaxial(eps_perp, eps_perp*ar, 1.0 + 0.0im, 1.0 + 0.0im)
-    params = Parameters(surf=surface, above=above, below=below, Nx=Nx, Lx=Lx, lambda=λ, θs=θs)
+    below = Uniaxial(eps, eps*ar, 1.0 + 0.0im, 1.0 + 0.0im)
+    paramsconf = ParametersConfig(surf=surface, above=above, below=below, Nx=Nx, Lx=Lx, lambda=λ, θs=θs)
+    params = Parameters(paramsconf)
 
     data = SolverData(params, ens_iters, :reduced)
     solve_ensemble!(data)
-    save_solver_data("output/sweep/hyperbolic/$(ar).jld2", data)
+    save_solver_data("output/sweep/hyperbolic_type1/$(ar).jld2", data)
 end
+
+mkpath("output/sweep/hyperbolic_type2")
+for ar in hyperbolic_ratios
+    below = Uniaxial(eps*ar, eps, 1.0 + 0.0im, 1.0 + 0.0im)
+    paramsconf = ParametersConfig(surf=surface, above=above, below=below, Nx=Nx, Lx=Lx, lambda=λ, θs=θs)
+    params = Parameters(paramsconf)
+
+    data = SolverData(params, ens_iters, :reduced)
+    solve_ensemble!(data)
+    save_solver_data("output/sweep/hyperbolic_type2/$(ar).jld2", data)
+end
+    
