@@ -1,11 +1,17 @@
 function energy_ratio(R2, T2, ks, qs, params::Parameters, ν=:p)
     ret = zeros(size(R2, 2))
-    μpa = params.below.mu_para
-    μpe = params.below.mu_perp
-    εpa = params.below.eps_para
-    εpe = params.below.eps_perp
-    μεpa = μpa * εpa
-    Aval = A(params.below)
+    below = params.below
+    if below isa Uniaxial
+        μpa = below.mu_para
+        μpe = below.mu_perp
+        εpa = below.eps_para
+        εpe = below.eps_perp
+        alpha_func = ν == :p ? (q -> alpha_p(q, below)) : (q -> alpha_s(q, below))
+    elseif below isa Isotropic
+        μpa = μpe = below.mu
+        εpa = εpe = below.eps
+        alpha_func = (q -> alpha(q, below))
+    end
 
     κpa = ν == :p ? εpa : μpa
 
@@ -14,10 +20,10 @@ function energy_ratio(R2, T2, ks, qs, params::Parameters, ν=:p)
         a0k = alpha0(k)
         for (q_idx, q) in enumerate(qs)
             a0q = alpha0(q)
-            aq = ν == :p ? alpha_p(q, Aval, μεpa) : alpha_s(q, μεpa)
+            aq = alpha_func(q)
 
-            R_term = R2[q_idx, k_idx] * a0q / a0k
-            T_term = T2[q_idx, k_idx] * real(aq / κpa) / a0k
+            R_term = real(R2[q_idx, k_idx] * a0q / a0k)
+            T_term = real(T2[q_idx, k_idx] * aq / (κpa * a0k))
 
             ret[k_idx] += R_term + T_term
         end

@@ -116,14 +116,11 @@ function get_mdtc_coh_inc(T, T2, qs::Vector{Float64}, ks::Vector{Float64}, param
 
     coh = Matrix{Float64}(undef, (length(qs), length(ks)))
     inc = Matrix{Float64}(undef, (length(qs), length(ks)))
-    κpa = ν == :p ? params.below.eps_para : params.below.mu_para
-    κpe = ν == :p ? params.below.eps_perp : params.below.mu_perp
-    A_val = A(params.below)
-    μεpe = params.below.mu_perp * params.below.eps_perp
-    μεpa = params.below.mu_para * params.below.eps_para
+    below = params.below
+    κpa = ν == :p ? below.eps_para : below.mu_para
     for (j, k) in enumerate(ks)
         for (i, q) in enumerate(qs)
-            a = ν == :p ? alpha_p(q, A_val, μεpa) : alpha_s(q, μεpa)
+            a = ν == :p ? alpha_p(q, below) : alpha_s(q, below)
             C = Lx/2π * real(a^2 / (κpa * alpha0(k)))
             coh[i, j] = C * abs2(T[i, j])
             
@@ -164,14 +161,14 @@ function calc_mdrc(data::SolverData)
     θ0s = params.θs
 
     @assert all(ks .≈ sind.(θ0s))
-    Rp = data.Rp.A
-    R2p = data.Rp.A²
+    Rp = data.Rp.A[mask, :]
+    R2p = data.Rp.A²[mask, :]
 
-    Rs = data.Rs.A
-    R2s = data.Rs.A²
+    Rs = data.Rs.A[mask, :]
+    R2s = data.Rs.A²[mask, :]
 
-    coh_p, inc_p = get_mdrc_coh_inc(Rp[mask, :], R2p[mask, :], qs[mask], ks, params)
-    coh_s, inc_s = get_mdrc_coh_inc(Rs[mask, :], R2s[mask, :], qs[mask], ks, params)
+    coh_p, inc_p = get_mdrc_coh_inc(Rp, R2p, qs[mask], ks, params)
+    coh_s, inc_s = get_mdrc_coh_inc(Rs, R2s, qs[mask], ks, params)
 
     return MdrcPlotData(coh_p, inc_p, coh_s, inc_s, θss, θ0s)
 end
@@ -195,29 +192,27 @@ function calc_mdtc(data::SolverData)
     below = data.params.below
     μεpe = below.mu_perp * below.eps_perp
     μεpa = below.mu_para * below.eps_para
-    A = sqrt(μεpa/μεpe)
-
     # Transmission index ellipsoid is larger than reflection
     mask_p = qs .>= -real(sqrt(μεpe)) .&& qs .<= real(sqrt(μεpe))
     mask_s = qs .>= -real(sqrt(μεpa)) .&& qs .<= real(sqrt(μεpa))
     
-    ap = real.(alpha_p.(qs[mask_p], A, μεpa))
-    as = real.(alpha_s.(qs[mask_s], μεpa))
+    ap = real.(alpha_p.(qs[mask_p], Ref(below)))
+    as = real.(alpha_s.(qs[mask_s], Ref(below)))
     
     θtp = θt.(qs[mask_p], ap)
     θts = θt.(qs[mask_s], as)
     
-    θtes = [θt.(k, real(alpha_p(k, A, μεpa))) for k in ks]
-    θtos = [θt.(k, real(alpha_s(k, μεpa))) for k in ks]
+    θtes = [θt.(k, real(alpha_p(k, below))) for k in ks]
+    θtos = [θt.(k, real(alpha_s(k, below))) for k in ks]
 
-    Tp = get_T(data.P_res)
-    T2p = get_T²(data.P_res)
+    Tp = data.Tp.A[mask_p, :]
+    T2p = data.Tp.A²[mask_p, :]
 
-    Ts = get_T(data.S_res)
-    T2s = get_T²(data.S_res)
+    Ts = data.Ts.A[mask_s, :]
+    T2s = data.Ts.A²[mask_s, :]
 
-    coh_p, inc_p = get_mdtc_coh_inc(Tp[mask_p, :], T2p[mask_p, :], qs[mask_p], ks, params, :p)
-    coh_s, inc_s = get_mdtc_coh_inc(Ts[mask_s, :], T2s[mask_s, :], qs[mask_s], ks, params, :s)
+    coh_p, inc_p = get_mdtc_coh_inc(Tp, T2p, qs[mask_p], ks, params, :p)
+    coh_s, inc_s = get_mdtc_coh_inc(Ts, T2s, qs[mask_s], ks, params, :s)
 
     return MdtcPlotData(coh_p, inc_p, θtp, θtes, θtos), MdtcPlotData(coh_s, inc_s, θts, θtes, θtos)
 end

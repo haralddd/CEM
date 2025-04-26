@@ -15,7 +15,7 @@ Returns:
 - Dictionary with validation results for each incident angle and polarization
 """
 function validate_energy_conservation(data::SolverData)
-    P, S = energy_conservation(data.P_res, data.S_res, data.params)
+    P, S = energy_conservation(data)
     ks = data.params.ks
 
     println("P")
