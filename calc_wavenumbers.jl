@@ -86,4 +86,9 @@ Lhm23 = LSP(khm23) / 2π
 θhm23 = θmax(khm23, 0.782)
 
 
+# Create uniaxial medium with anisotropic properties
+bianisotropy = Uniaxial(-1.5+0.0im, -3.0+0.001im, -0.5+0.0im, -0.5+0.0im)
+
+kspp(bianisotropy)
+ksmp(bianisotropy)
 

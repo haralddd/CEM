@@ -193,7 +193,7 @@ using Test
 
         # Create uniaxial medium with anisotropic properties
         ε_perp = -1.5 + 0.0im
-        ε_para = -3.0 + 0.1im
+        ε_para = -3.0 + 0.01im
         μ_perp = -0.5 + 0.0im
         μ_para = -0.5 + 0.0im
         below = Uniaxial(ε_perp, ε_para, μ_perp, μ_para)
