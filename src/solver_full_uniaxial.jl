@@ -55,6 +55,8 @@ function M_invariant_full!(Mpqn::Array{ComplexF64,3}, params::Parameters{ST,Vacu
 
     qs = params.qs
     ps = params.ps
+
+    Mpqn .= 0.0+0.0im
     
     half = length(ps)
     @assert half == size(Mpqn, 1) ÷ 2
@@ -112,7 +114,9 @@ function N_invariant_full!(Npkn::Array{ComplexF64,3}, params::Parameters{ST,Vacu
     
     ps = params.ps
     ks = params.ks
-    
+
+    Npkn .= 0.0+0.0im
+
     half = length(ps)
     @assert half == size(Npkn, 1) ÷ 2
     

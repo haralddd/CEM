@@ -196,39 +196,40 @@ function make_plots(data::SolverData{Parameters{_S,Vacuum,Uniaxial}}, fname="def
     mkpath(folder)
 
     mdrc = calc_mdrc(data)
-    mdtc_p, mdtc_s = calc_mdtc(data)
+    mdtc = calc_mdtc(data)
 
     @debug "mdrc: $mdrc"
-    @debug "mdtc_p: $mdtc_p"
-    @debug "mdtc_s: $mdtc_s"
+    @debug "mdtc: $mdtc"
 
     @info "∑MDRC_s = $(sum(mdrc.coh_s) + sum(mdrc.inc_s))"
     @info "∑MDRC_p = $(sum(mdrc.coh_p) + sum(mdrc.inc_p))"
-    @info "∑MDTC_s = $(sum(mdtc_s.coh) + sum(mdtc_s.inc))"
-    @info "∑MDTC_p = $(sum(mdtc_p.coh) + sum(mdtc_p.inc))"
+    @info "∑MDTC_s = $(sum(mdtc.coh_s) + sum(mdtc.inc_s))"
+    @info "∑MDTC_p = $(sum(mdtc.coh_p) + sum(mdtc.inc_p))"
 
-    @info "mdtc_p.θtos: $(mdtc_p.θtos)"
-    @info "mdtc_p.θtes: $(mdtc_p.θtes)"
+    @info "θtps: $(mdtc.θtps)"
+    @info "θtss: $(mdtc.θtss)"
+    @info "θtes: $(mdtc.θtes)"
+    @info "θtos: $(mdtc.θtos)"
 
-    @info "mdtc_p.θs: $(mdtc_p.θs[1]):$(mdtc_p.θs[end])"
-    @info "mdtc_s.θs: $(mdtc_s.θs[1]):$(mdtc_s.θs[end])"
+    # Estimate the transmission angle ranges
+    θtp_range = isempty(mdtc.θtps) ? "empty" : "$(first(mdtc.θtps)):$(last(mdtc.θtps))"
+    θts_range = isempty(mdtc.θtss) ? "empty" : "$(first(mdtc.θtss)):$(last(mdtc.θtss))"
+    @info "θtp range: $θtp_range"
+    @info "θts range: $θts_range"
 
     @info "qs len $(length(data.params.qs))"
-    @info "θtp len $(length(mdtc_p.θs))"
-    @info "θts len $(length(mdtc_s.θs))"
+    @info "θtp len $(length(mdtc.θtps))"
+    @info "θts len $(length(mdtc.θtss))"
     
-
-    # P-polarization
-    # Incoherent MDRC
     save_mdrc_plots(mdrc.coh_p, mdrc.θ0s, mdrc.θs, L"\text{Coherent MDRC, }\nu = p", "mdrc-p-coh", folder)
     save_mdrc_plots(mdrc.inc_p, mdrc.θ0s, mdrc.θs, L"\text{Incoherent MDRC, }\nu = p", "mdrc-p-incoh", folder)
     save_mdrc_plots(mdrc.coh_s, mdrc.θ0s, mdrc.θs, L"\text{Coherent MDRC, }\nu = s", "mdrc-s-coh", folder)
     save_mdrc_plots(mdrc.inc_s, mdrc.θ0s, mdrc.θs, L"\text{Incoherent MDRC, }\nu = s", "mdrc-s-incoh", folder)
 
-    save_mdtc_plots(mdtc_p.coh, mdtc_p.θtos, mdtc_p.θtes, mdtc_p.θs, L"\text{Coherent MDTC, }\nu = p", "mdtc-p-coh", folder)
-    save_mdtc_plots(mdtc_p.inc, mdtc_p.θtos, mdtc_p.θtes, mdtc_p.θs, L"\text{Incoherent MDTC, }\nu = p", "mdtc-p-incoh", folder)
-    save_mdtc_plots(mdtc_s.coh, mdtc_s.θtos, mdtc_s.θtes, mdtc_s.θs, L"\text{Coherent MDTC, }\nu = s", "mdtc-s-coh", folder)
-    save_mdtc_plots(mdtc_s.inc, mdtc_s.θtos, mdtc_s.θtes, mdtc_s.θs, L"\text{Incoherent MDTC, }\nu = s", "mdtc-s-incoh", folder)
+    save_mdtc_plots(mdtc.coh_p, mdtc.θtos, mdtc.θtes, mdtc.θtps, L"\text{Coherent MDTC, }\nu = p", "mdtc-p-coh", folder)
+    save_mdtc_plots(mdtc.inc_p, mdtc.θtos, mdtc.θtes, mdtc.θtps, L"\text{Incoherent MDTC, }\nu = p", "mdtc-p-incoh", folder)
+    save_mdtc_plots(mdtc.coh_s, mdtc.θtos, mdtc.θtes, mdtc.θtss, L"\text{Coherent MDTC, }\nu = s", "mdtc-s-coh", folder)
+    save_mdtc_plots(mdtc.inc_s, mdtc.θtos, mdtc.θtes, mdtc.θtss, L"\text{Incoherent MDTC, }\nu = s", "mdtc-s-incoh", folder)
 
 
     @info "Saved plots to $(folder)"

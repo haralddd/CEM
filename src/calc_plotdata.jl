@@ -33,24 +33,14 @@ Structure containing coherent and incoherent mean differential transmission coef
 - `θtos`: Vector of ordinary transmitted angles (degrees)
 """
 struct MdtcPlotData
-    coh::Matrix{Float64}
-    inc::Matrix{Float64}
-    θs::Vector{Float64}
+    coh_p::Matrix{Float64}
+    inc_p::Matrix{Float64}
+    coh_s::Matrix{Float64}
+    inc_s::Matrix{Float64}
+    θtps::Vector{Float64}
+    θtss::Vector{Float64}
     θtes::Vector{Float64}
     θtos::Vector{Float64}
-end
-
-"""
-    θt(q::Float64, alpha::Float64)
-
-Calculates the transmission angle in degrees from the wavenumber and alpha value.
-
-# Arguments:
-- `q`: Wavenumber component
-- `alpha`: Alpha value for the material
-"""
-function θt(q::Float64, alpha::Float64)
-    return atand(q, alpha)
 end
 
 """
@@ -174,6 +164,19 @@ function calc_mdrc(data::SolverData)
 end
 
 """
+    θt(q::Float64, alpha::Float64)
+
+Calculates the transmission angle in degrees from the wavenumber and alpha value.
+
+# Arguments:
+- `q`: Wavenumber component
+- `alpha`: Alpha value for the material
+"""
+function θt(q::Float64, alpha::Float64)
+    return atand(q, alpha)
+end
+
+"""
     calc_mdtc(data::SolverData{Parameters{_S,Vacuum,Uniaxial}}) where _S
 
 Specialized implementation of calc_mdtc for Vacuum-Uniaxial interface.
@@ -199,8 +202,8 @@ function calc_mdtc(data::SolverData)
     ap = real.(alpha_p.(qs[mask_p], Ref(below)))
     as = real.(alpha_s.(qs[mask_s], Ref(below)))
     
-    θtp = θt.(qs[mask_p], ap)
-    θts = θt.(qs[mask_s], as)
+    θtps = θt.(qs[mask_p], ap)
+    θtss = θt.(qs[mask_s], as)
     
     θtes = [θt.(k, real(alpha_p(k, below))) for k in ks]
     θtos = [θt.(k, real(alpha_s(k, below))) for k in ks]
@@ -214,5 +217,5 @@ function calc_mdtc(data::SolverData)
     coh_p, inc_p = get_mdtc_coh_inc(Tp, T2p, qs[mask_p], ks, params, :p)
     coh_s, inc_s = get_mdtc_coh_inc(Ts, T2s, qs[mask_s], ks, params, :s)
 
-    return MdtcPlotData(coh_p, inc_p, θtp, θtes, θtos), MdtcPlotData(coh_s, inc_s, θts, θtes, θtos)
+    return MdtcPlotData(coh_p, inc_p, coh_s, inc_s, θtps, θtss, θtes, θtos)
 end

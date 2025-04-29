@@ -45,6 +45,12 @@ struct SolverData{ParametersType}
         @assert solver_type in [:full, :reduced, :hybrid]
         return new{ParametersType}(params, Rp, Rs, Tp, Ts, iters, solver_type)
     end
+    
+    # Constructor that takes a ParametersConfig directly
+    function SolverData(config::ParametersConfig, iters::Int64=1000, solver_type::Symbol=:full)
+        params = Parameters(config)
+        return SolverData(params, iters, solver_type)
+    end
 end
 
 """

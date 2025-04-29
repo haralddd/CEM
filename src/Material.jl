@@ -41,11 +41,13 @@ Calculates the perpendicular wave number, alpha ≡ q⟂, based on the parallel 
 """
 function alpha(q::Float64, material::T) where {T<:Material} end
 function alpha(q::Float64, material::Vacuum)::ComplexF64
-    return sqrt(complex(1.0 - q^2))
+    D = sqrt(complex(1.0 - q^2))
+    return ComplexF64(abs(real(D)), abs(imag(D)))
 end
 function alpha(q::Float64, material::Isotropic)::ComplexF64
     με = material.eps * material.mu
-    return sqrt(με - q^2)
+    D = sqrt(με - q^2)
+    return ComplexF64(abs(real(D)), abs(imag(D)))
 end
 function alpha0(q)
     alpha(q, Vacuum())
@@ -56,10 +58,12 @@ function get_A(mat::Uniaxial)::ComplexF64
 end
 
 function alpha_p(q::Float64, A::ComplexF64, μεpa::ComplexF64)::ComplexF64
-    return √(μεpa - A * q^2)
+    D = sqrt(μεpa - A * q^2)
+    return ComplexF64(abs(real(D)), abs(imag(D)))
 end
 function alpha_s(q::Float64, μεpa::ComplexF64)::ComplexF64
-    return √(μεpa - q^2)
+    D = sqrt(μεpa - q^2)
+    return ComplexF64(abs(real(D)), abs(imag(D)))
 end
 function alpha_p(q::Float64, mat::Uniaxial)::ComplexF64
     _A = get_A(mat)
