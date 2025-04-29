@@ -68,7 +68,7 @@ function M_invariant_full!(Mpqn::Array{ComplexF64,3}, params::Parameters{ST,Vacu
     
     # M-elements
     # n = 0
-    for i in axes(Mpqn11, 1)
+    @inbounds for i in axes(Mpqn11, 1)
         p = ps[i]
         a0 = alpha0(p)
         a = alpha_func(p)
@@ -78,7 +78,7 @@ function M_invariant_full!(Mpqn::Array{ComplexF64,3}, params::Parameters{ST,Vacu
         Mpqn22[i, i, 1] = -a / kappa_para
     end
     # n > 0
-    for n in axes(Mpqn11, 3)[2:end]
+    @inbounds for n in axes(Mpqn11, 3)[2:end]
         for qidx in axes(Mpqn11, 2)
             for pidx in axes(Mpqn11, 1)
                 p = ps[pidx]
@@ -124,7 +124,7 @@ function N_invariant_full!(Npkn::Array{ComplexF64,3}, params::Parameters{ST,Vacu
     Npkn2 = @view Npkn[half+1:end, :, :]
     
     # N-elements
-    for n in axes(Npkn1, 3)
+    @inbounds for n in axes(Npkn1, 3)
         for kidx in axes(Npkn1, 2)
             for pidx in axes(Npkn1, 1)
                 p = ps[pidx]
@@ -207,7 +207,7 @@ function solve_single_full!(alloc::Preallocated, pre::Precomputed, data::SolverD
     SN1 = @view SN[1:half, :]
     SN2 = @view SN[half+1:end, :]
 
-    for n in reverse(axes(PMn11, 3))
+    @inbounds for n in reverse(axes(PMn11, 3))
         for i in eachindex(Fys)
             Fys[i] = ys[i]^(n - 1)
         end

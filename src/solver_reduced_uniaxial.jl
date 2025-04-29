@@ -159,7 +159,7 @@ function solve_single_reduced!(alloc::Preallocated, pre::Precomputed, data::Solv
     SMpq .= 0.0
     SNpk .= 0.0
 
-    for n in reverse(axes(PMpqn, 3)) # Reverse because prefactors vanish at higher powers of 'n'
+    @inbounds for n in reverse(axes(PMpqn, 3)) # Reverse because prefactors vanish at higher powers of 'n'
         for i in eachindex(Fys)
             Fys[i] = ys[i]^(n - 1)
         end
