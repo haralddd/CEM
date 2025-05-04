@@ -1,6 +1,8 @@
 using RayleighSolver
 
-const eps = -7.5 + 0.24im
+const eps_re = -7.5
+const eps_im = 0.24
+const eps = eps_re + eps_im*1.0im
 const surf_rms = 10.0e-9
 const km = 0.782
 const kp = 1.366
@@ -15,39 +17,44 @@ surface = RectangularSurface(surf_rms, km, kp)
 above = Vacuum()
 
 # Parameter ranges to sweep
+base_path = "output/sweep2"
+mkpath(base_path)
+mkpath("$base_path/metallic")
+mkpath("$base_path/hyperbolic_type1")
+mkpath("$base_path/hyperbolic_type2")
 
 metal_ratios = [0.5, 1.0, 1.5]
-mkpath("output/sweep/metallic")
 for ar in metal_ratios
-    below = Uniaxial(eps*ar, eps, 1.0 + 0.0im, 1.0 + 0.0im)
+    eps_perp = eps_re*ar + eps_im*1.0im
+    below = Uniaxial(eps_perp, eps, 1.0 + 0.0im, 1.0 + 0.0im)
     paramsconf = ParametersConfig(surf=surface, above=above, below=below, Nx=Nx, Lx=Lx, lambda=λ, θs=θs)
     params = Parameters(paramsconf)
 
     data = SolverData(params, ens_iters, :reduced)
     solve_ensemble!(data)
-    save_solver_data("output/sweep/metallic/$(ar).jld2", data)
+    save_solver_data("$base_path/metallic/$(ar).jld2", data)
 end
 
 hyperbolic_ratios = [-0.5, 1.0, -1.0, -1.5]
-mkpath("output/sweep/hyperbolic_type1")
 for ar in hyperbolic_ratios
-    below = Uniaxial(eps, eps*ar, 1.0 + 0.0im, 1.0 + 0.0im)
+    eps_para = eps_re*ar + eps_im*1.0im
+    below = Uniaxial(eps_re, eps_para, 1.0 + 0.0im, 1.0 + 0.0im)
     paramsconf = ParametersConfig(surf=surface, above=above, below=below, Nx=Nx, Lx=Lx, lambda=λ, θs=θs)
     params = Parameters(paramsconf)
 
     data = SolverData(params, ens_iters, :reduced)
     solve_ensemble!(data)
-    save_solver_data("output/sweep/hyperbolic_type1/$(ar).jld2", data)
+    save_solver_data("$base_path/hyperbolic_type1/$(ar).jld2", data)
 end
 
-mkpath("output/sweep/hyperbolic_type2")
 for ar in hyperbolic_ratios
-    below = Uniaxial(eps*ar, eps, 1.0 + 0.0im, 1.0 + 0.0im)
+    eps_perp = eps_re*ar + eps_im*1.0im
+    below = Uniaxial(eps_perp, eps, 1.0 + 0.0im, 1.0 + 0.0im)
     paramsconf = ParametersConfig(surf=surface, above=above, below=below, Nx=Nx, Lx=Lx, lambda=λ, θs=θs)
     params = Parameters(paramsconf)
 
     data = SolverData(params, ens_iters, :reduced)
     solve_ensemble!(data)
-    save_solver_data("output/sweep/hyperbolic_type2/$(ar).jld2", data)
+    save_solver_data("$base_path/hyperbolic_type2/$(ar).jld2", data)
 end
     

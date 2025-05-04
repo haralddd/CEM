@@ -133,6 +133,7 @@ struct Parameters{SurfT<:RandomSurface,AboveT<:Material,BelowT<:Material}
         @assert Q > 4 "Q (= $(Q)) should be greater than 4, which is determined by spatial resolution, Q=π/dx, with dx = Lx/Nx"
 
         if BT == Uniaxial
+            @assert below.mu_para == below.mu_perp "Uniaxial material must have equal mu_para and mu_perp."
             no = sqrt(below.mu_para * below.eps_para)
             ne = sqrt(below.mu_perp * below.eps_perp)
             @debug "no: $no"

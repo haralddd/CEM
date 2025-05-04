@@ -6,7 +6,8 @@ using Colors
 alpha = 1.0
 linewidth = 2.0
 markersize = 12
-colors = [(:red, alpha), (:blue, alpha), (:green, alpha), (:orange, alpha)]
+colors = [:orange, :green, :blue, :red]
+markers = [:circle, :rect, :diamond, :utriangle]
 
 metallic_dir = "output/sweep/metallic"
 
@@ -26,12 +27,12 @@ for (i, fname) in enumerate(readdir(metallic_dir))
     
     ln = lines!(ax, 
         mdrc_data.θs, mdrc_data.inc_p[:, 1], 
-        label=L"\varepsilon_\perp = %$(label) \varepsilon",
         color=colors[i],
         linewidth=linewidth)
 
     ymax, maxidx = findmax(mdrc_data.inc_p[:, 1])
-    sc = scatter!(ax, mdrc_data.θs[maxidx], ymax, color=colors[i], marker=:hline, markersize=markersize)
+    sc = scatterlines!(ax, mdrc_data.θs[maxidx], ymax, color=colors[i], marker=markers[i], markersize=markersize,
+        label=L"\varepsilon_\perp' = %$(label) \varepsilon'")
 
     translate!(sc, 0, 0, 10000-ymax)
     translate!(ln, 0, 0, 10000-ymax)
@@ -57,7 +58,7 @@ for (i, fname) in enumerate(readdir(hyperbolic1_dir))
     
     ln = lines!(ax, 
         mdrc_data.θs, mdrc_data.inc_p[:, 1], 
-        label=L"\varepsilon_\parallel = %$(label) \varepsilon",
+        label=L"\varepsilon_\parallel' = %$(label) \varepsilon'",
         color=colors[i],
         linewidth=linewidth)
     ymax, maxidx = findmax(mdrc_data.inc_p[:, 1])
@@ -83,13 +84,13 @@ for (i, fname) in enumerate(readdir(hyperbolic2_dir))
     mdrc_data = calc_mdrc(data)
     
     ln = lines!(ax, 
-        mdrc_data.θs, mdrc_data.inc_p[:, 1], 
-        label=L"\varepsilon_\perp = %$(label) \varepsilon",
+        mdrc_data.θs, mdrc_data.inc_p[:, 1],
         color=colors[i],
         linewidth=linewidth)
 
     ymax, maxidx = findmax(mdrc_data.inc_p[:, 1])
-    sc = scatter!(ax, mdrc_data.θs[maxidx], ymax, color=colors[i], marker=:hline, markersize=markersize)
+    sc = scatterlines!(ax, mdrc_data.θs[maxidx], ymax, color=colors[i], marker=markers[i], markersize=markersize,
+        label=L"\varepsilon_\perp' = %$(label) \varepsilon'")
     translate!(sc, 0, 0, 10000-ymax)
     translate!(ln, 0, 0, 10000-ymax)
 end

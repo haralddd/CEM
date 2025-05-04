@@ -43,3 +43,27 @@ function profile_uniaxial_full_single_solve()
     # bench = @benchmark solve_single!($data)
     # display(bench)
 end
+
+tio2 = Uniaxial(6.84+0.01im, 3.62+0.01im, 1.0+0.0im, 1.0+0.0im)
+function profile_ensemble_reduced()
+    @info "Default uniaxial reduced ensemble solve"
+    paramconf = ParametersConfig(
+        Nx=4096,
+        Lx=200,
+        below=tio2,
+    )
+    data = SolverData(paramconf, 1000, :reduced)
+    @btime solve_ensemble!($data)
+end
+
+function profile_ensemble_full()
+    @info "Default uniaxial full ensemble solve"
+    paramconf = ParametersConfig(
+        Nx=4096,
+        Lx=200,
+        below=tio2,
+    )
+    data = SolverData(paramconf, 1000, :full)
+    @btime solve_ensemble!($data)
+end
+    
