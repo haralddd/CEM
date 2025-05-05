@@ -68,17 +68,7 @@ function get_mdrc_coh_inc(R, R2, qs::Vector{Float64}, ks::Vector{Float64}, param
         for (i, q) in enumerate(qs)
             C = Lx/2π * real(alpha0(q)^2 / alpha0(k))
             coh[i, j] = C * abs2(R[i, j])
-            # Calculate incoherent component and ensure it's never negative
-            # Negative values can arise from numerical precision issues
-            inc_val = C * R2[i, j] - coh[i, j]
-            
-            # Check if negative value is too large, which would indicate a real problem
-            if inc_val < -1e-5  # Threshold for "large" negative values
-                @error "Large negative incoherent value detected: $inc_val at i=$i, j=$j, q=$(qs[i]), k=$(ks[j])" 
-            end
-            
-            # Set tiny negative values to zero (numerical precision artifacts)
-            inc[i, j] = max(0.0, inc_val)
+            inc[i, j] = C * R2[i, j] - coh[i, j]
         end
     end
     return coh, inc
@@ -113,17 +103,7 @@ function get_mdtc_coh_inc(T, T2, qs::Vector{Float64}, ks::Vector{Float64}, param
             a = ν == :p ? alpha_p(q, below) : alpha_s(q, below)
             C = Lx/2π * real(a^2 / (κpa * alpha0(k)))
             coh[i, j] = C * abs2(T[i, j])
-            
-            # Calculate incoherent component
-            inc_val = C * T2[i, j] - coh[i, j]
-            
-            # Check for large negative values that indicate a real problem
-            if inc_val < -1e-5
-                @error "Large negative incoherent value detected in transmission: $inc_val at i=$i, j=$j, q=$(qs[i]), k=$(ks[j])"
-            end
-            
-            # Set tiny negative values to zero (numerical precision artifacts)
-            inc[i, j] = max(0.0, inc_val)
+            inc[i, j] = C * T2[i, j] - coh[i, j]
         end
     end
     return coh, inc
