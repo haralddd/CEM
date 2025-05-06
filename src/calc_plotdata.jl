@@ -66,7 +66,7 @@ function get_mdrc_coh_inc(R, R2, qs::Vector{Float64}, ks::Vector{Float64}, param
     inc = Matrix{Float64}(undef, (length(qs), length(ks)))
     for (j, k) in enumerate(ks)
         for (i, q) in enumerate(qs)
-            C = Lx/2π * real(alpha0(q)^2 / alpha0(k))
+            C = Lx/2π * real(alpha0(q)) * real(alpha0(q) / alpha0(k))
             coh[i, j] = C * abs2(R[i, j])
             inc[i, j] = C * R2[i, j] - coh[i, j]
         end
@@ -101,7 +101,7 @@ function get_mdtc_coh_inc(T, T2, qs::Vector{Float64}, ks::Vector{Float64}, param
     for (j, k) in enumerate(ks)
         for (i, q) in enumerate(qs)
             a = ν == :p ? alpha_p(q, below) : alpha_s(q, below)
-            C = Lx/2π * real(a^2 / (κpa * alpha0(k)))
+            C = Lx/2π * real(a) * real(a / (κpa * alpha0(k)))
             coh[i, j] = C * abs2(T[i, j])
             inc[i, j] = C * T2[i, j] - coh[i, j]
         end
@@ -187,6 +187,9 @@ function calc_mdtc(data::SolverData)
     
     θtes = [θt.(k, real(alpha_p(k, below))) for k in ks]
     θtos = [θt.(k, real(alpha_s(k, below))) for k in ks]
+
+    # FIXME: If eps and mu are both negative, should the transmission angles be reversed?
+    #        This is not handled in the current implementation.
 
     Tp = data.Tp.A[mask_p, :]
     T2p = data.Tp.A²[mask_p, :]

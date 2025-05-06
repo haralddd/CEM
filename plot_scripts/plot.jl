@@ -17,8 +17,13 @@ const DEFAULT_PLOTDIR = DEFAULT_PATH / "plots"
 mkpath(DEFAULT_PLOTDIR)
 mkpath(DEFAULT_OUTPUT)
 
-general_fontsize = 18
+colors = [:darkgreen, :royalblue, :firebrick, :darkorange]
+markers = [:circle, :rect, :diamond, :utriangle]
+markersize = 10
+general_fontsize = 24
 axis_fontsize = 32
+ylabelpad = 10.0
+linewidth = 1.0
 
 # Direct plotting is used instead of these helper functions
 # for better control over polarization-specific visualization
@@ -26,13 +31,12 @@ axis_fontsize = 32
 function save_mdrc_plots(data, θ0s, θs, ylabel, file_prefix, folder)
     # Create stacked plots with shared x-axis
     n_plots = size(data, 2)
-    fig = Figure(fontsize=general_fontsize, size=(800, 100 + 200 * n_plots))
+    fig = Figure(fontsize=general_fontsize, size=(600, 300 * n_plots))
     
     # Use a color scheme that's distinct and print-friendly
-    if n_plots > 3
+    global colors, markers
+    if n_plots > 4
         colors = distinguishable_colors(n_plots, [colorant"white", colorant"black"], dropseed=true)
-    else
-        colors = [:blue, :red, :green]
     end
     
     # Create axes with linkxaxes
@@ -45,6 +49,7 @@ function save_mdrc_plots(data, θ0s, θs, ylabel, file_prefix, folder)
         ax = Axis(fig[i, 1], 
             xlabel = is_bottom ? L"\theta_s\ \text{[deg]}" : "",
             ylabel = ylabel,
+            ylabelpadding = ylabelpad,
             ylabelsize = axis_fontsize,
             xlabelsize = axis_fontsize,
             xticks = -90:30:90,
@@ -59,14 +64,15 @@ function save_mdrc_plots(data, θ0s, θs, ylabel, file_prefix, folder)
         # Plot the data
         θ0 = θ0s[i]
         θ0_label = round(θ0, digits=1)
-        text!(ax, 0.05, 0.9, text = L"\theta_0=%$θ0_label^{\circ}", 
-              fontsize = axis_fontsize, align = (:left, :top), space = :relative)
         
         # Plot vertical lines at the incident angle
         vlines!(ax, [-θ0, θ0], color = (:black, 0.5), linestyle = :dash, linewidth = 1.0)
         
         # Plot the data
-        lines!(ax, θs, data[:, i], linewidth = 1.5, color = :black)
+        lines!(ax, θs, data[:, i], linewidth = linewidth, color = :red)
+
+        text!(ax, 0.95, 0.5, text = L"\theta_0=%$θ0_label^{\circ}", 
+              fontsize = general_fontsize, align = (:right, :center), space = :relative)
     end
     
     # Save the stacked plot
@@ -80,6 +86,7 @@ function save_mdrc_plots(data, θ0s, θs, ylabel, file_prefix, folder)
         ylabelsize = axis_fontsize,
         xlabelsize = axis_fontsize,
         xticks = -90:30:90,
+        ylabelpadding = ylabelpad,
     )
     
     # Plot all angles in the same figure with a legend
@@ -87,12 +94,18 @@ function save_mdrc_plots(data, θ0s, θs, ylabel, file_prefix, folder)
         ys = data[:, i]
         θ0 = θ0s[i]
         θ0_label = round(θ0, digits=1)
-        lines!(ax_combined, θs, ys, linewidth = 1.5, color = colors[i], 
-               label = L"\theta_0=%$θ0_label^{\circ}")
+        global colors, markers, markersize
+        ln = lines!(ax_combined, θs, ys, linewidth = linewidth, color = colors[i])
         
         # Plot vertical lines at incident angles
-        vlines!(ax_combined, [-θ0, θ0], color = (colors[i], 0.3), 
-                linestyle = :dash, linewidth = 1.0)
+        # vlines!(ax_combined, [-θ0, θ0], color = (colors[i], 0.3), 
+        #         linestyle = :dash, linewidth = 1.0)
+        
+        ymax, maxidx = findmax(ys)
+        sc = scatterlines!(ax_combined, θs[maxidx], ymax, color=colors[i], marker=markers[i], markersize=markersize,
+            label=L"\theta_0=%$θ0_label^{\circ}")
+        translate!(sc, 0, 0, -ymax)
+        translate!(ln, 0, 0, -ymax)
     end
     
     # Add legend
@@ -113,13 +126,12 @@ function save_mdtc_plots_p(data, θtes, θs, θ0s, ylabel, file_prefix, folder)
     
     # Create stacked plots with shared x-axis
     n_plots = size(data, 2)
-    fig = Figure(fontsize=general_fontsize, size=(800, 100 + 200 * n_plots))
+    fig = Figure(fontsize=general_fontsize, size=(600, 300 * n_plots))
     
     # Use a color scheme that's distinct and print-friendly
-    if n_plots > 3
+    global colors, markers, markersize
+    if n_plots > 4
         colors = distinguishable_colors(n_plots, [colorant"white", colorant"black"], dropseed=true)
-    else
-        colors = [:blue, :red, :green]
     end
     
     # Create axes with linkxaxes
@@ -136,6 +148,7 @@ function save_mdtc_plots_p(data, θtes, θs, θ0s, ylabel, file_prefix, folder)
             xlabelsize = axis_fontsize,
             xticks = -90:30:90,
             xticklabelsvisible = is_bottom,
+            ylabelpadding = ylabelpad,
         )
         
         if i > 1
@@ -148,17 +161,19 @@ function save_mdtc_plots_p(data, θtes, θs, θ0s, ylabel, file_prefix, folder)
         θ0_label = round(i ≤ length(θ0s) ? θ0s[i] : θte, digits=1)  # Use incident angle if available
         θt_label = round(θte, digits=1)  # p-pol uses extraordinary
         
-        # Add text annotation with normalized coordinates (0,0) to (1,1)
-        text!(ax, 0.05, 0.9, text = L"\theta_0=%$θ0_label^{\circ}", 
-              fontsize = axis_fontsize, align = (:left, :top), space = :relative)
-        text!(ax, 0.05, 0.65, text = L"\theta_\mathrm{te}=%$θt_label^{\circ}", 
-              fontsize = axis_fontsize, align = (:left, :top), space = :relative)
-        
+
         # For p-polarization, show extraordinary direction
         vlines!(ax, [-θte, θte], color = (:black, 0.5), linestyle = :dash, linewidth = 1.0)
         
         # Plot the data
-        lines!(ax, θs, data[:, i], linewidth = 1.5, color = :black)
+        lines!(ax, θs, data[:, i], linewidth = linewidth, color = :red)
+
+        # Add text annotation with normalized coordinates (0,0) to (1,1)
+        # text!(ax, 0.05, 0.9, text = L"\theta_0=%$θ0_label^{\circ}", 
+        #       fontsize = general_fontsize, align = (:left, :top), space = :relative)
+        text!(ax, 0.95, 0.5, text = L"\theta_\mathrm{te}=%$θt_label^{\circ}", 
+              fontsize = general_fontsize, align = (:right, :center), space = :relative)
+        
     end
     
     # Save the stacked plot
@@ -171,7 +186,8 @@ function save_mdtc_plots_p(data, θtes, θs, θ0s, ylabel, file_prefix, folder)
         ylabel = ylabel, 
         ylabelsize = axis_fontsize,
         xlabelsize = axis_fontsize,
-        xticks = -90:30:90
+        xticks = -90:30:90,
+        ylabelpadding = ylabelpad,
     )
     
     # Plot all angles in the same figure with a legend
@@ -183,12 +199,18 @@ function save_mdtc_plots_p(data, θtes, θs, θ0s, ylabel, file_prefix, folder)
         # Use extraordinary angle for p-polarization
         θt_label = round(θte, digits=1)
         
-        lines!(ax_combined, θs, ys, linewidth = 1.5, color = colors[i], 
-               label = L"\theta_0=%$θ0_label^{\circ},\ \theta_\mathrm{te}=%$θt_label^{\circ}")
+        global colors, markers, markersize
+        ln = lines!(ax_combined, θs, ys, linewidth = linewidth, color = colors[i])
         
         # For p-polarization, show extraordinary direction
-        vlines!(ax_combined, [-θte, θte], color = (colors[i], 0.3), 
-                linestyle = :dash, linewidth = 1.0)
+        # vlines!(ax_combined, [-θte, θte], color = (colors[i], 0.3), 
+        #         linestyle = :dash, linewidth = 1.0)
+        maxidx = argmax(abs.(ys))
+        ymax = abs(ys[maxidx])
+        sc = scatterlines!(ax_combined, θs[maxidx], ys[maxidx], color=colors[i], marker=markers[i], markersize=markersize,
+            label=L"\theta_0=%$θ0_label^{\circ},\ \theta_\mathrm{te}=%$θt_label^{\circ}")
+        translate!(sc, 0, 0, -ymax)
+        translate!(ln, 0, 0, -ymax)
     end
     
     # Add legend
@@ -209,13 +231,12 @@ function save_mdtc_plots_s(data, θtos, θs, θ0s, ylabel, file_prefix, folder)
     
     # Create stacked plots with shared x-axis
     n_plots = size(data, 2)
-    fig = Figure(fontsize=general_fontsize, size=(800, 100 + 200 * n_plots))
+    fig = Figure(fontsize=general_fontsize, size=(600, 300 * n_plots))
     
     # Use a color scheme that's distinct and print-friendly
-    if n_plots > 3
+    global colors, markers, markersize
+    if n_plots > 4
         colors = distinguishable_colors(n_plots, [colorant"white", colorant"black"], dropseed=true)
-    else
-        colors = [:blue, :red, :green]
     end
     
     # Create axes with linkxaxes
@@ -232,6 +253,7 @@ function save_mdtc_plots_s(data, θtos, θs, θ0s, ylabel, file_prefix, folder)
             xlabelsize = axis_fontsize,
             xticks = -90:30:90,
             xticklabelsvisible = is_bottom,
+            ylabelpadding = ylabelpad,
         )
         
         if i > 1
@@ -244,17 +266,19 @@ function save_mdtc_plots_s(data, θtos, θs, θ0s, ylabel, file_prefix, folder)
         θ0_label = round(i ≤ length(θ0s) ? θ0s[i] : θto, digits=1)  # Use incident angle if available
         θt_label = round(θto, digits=1)  # s-pol uses ordinary
         
-        # Add text annotation with normalized coordinates (0,0) to (1,1)
-        text!(ax, 0.05, 0.9, text = L"\theta_0=%$θ0_label^{\circ}", 
-              fontsize = axis_fontsize, align = (:left, :top), space = :relative)
-        text!(ax, 0.05, 0.65, text = L"\theta_\mathrm{to}=%$θt_label^{\circ}", 
-              fontsize = axis_fontsize, align = (:left, :top), space = :relative)
-        
+
         # For s-polarization, show ordinary direction
         vlines!(ax, [-θto, θto], color = (:black, 0.5), linestyle = :dash, linewidth = 1.0)
         
         # Plot the data
-        lines!(ax, θs, data[:, i], linewidth = 1.5, color = :black)
+        lines!(ax, θs, data[:, i], linewidth = linewidth, color = :red)
+
+        # Add text annotation with normalized coordinates (0,0) to (1,1)
+        # text!(ax, 0.05, 0.9, text = L"\theta_0=%$θ0_label^{\circ}", 
+        #       fontsize = general_fontsize, align = (:left, :top), space = :relative)
+        text!(ax, 0.95, 0.5, text = L"\theta_\mathrm{to}=%$θt_label^{\circ}", 
+              fontsize = general_fontsize, align = (:right, :center), space = :relative)
+        
     end
     
     # Save the stacked plot
@@ -267,7 +291,8 @@ function save_mdtc_plots_s(data, θtos, θs, θ0s, ylabel, file_prefix, folder)
         ylabel = ylabel, 
         ylabelsize = axis_fontsize,
         xlabelsize = axis_fontsize,
-        xticks = -90:30:90
+        xticks = -90:30:90,
+        ylabelpadding = ylabelpad,
     )
     
     # Plot all angles in the same figure with a legend
@@ -278,13 +303,18 @@ function save_mdtc_plots_s(data, θtos, θs, θ0s, ylabel, file_prefix, folder)
         
         # Use ordinary angle for s-polarization
         θt_label = round(θto, digits=1)
-        
-        lines!(ax_combined, θs, ys, linewidth = 1.5, color = colors[i], 
-               label = L"\theta_0=%$θ0_label^{\circ},\ \theta_\mathrm{to}=%$θt_label^{\circ}")
+        ln = lines!(ax_combined, θs, ys, linewidth = linewidth, color = colors[i])
         
         # For s-polarization, show ordinary direction
         vlines!(ax_combined, [-θto, θto], color = (colors[i], 0.3), 
                 linestyle = :dash, linewidth = 1.0)
+        
+        maxidx = argmax(abs.(ys))
+        ymax = abs(ys[maxidx])
+        sc = scatterlines!(ax_combined, θs[maxidx], ys[maxidx], color=colors[i], marker=markers[i], markersize=markersize,
+            label=L"\theta_0=%$θ0_label^\circ")
+        translate!(sc, 0, 0, -ymax)
+        translate!(ln, 0, 0, -ymax)
     end
     
     # Add legend
