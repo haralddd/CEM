@@ -1,5 +1,5 @@
 module SurfaceGen
-export Surface, SurfaceEnsemble, mean_slope, ensemble_mean, ensemble_variance
+export Surface, SurfaceEnsemble, rms_slope, ensemble_mean, ensemble_variance
 
 include("DiscreteDiff.jl")
 using .DiscreteDiff
@@ -56,7 +56,7 @@ function SurfaceEnsemble(L::Float64, δ::Float64, a::Float64, N::Int, M::Int)
     SurfaceEnsemble(surfs, xs, δ, a, L, Δx)
 end
 
-function mean_slope(surf::Surface)
+function rms_slope(surf::Surface)
     sqrt(mean((surf.ζ_dot) .^ 2))
 end
 

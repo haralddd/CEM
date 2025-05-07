@@ -48,9 +48,15 @@ function col_map(f, A)
     return out
 end
 
-function mean_slope(ys::Vector{Float64}, Δx::Float64)
-    # Mean slope of the surface, s
-    return d1o2(ys, Δx) |> x -> sqrt(mean(x .^ 2))
+
+function rms(xs, mean_xs)
+    return sqrt(mean((xs .- mean_xs) .^ 2))
+end
+function rms_slope(ys::Vector{Float64}, Δx::Float64)
+    # RMS slope of the surface, s
+    d1 = d1o2(ys, Δx)
+    d1_mean = mean(d1)
+    return rms(d1, d1_mean)
 end
 
 function mean_peak_valley_dist(xs::Vector{Float64}, ys::Vector{Float64})
@@ -62,7 +68,7 @@ function test_surf(data::SolverData)
 
 
     params = data.params
-    alloc = Preallocated(params)
+    alloc = Preallocated(data)
     M = data.iters
     surf = params.surf
 
@@ -71,14 +77,15 @@ function test_surf(data::SolverData)
     d = params.surf.d
 
     meanval = 0.0
-    rms = 0.0
+    rmsval = 0.0
     slope = 0.0
     dist = 0.0
     for m in 1:M
         generate_surface!(alloc, params)
-        meanval = observe(meanval, mean(alloc.ys), m)
-        rms = observe(rms, sqrt(mean(alloc.ys .^ 2)), m)
-        slope = observe(slope, mean_slope(alloc.ys, dx), m)
+        cur_mean = mean(alloc.ys)
+        meanval = observe(meanval, cur_mean, m)
+        rmsval = observe(rmsval, rms(alloc.ys, cur_mean), m)
+        slope = observe(slope, rms_slope(alloc.ys, dx), m)
         dist = observe(dist, mean_peak_valley_dist(xs, alloc.ys), m)
     end
 
@@ -107,11 +114,11 @@ function test_surf(data::SolverData)
     println()
     println_header("Ensemble mean RMS height, δ:")
     println("δ = $(d)")
-    println("Numerical  = $(rms)")
+    println("Numerical  = $(rmsval)")
 end
 function make_plot(data::SolverData, label="")
     params = data.params
-    alloc = Preallocated(params)
+    alloc = Preallocated(data)
 
     generate_surface!(alloc, params)
 
@@ -128,9 +135,9 @@ end
 
 if (abspath(PROGRAM_FILE) == @__FILE__) 
     iters = 100000
-    test_gaussian1() = test_surf(default_gaussian_config(iters, 200 * 632.8e-9))
-    test_gaussian2() = test_surf(default_gaussian_config(iters, 100 * 632.8e-9))
-    test_gaussian3() = test_surf(default_gaussian_config(iters, 50*632.8e-9))
+    test_gaussian1() = test_surf(default_gaussian_config(iters, 200))
+    test_gaussian2() = test_surf(default_gaussian_config(iters, 100))
+    test_gaussian3() = test_surf(default_gaussian_config(iters, 50))
     test_rect() = test_surf(default_rectangular_config(iters))
 
     test_gaussian1()
@@ -140,6 +147,6 @@ if (abspath(PROGRAM_FILE) == @__FILE__)
 
     using Plots
     using LaTeXStrings
-    make_plot(SolverData(Parameters(surf=GaussianSurface(30.0e-9, 400.0e-9))), "gaussian_surf")
-    make_plot(SolverData(Parameters(surf=RectangularSurface(30.0e-9, 0.10, 1.10))), "rect_surf")
+    make_plot(SolverData(ParametersConfig(surf=GaussianSurface(30.0e-9, 400.0e-9))), "gaussian_surf")
+    make_plot(SolverData(ParametersConfig(surf=RectangularSurface(30.0e-9, 0.10, 1.10))), "rect_surf")
 end

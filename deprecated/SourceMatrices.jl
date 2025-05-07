@@ -3,7 +3,7 @@ export create_A!, create_B!, SourceParams
 
 include("SurfaceGen.jl")
 using .SurfaceGen
-export Surface, SurfaceEnsemble, mean_slope, ensemble_mean, ensemble_variance
+export Surface, SurfaceEnsemble, rms_slope, ensemble_mean, ensemble_variance
 
 # TODO: Create specialized symmetric matrix with static size (such as SizedMatrix from StaticArrays.jl)
 

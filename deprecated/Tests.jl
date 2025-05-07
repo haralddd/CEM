@@ -33,7 +33,7 @@ function test_surfaces()
 
     display(plt)
 
-    s = mean_slope(se.surfs[1])
+    s = rms_slope(se.surfs[1])
     display("Numerical mean slope   $(s)")
     display("Analytical mean slope  $(√2*δ/a)")
 end
