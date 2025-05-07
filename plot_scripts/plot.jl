@@ -104,8 +104,8 @@ function save_mdrc_plots(data, θ0s, θs, ylabel, file_prefix, folder)
         ymax, maxidx = findmax(ys)
         sc = scatterlines!(ax_combined, θs[maxidx], ymax, color=colors[i], marker=markers[i], markersize=markersize,
             label=L"\theta_0=%$θ0_label^{\circ}")
-        translate!(sc, 0, 0, -ymax)
-        translate!(ln, 0, 0, -ymax)
+        # translate!(sc, 0, 0, -ymax)
+        # translate!(ln, 0, 0, -ymax)
     end
     
     # Add legend
@@ -209,8 +209,8 @@ function save_mdtc_plots_p(data, θtes, θs, θ0s, ylabel, file_prefix, folder)
         ymax = abs(ys[maxidx])
         sc = scatterlines!(ax_combined, θs[maxidx], ys[maxidx], color=colors[i], marker=markers[i], markersize=markersize,
             label=L"\theta_0=%$θ0_label^{\circ},\ \theta_\mathrm{te}=%$θt_label^{\circ}")
-        translate!(sc, 0, 0, -ymax)
-        translate!(ln, 0, 0, -ymax)
+        # translate!(sc, 0, 0, -ymax)
+        # translate!(ln, 0, 0, -ymax)
     end
     
     # Add legend
@@ -313,8 +313,8 @@ function save_mdtc_plots_s(data, θtos, θs, θ0s, ylabel, file_prefix, folder)
         ymax = abs(ys[maxidx])
         sc = scatterlines!(ax_combined, θs[maxidx], ys[maxidx], color=colors[i], marker=markers[i], markersize=markersize,
             label=L"\theta_0=%$θ0_label^\circ")
-        translate!(sc, 0, 0, -ymax)
-        translate!(ln, 0, 0, -ymax)
+        # translate!(sc, 0, 0, -ymax)
+        # translate!(ln, 0, 0, -ymax)
     end
     
     # Add legend
