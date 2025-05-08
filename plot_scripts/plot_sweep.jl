@@ -10,7 +10,13 @@ colors = [:darkgreen, :royalblue, :firebrick, :darkorange]
 markers = [:circle, :rect, :diamond, :utriangle]
 
 axis_label_fontsize=32
-metallic_dir = "output/sweep/metallic"
+sim_name = ARGS[1]
+out_dir = "plots/$(sim_name)"
+mkpath(out_dir)
+
+metallic_dir = "output/$(sim_name)/metallic"
+hyperbolic1_dir = "output/$(sim_name)/hyperbolic_type1"
+hyperbolic2_dir = "output/$(sim_name)/hyperbolic_type2"
 
 ylabel = L"\langle\partial R_{p}/\partial\theta_{s}\rangle_{\mathrm{incoh}}"
 fig = Figure(fontsize=24, size=(600, 400))
@@ -42,9 +48,7 @@ for (i, fname) in enumerate(readdir(metallic_dir))
     translate!(ln, 0, 0, 10000-ymax)
 end
 axislegend(ax)
-save("plots/metallic.pdf", fig)
-
-hyperbolic1_dir = "output/sweep/hyperbolic_type1"
+save(joinpath(out_dir, "metallic.pdf"), fig)
 
 fig = Figure(fontsize=24, size=(600, 400))
 ax = Axis(fig[1, 1],
@@ -75,9 +79,7 @@ for (i, fname) in enumerate(readdir(hyperbolic1_dir))
     translate!(ln, 0, 0, 10000-ymax)
 end
 axislegend(ax)
-save("plots/hyberbolic_type1.pdf", fig)
-
-hyperbolic2_dir = "output/sweep/hyperbolic_type2"
+save(joinpath(out_dir, "hyperbolic_type1.pdf"), fig)
 
 fig = Figure(fontsize=24, size=(600, 400))
 ax = Axis(fig[1, 1],
@@ -110,4 +112,4 @@ for (i, fname) in enumerate(readdir(hyperbolic2_dir))
     translate!(ln, 0, 0, 10000-ymax)
 end
 axislegend(ax)
-save("plots/hyberbolic_type2.pdf", fig)
+save(joinpath(out_dir, "hyperbolic_type2.pdf"), fig)

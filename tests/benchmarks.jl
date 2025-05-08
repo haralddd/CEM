@@ -44,8 +44,8 @@ function profile_uniaxial_full_single_solve()
     # display(bench)
 end
 
-tio2 = Uniaxial(6.84+0.01im, 3.62+0.01im, 1.0+0.0im, 1.0+0.0im)
-function profile_ensemble_reduced()
+tio2 = Uniaxial(8.43+0.0im, 6.84+0.0im, 1.0+0.0im, 1.0+0.0im)
+function time_ensemble_reduced()
     @info "Default uniaxial reduced ensemble solve"
     paramconf = ParametersConfig(
         Nx=4096,
@@ -53,10 +53,10 @@ function profile_ensemble_reduced()
         below=tio2,
     )
     data = SolverData(paramconf, 1000, :reduced)
-    @btime solve_ensemble!($data)
+    @time solve_ensemble!(data)
 end
 
-function profile_ensemble_full()
+function time_ensemble_full()
     @info "Default uniaxial full ensemble solve"
     paramconf = ParametersConfig(
         Nx=4096,
@@ -64,6 +64,6 @@ function profile_ensemble_full()
         below=tio2,
     )
     data = SolverData(paramconf, 1000, :full)
-    @btime solve_ensemble!($data)
+    @time solve_ensemble!(data)
 end
     

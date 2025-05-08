@@ -32,6 +32,12 @@ function pretty(mat::Material)
 end
 
 """
+    signum(x::Float64)
+Returns the sign of `x` as a float.
+"""
+signum(x::Float64)::Float64 = (x < 0.0) ? -1.0 : 1.0
+
+"""
     alpha(q::Float64, material::T)::ComplexF64
 Calculates the perpendicular wave number, alpha ≡ q⟂, based on the parallel wave number `q` and `material` properties.
 
@@ -42,12 +48,13 @@ Calculates the perpendicular wave number, alpha ≡ q⟂, based on the parallel 
 function alpha(q::Float64, material::T) where {T<:Material} end
 function alpha(q::Float64, material::Vacuum)::ComplexF64
     D = sqrt(complex(1.0 - q^2))
-    return ComplexF64(abs(real(D)), abs(imag(D)))
+    return D*signum(imag(D))
 end
 function alpha(q::Float64, material::Isotropic)::ComplexF64
     με = material.eps * material.mu
     D = sqrt(με - q^2)
-    return ComplexF64(abs(real(D)), abs(imag(D)))
+    # Choose the branch where the imaginary part is positive
+    return D*signum(imag(D))
 end
 function alpha0(q)
     alpha(q, Vacuum())
@@ -59,11 +66,13 @@ end
 
 function alpha_p(q::Float64, A::ComplexF64, μεpa::ComplexF64)::ComplexF64
     D = sqrt(μεpa - A * q^2)
-    return ComplexF64(abs(real(D)), abs(imag(D)))
+    # Choose the branch where the imaginary part is positive
+    return D*signum(imag(D))
 end
 function alpha_s(q::Float64, μεpa::ComplexF64)::ComplexF64
     D = sqrt(μεpa - q^2)
-    return ComplexF64(abs(real(D)), abs(imag(D)))
+    # Choose the branch where the imaginary part is positive
+    return D*signum(imag(D))
 end
 function alpha_p(q::Float64, mat::Uniaxial)::ComplexF64
     _A = get_A(mat)

@@ -22,8 +22,8 @@ function energy_ratio(R2, T2, ks, qs, params::Parameters, ν=:p)
             a0q = alpha0(q)
             aq = alpha_func(q)
 
-            R_term = real(R2[q_idx, k_idx] * a0q / a0k)
-            T_term = real(T2[q_idx, k_idx] * aq / (κpa * a0k))
+            R_term = abs(real(R2[q_idx, k_idx] * a0q / a0k))
+            T_term = abs(real(T2[q_idx, k_idx] * aq / (κpa * a0k)))
 
             ret[k_idx] += R_term + T_term
         end

@@ -101,7 +101,7 @@ function get_mdtc_coh_inc(T, T2, qs::Vector{Float64}, ks::Vector{Float64}, param
     for (j, k) in enumerate(ks)
         for (i, q) in enumerate(qs)
             a = ν == :p ? alpha_p(q, below) : alpha_s(q, below)
-            C = Lx/2π * real(a) * real(a / (κpa * alpha0(k)))
+            C = Lx/2π * abs(real(a) * real(a / (κpa * alpha0(k))))
             coh[i, j] = C * abs2(T[i, j])
             inc[i, j] = C * T2[i, j] - coh[i, j]
         end
@@ -153,7 +153,7 @@ Calculates the transmission angle in degrees from the wavenumber and alpha value
 - `alpha`: Alpha value for the material
 """
 function θt(q::Float64, alpha::Float64)
-    return atand(q, alpha)
+    return atand(q, abs(alpha))
 end
 
 """
@@ -173,23 +173,32 @@ function calc_mdtc(data::SolverData)
     qs = params.qs
     ks = params.ks
     below = data.params.below
-    μεpe = below.mu_perp * below.eps_perp
-    μεpa = below.mu_para * below.eps_para
-    # Transmission index ellipsoid is larger than reflection
+    mu = below.mu_perp
+    μεpe = mu * below.eps_perp
+    μεpa = mu * below.eps_para
+    
     mask_p = qs .>= -real(sqrt(μεpe)) .&& qs .<= real(sqrt(μεpe))
     mask_s = qs .>= -real(sqrt(μεpa)) .&& qs .<= real(sqrt(μεpa))
     
-    ap = real.(alpha_p.(qs[mask_p], Ref(below)))
-    as = real.(alpha_s.(qs[mask_s], Ref(below)))
-    
-    θtps = θt.(qs[mask_p], ap)
-    θtss = θt.(qs[mask_s], as)
-    
-    θtes = [θt.(k, real(alpha_p(k, below))) for k in ks]
-    θtos = [θt.(k, real(alpha_s(k, below))) for k in ks]
+    ap = alpha_p.(qs[mask_p], Ref(below))
+    as = alpha_s.(qs[mask_s], Ref(below))
 
-    # FIXME: If eps and mu are both negative, should the transmission angles be reversed?
-    #        This is not handled in the current implementation.
+    θtp = θt.(qs[mask_p], real.(ap))
+    θts = θt.(qs[mask_s], real.(as))
+    
+    # Flip the angles if the real part is negative
+    θtp[real(ap) .< 0.0] .= .-θtp[real(ap) .< 0.0]
+    θts[real(as) .< 0.0] .= .-θts[real(as) .< 0.0]
+    
+    apk = alpha_p.(ks, Ref(below))
+    ask = alpha_s.(ks, Ref(below))
+    
+    θte = θt.(ks, real(apk))
+    θto = θt.(ks, real(ask))
+
+    # Flip the angles if the real part is negative
+    θte[real(apk) .< 0.0] .= .-θte[real(apk) .< 0.0]
+    θto[real(ask) .< 0.0] .= .-θto[real(ask) .< 0.0]
 
     Tp = data.Tp.A[mask_p, :]
     T2p = data.Tp.A²[mask_p, :]
@@ -200,5 +209,5 @@ function calc_mdtc(data::SolverData)
     coh_p, inc_p = get_mdtc_coh_inc(Tp, T2p, qs[mask_p], ks, params, :p)
     coh_s, inc_s = get_mdtc_coh_inc(Ts, T2s, qs[mask_s], ks, params, :s)
 
-    return MdtcPlotData(coh_p, inc_p, coh_s, inc_s, θtps, θtss, θtes, θtos)
+    return MdtcPlotData(coh_p, inc_p, coh_s, inc_s, θtp, θts, θte, θto)
 end

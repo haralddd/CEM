@@ -134,13 +134,22 @@ struct Parameters{SurfT<:RandomSurface,AboveT<:Material,BelowT<:Material}
 
         if BT == Uniaxial
             @assert below.mu_para == below.mu_perp "Uniaxial material must have equal mu_para and mu_perp."
-            no = sqrt(below.mu_para * below.eps_para)
-            ne = sqrt(below.mu_perp * below.eps_perp)
+            mu = below.mu_para
+            eps_para = below.eps_para
+            eps_perp = below.eps_perp
+            @assert imag(mu) >= 0 "Uniaxial material must have positive imaginary parts of mu."
+            @assert imag(eps_para) >= 0 "Uniaxial material must have positive imaginary parts of eps_para."
+            @assert imag(eps_perp) >= 0 "Uniaxial material must have positive imaginary parts of eps_perp."
+            no = sqrt(mu * eps_para)
+            ne = sqrt(mu * eps_perp)
             @debug "no: $no"
             @debug "ne: $ne"
             if Q / 2 < real(no) || Q / 2 < real(ne)
                 @error "Q/2 ($Q/2) is smaller than no=$(no) or ne=$(ne). Not all transmission coefficients can be resolved."
             end
+        elseif BT == Isotropic
+            @assert imag(below.mu) >= 0 "Isotropic material must have positive imaginary parts of mu."
+            @assert imag(below.eps) >= 0 "Isotropic material must have positive imaginary parts of eps."
         end
 
         ps = -Q/2:dq:Q/2
