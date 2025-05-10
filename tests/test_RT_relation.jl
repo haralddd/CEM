@@ -12,8 +12,12 @@ using FFTW
 
 δ(q) = q ≈ 0.0 ? 1.0 : 0.0
 
-
-function calc_Tp_Ts(Rp, Rs, pre::Preallocated, params::Parameters)
+# Non-allocating version: preallocate and pass arrays as arguments
+function calc_Tp_Ts!(Tp, Ts, Rp, Rs, pre::Preallocated, params::Parameters, 
+                     Ap=zeros(ComplexF64, size(Rp)), 
+                     As=zeros(ComplexF64, size(Rs)), 
+                     bp=zeros(ComplexF64, size(Rp)), 
+                     bs=zeros(ComplexF64, size(Rs)))
     qs = params.qs
     ps = params.ps
     ks = params.ks
@@ -28,10 +32,11 @@ function calc_Tp_Ts(Rp, Rs, pre::Preallocated, params::Parameters)
     Nq = size(qs, 1)
     Ni = params.Ni
 
-    Ap = zeros(ComplexF64, Nq, Nq)
-    As = zeros(ComplexF64, Nq, Nq)
-    bp = zeros(ComplexF64, size(Rp))
-    bs = zeros(ComplexF64, size(Rs))
+    # Reset arrays to zero
+    fill!(Ap, zero(ComplexF64))
+    fill!(As, zero(ComplexF64))
+    fill!(bp, zero(ComplexF64))
+    fill!(bs, zero(ComplexF64))
 
     for n in 0:Ni
         for i in eachindex(Fys)
@@ -67,8 +72,28 @@ function calc_Tp_Ts(Rp, Rs, pre::Preallocated, params::Parameters)
         end
     end
 
-    Tp = Ap \ bp
-    Ts = As \ bs
+    # Solve the systems and store results in Tp and Ts
+    ldiv!(Tp, lu!(Ap), bp)
+    ldiv!(Ts, lu!(As), bs)
+    
+    return nothing  # Non-allocating functions typically return nothing
+end
+
+# Original allocating version for backward compatibility
+function calc_Tp_Ts(Rp, Rs, pre::Preallocated, params::Parameters)
+    qs = params.qs
+    Nq = size(qs, 1)
+    
+    Tp = zeros(ComplexF64, size(Rp))
+    Ts = zeros(ComplexF64, size(Rs))
+    Ap = zeros(ComplexF64, size(Rp))
+    As = zeros(ComplexF64, size(Rs))
+    bp = zeros(ComplexF64, size(Rp))
+    bs = zeros(ComplexF64, size(Rs))
+    
+    # Call the non-allocating version
+    calc_Tp_Ts!(Tp, Ts, Rp, Rs, pre, params, Ap, As, bp, bs)
+    
     return Tp, Ts
 end
 
@@ -84,10 +109,10 @@ above = Vacuum()  # Medium above is vacuum
 
 # Setup solver data
 Nx = 2 * 1024  # Number of spatial points
-data = SolverData(Parameters(surf=surf, θs=θ0, above=above, below=material, Nx=Nx, Ni=1))
-prealloc = Preallocated(data.params)
-precomputed = Precomputed(data.params)
-precompute!(precomputed, data.params)
+data = SolverData(ParametersConfig(surf=surf, θs=θ0, above=above, below=material, Nx=Nx, Ni=1))
+prealloc = Preallocated(data)
+precomputed = Precomputed(data)
+precompute!(precomputed, data)
 generate_surface!(prealloc, data.params)
 solve_single!(prealloc, precomputed, data)
 half = size(prealloc.PNpk, 1) ÷ 2
@@ -151,4 +176,3 @@ lines!(ax, vec(Ts_rel_error), label=L"\nu=s", color=:red)
 axislegend(ax)
 display(fig)
 save("plots/RT_relation_$(name)_rel_error.pdf", fig)
-

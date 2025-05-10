@@ -14,18 +14,17 @@ using Test
     above = Vacuum()
     ensemble_iters = 1000
     θs = [0.0, 10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0]
+    mu = 1.0 + 0.0im
     
     @testset "Flat Surface - Transparent Anisotropic Permeability" begin
         # Create uniaxial medium with anisotropic permeability (μₚₑᵣₚ ≠ μₚₐᵣₐ)
         # This is valid for the full solver but not for the reduced solver
         ε_perp = 2.0 + 0.0im
         ε_para = 2.0 + 0.0im
-        μ_perp = 1.0 + 0.0im
-        μ_para = 1.2 + 0.0im  # Different from μ_perp
         
         # Create flat surface and uniaxial medium
         surface = FlatSurface()
-        below = Uniaxial(ε_perp, ε_para, μ_perp, μ_para)
+        below = Uniaxial(ε_perp, ε_para, mu, mu)
         
         # Create parameters and solver data
         paramconf = ParametersConfig(surf=surface, above=above, below=below, Nx=Nx, Lx=Lx, lambda=λ, θs=θs)
@@ -58,9 +57,7 @@ using Test
         # Create uniaxial medium with anisotropic properties
         ε_perp = 2.0 + 0.0im
         ε_para = 3.0 + 0.0im
-        μ_perp = 1.0 + 0.0im
-        μ_para = 1.2 + 0.0im
-        below = Uniaxial(ε_perp, ε_para, μ_perp, μ_para)
+        below = Uniaxial(ε_perp, ε_para, mu, mu)
         
         # More incident angles for a more comprehensive test
         paramconf = ParametersConfig(surf=surface, above=above, below=below, Nx=Nx, Lx=Lx, lambda=λ, θs=θs)
@@ -105,9 +102,7 @@ using Test
         # Create uniaxial medium with anisotropic properties
         ε_perp = -7.0 + 0.0im
         ε_para = 3.0 + 0.0im
-        μ_perp = 1.0 + 0.0im
-        μ_para = 1.2 + 0.0im
-        below = Uniaxial(ε_perp, ε_para, μ_perp, μ_para)
+        below = Uniaxial(ε_perp, ε_para, mu, mu)
 
         # More incident angles for a more comprehensive test
         paramconf = ParametersConfig(surf=surface, above=above, below=below, Nx=Nx, Lx=Lx, lambda=λ, θs=θs)
@@ -152,9 +147,7 @@ using Test
         # Create uniaxial medium with anisotropic properties
         ε_perp = 3.0 + 0.0im
         ε_para = -7.0 + 0.0im
-        μ_perp = 1.0 + 0.0im
-        μ_para = 1.2 + 0.0im
-        below = Uniaxial(ε_perp, ε_para, μ_perp, μ_para)
+        below = Uniaxial(ε_perp, ε_para, mu, mu)
 
         # More incident angles for a more comprehensive test
         paramconf = ParametersConfig(surf=surface, above=above, below=below, Nx=Nx, Lx=Lx, lambda=λ, θs=θs)

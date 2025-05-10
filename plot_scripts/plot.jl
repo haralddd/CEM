@@ -19,9 +19,9 @@ mkpath(DEFAULT_OUTPUT)
 
 colors = [:darkgreen, :royalblue, :firebrick, :darkorange]
 markers = [:circle, :rect, :diamond, :utriangle]
-markersize = 10
+markersize = 16
 general_fontsize = 24
-axis_fontsize = 32
+axis_fontsize = 40
 ylabelpad = 10.0
 linewidth = 1.0
 
@@ -89,6 +89,7 @@ function save_mdrc_plots(data, θ0s, θs, ylabel, file_prefix, folder)
         ylabelpadding = ylabelpad,
     )
     
+    comb_max = 0.0
     # Plot all angles in the same figure with a legend
     for i in axes(data, 2)
         ys = data[:, i]
@@ -104,17 +105,17 @@ function save_mdrc_plots(data, θ0s, θs, ylabel, file_prefix, folder)
         ymax, maxidx = findmax(ys)
         sc = scatterlines!(ax_combined, θs[maxidx], ymax, color=colors[i], marker=markers[i], markersize=markersize,
             label=L"\theta_0=%$θ0_label^{\circ}")
-        # translate!(sc, 0, 0, -ymax)
-        # translate!(ln, 0, 0, -ymax)
+        translate!(sc, 0, 0, 10-ymax)
+        translate!(ln, 0, 0, 10-ymax)
     end
     
     # Add legend
-    axislegend(ax_combined)
+    axislegend(ax_combined, fontsize=axis_fontsize)
     
     # Set y limits based on all data
     _min = minimum(data)
     _max = maximum(data)
-    _max += 0.3 * abs(_max) + tol
+    _max += 0.4 * abs(_max) + tol
     ylims!(ax_combined, (_min, _max))
     
     # Save the combined plot
@@ -209,17 +210,17 @@ function save_mdtc_plots_p(data, θtes, θs, θ0s, ylabel, file_prefix, folder)
         ymax = abs(ys[maxidx])
         sc = scatterlines!(ax_combined, θs[maxidx], ys[maxidx], color=colors[i], marker=markers[i], markersize=markersize,
             label=L"\theta_0=%$θ0_label^{\circ},\ \theta_\mathrm{te}=%$θt_label^{\circ}")
-        # translate!(sc, 0, 0, -ymax)
-        # translate!(ln, 0, 0, -ymax)
+        translate!(sc, 0, 0, 10-ymax)
+        translate!(ln, 0, 0, 10-ymax)
     end
     
     # Add legend
-    axislegend(ax_combined)
+    axislegend(ax_combined, fontsize=axis_fontsize)
     
     # Set y limits based on all data
     _min = minimum(data)
     _max = maximum(data)
-    _max += 0.3 * abs(_max) + tol
+    _max += 0.4 * abs(_max) + tol
     ylims!(ax_combined, (_min, _max))
     
     # Save the combined plot
@@ -306,24 +307,24 @@ function save_mdtc_plots_s(data, θtos, θs, θ0s, ylabel, file_prefix, folder)
         ln = lines!(ax_combined, θs, ys, linewidth = linewidth, color = colors[i])
         
         # For s-polarization, show ordinary direction
-        vlines!(ax_combined, [-θto, θto], color = (colors[i], 0.3), 
-                linestyle = :dash, linewidth = 1.0)
+        # vlines!(ax_combined, [-θto, θto], color = (colors[i], 0.3), 
+        #         linestyle = :dash, linewidth = 1.0)
         
         maxidx = argmax(abs.(ys))
         ymax = abs(ys[maxidx])
         sc = scatterlines!(ax_combined, θs[maxidx], ys[maxidx], color=colors[i], marker=markers[i], markersize=markersize,
-            label=L"\theta_0=%$θ0_label^\circ")
-        # translate!(sc, 0, 0, -ymax)
-        # translate!(ln, 0, 0, -ymax)
+            label=L"\theta_0=%$θ0_label^{\circ},\ \theta_\mathrm{to}=%$θt_label^{\circ}")
+        translate!(sc, 0, 0, 10-ymax)
+        translate!(ln, 0, 0, 10-ymax)
     end
     
     # Add legend
-    axislegend(ax_combined)
+    axislegend(ax_combined, fontsize=axis_fontsize)
     
     # Set y limits based on all data
     _min = minimum(data)
     _max = maximum(data)
-    _max += 0.3 * abs(_max) + tol
+    _max += 0.4 * abs(_max) + tol
     ylims!(ax_combined, (_min, _max))
     
     # Save the combined plot
@@ -335,47 +336,21 @@ function make_plots(data::SolverData, fname="default", dir="plots")
     folder = dir / fname
     mkpath(folder)
 
-    mdrc = calc_mdrc(data)
-    mdtc = calc_mdtc(data)
-
-    @debug "∑MDRC_s = $(sum(mdrc.coh_s) + sum(mdrc.inc_s))"
-    @debug "∑MDRC_p = $(sum(mdrc.coh_p) + sum(mdrc.inc_p))"
-    @debug "∑MDTC_s = $(sum(mdtc.coh_s) + sum(mdtc.inc_s))"
-    @debug "∑MDTC_p = $(sum(mdtc.coh_p) + sum(mdtc.inc_p))"
-
-    # Estimate the transmission angle ranges
-    θtp_range = isempty(mdtc.θtps) ? "empty" : "$(first(mdtc.θtps)):$(last(mdtc.θtps))"
-    θts_range = isempty(mdtc.θtss) ? "empty" : "$(first(mdtc.θtss)):$(last(mdtc.θtss))"
-    @info "θtp range: $θtp_range"
-    @info "θts range: $θts_range"
-
-    @info "qs len $(length(data.params.qs))"
-    @info "θtp len $(length(mdtc.θtps))"
-    @info "θts len $(length(mdtc.θtss))"
-
-    @debug size(mdrc.coh_p)
-    @debug size(mdrc.inc_p)
-    @debug size(mdrc.coh_s)
-    @debug size(mdrc.inc_s)
-    @debug size(mdtc.coh_p)
-    @debug size(mdtc.inc_p)
-    @debug size(mdtc.coh_s)
-    @debug size(mdtc.inc_s)
-
-    @debug typeof(mdrc.coh_p)
-    @debug axes(mdrc.coh_p, 2)
-
     gen_ylabel(rt_str, pol_str, ang_str, type_str) = L"\langle\partial %$(rt_str)_{%$pol_str}/\partial\theta_{%$ang_str}\rangle_{\mathrm{%$type_str}}"
     
+    mdrc = calc_mdrc(data)
     save_mdrc_plots(mdrc.coh_p, mdrc.θ0s, mdrc.θs, gen_ylabel("R", "p", "s", "coh"), "mdrc-p-coh", folder)
     save_mdrc_plots(mdrc.inc_p, mdrc.θ0s, mdrc.θs, gen_ylabel("R", "p", "s", "incoh"), "mdrc-p-incoh", folder)
     save_mdrc_plots(mdrc.coh_s, mdrc.θ0s, mdrc.θs, gen_ylabel("R", "s", "s", "coh"), "mdrc-s-coh", folder)
     save_mdrc_plots(mdrc.inc_s, mdrc.θ0s, mdrc.θs, gen_ylabel("R", "s", "s", "incoh"), "mdrc-s-incoh", folder)
 
-    save_mdtc_plots_p(mdtc.coh_p, mdtc.θtes, mdtc.θtps, mdrc.θ0s, gen_ylabel("T", "p", "t", "coh"), "mdtc-p-coh", folder)
-    save_mdtc_plots_p(mdtc.inc_p, mdtc.θtes, mdtc.θtps, mdrc.θ0s, gen_ylabel("T", "p", "t", "incoh"), "mdtc-p-incoh", folder)
-    save_mdtc_plots_s(mdtc.coh_s, mdtc.θtos, mdtc.θtss, mdrc.θ0s, gen_ylabel("T", "s", "t", "coh"), "mdtc-s-coh", folder)
-    save_mdtc_plots_s(mdtc.inc_s, mdtc.θtos, mdtc.θtss, mdrc.θ0s, gen_ylabel("T", "s", "t", "incoh"), "mdtc-s-incoh", folder)
+    if data.solver_type == :full
+        mdtc = calc_mdtc(data)
+        save_mdtc_plots_p(mdtc.coh_p, mdtc.θtes, mdtc.θtps, mdrc.θ0s, gen_ylabel("T", "p", "t", "coh"), "mdtc-p-coh", folder)
+        save_mdtc_plots_p(mdtc.inc_p, mdtc.θtes, mdtc.θtps, mdrc.θ0s, gen_ylabel("T", "p", "t", "incoh"), "mdtc-p-incoh", folder)
+        save_mdtc_plots_s(mdtc.coh_s, mdtc.θtos, mdtc.θtss, mdrc.θ0s, gen_ylabel("T", "s", "t", "coh"), "mdtc-s-coh", folder)
+        save_mdtc_plots_s(mdtc.inc_s, mdtc.θtos, mdtc.θtss, mdrc.θ0s, gen_ylabel("T", "s", "t", "incoh"), "mdtc-s-incoh", folder)
+    end
 
     @info "Saved plots to $(folder)"
 end

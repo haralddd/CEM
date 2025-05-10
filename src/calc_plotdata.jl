@@ -97,10 +97,16 @@ function get_mdtc_coh_inc(T, T2, qs::Vector{Float64}, ks::Vector{Float64}, param
     coh = Matrix{Float64}(undef, (length(qs), length(ks)))
     inc = Matrix{Float64}(undef, (length(qs), length(ks)))
     below = params.below
-    κpa = ν == :p ? below.eps_para : below.mu_para
+    if below isa Uniaxial
+        κpa = ν == :p ? below.eps_para : below.mu_para
+        alpha_func = ν == :p ? (q -> alpha_p(q, below)) : (q -> alpha_s(q, below))
+    elseif below isa Isotropic
+        κpa = below.mu
+        alpha_func = (q -> alpha(q, below))
+    end
     for (j, k) in enumerate(ks)
         for (i, q) in enumerate(qs)
-            a = ν == :p ? alpha_p(q, below) : alpha_s(q, below)
+            a = alpha_func(q)
             C = Lx/2π * abs(real(a) * real(a / (κpa * alpha0(k))))
             coh[i, j] = C * abs2(T[i, j])
             inc[i, j] = C * T2[i, j] - coh[i, j]
@@ -173,15 +179,25 @@ function calc_mdtc(data::SolverData)
     qs = params.qs
     ks = params.ks
     below = data.params.below
-    mu = below.mu_perp
-    μεpe = mu * below.eps_perp
-    μεpa = mu * below.eps_para
+    if below isa Uniaxial
+        mu = below.mu_perp
+        μεpe = mu * below.eps_perp
+        μεpa = mu * below.eps_para
+        ap_func = (q -> alpha_p(q, below))
+        as_func = (q -> alpha_s(q, below))
+    elseif below isa Isotropic
+        mu = below.mu
+        μεpe = mu * below.eps
+        μεpa = mu * below.eps
+        ap_func = (q -> alpha(q, below))
+        as_func = ap_func
+    end
     
     mask_p = qs .>= -real(sqrt(μεpe)) .&& qs .<= real(sqrt(μεpe))
     mask_s = qs .>= -real(sqrt(μεpa)) .&& qs .<= real(sqrt(μεpa))
     
-    ap = alpha_p.(qs[mask_p], Ref(below))
-    as = alpha_s.(qs[mask_s], Ref(below))
+    ap = ap_func.(qs[mask_p])
+    as = as_func.(qs[mask_s])
 
     θtp = θt.(qs[mask_p], real.(ap))
     θts = θt.(qs[mask_s], real.(as))
@@ -190,8 +206,8 @@ function calc_mdtc(data::SolverData)
     θtp[real(ap) .< 0.0] .= .-θtp[real(ap) .< 0.0]
     θts[real(as) .< 0.0] .= .-θts[real(as) .< 0.0]
     
-    apk = alpha_p.(ks, Ref(below))
-    ask = alpha_s.(ks, Ref(below))
+    apk = ap_func.(ks)
+    ask = as_func.(ks)
     
     θte = θt.(ks, real(apk))
     θto = θt.(ks, real(ask))
