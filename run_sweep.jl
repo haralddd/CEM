@@ -40,7 +40,7 @@ end
 hyperbolic_ratios = [-0.5, -1.0, -1.5]
 for ar in hyperbolic_ratios
     eps_para = eps_re*ar + eps_im*1.0im
-    below = Uniaxial(eps_re, eps_para, 1.0 + 0.0im, 1.0 + 0.0im)
+    below = Uniaxial(eps, eps_para, 1.0 + 0.0im, 1.0 + 0.0im)
     paramsconf = ParametersConfig(surf=surface, above=above, below=below, Nx=Nx, Lx=Lx, lambda=λ, θs=θs)
     params = Parameters(paramsconf)
 
