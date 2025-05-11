@@ -97,3 +97,17 @@ Lbi2 = LSP(ksmp_bi) / 2π
 
 θbi1 = θmax(kspp_bi, 0.782)
 θbi2 = θmax(ksmp_bi, 0.782)
+
+
+sg1 = Uniaxial(3.688 + 0.017im, -0.675 + 0.072im, 1.0+0.0im, 1.0+0.0im)
+sg2 = Uniaxial(6.425 + 0.088im, -2.625 + 0.120im, 1.0 + 0.0im, 1.0 + 0.0im)
+sg3 = Uniaxial(24.803 + 1.846im, -4.575 + 0.168im, 1.0 + 0.0im, 1.0 + 0.0im)
+kspp_sg1 = kspp(sg1)
+kspp_sg2 = kspp(sg2)
+kspp_sg3 = kspp(sg3)
+Lsg1 = LSP(kspp_sg1) / 2π
+Lsg2 = LSP(kspp_sg2) / 2π
+Lsg3 = LSP(kspp_sg3) / 2π
+θsg1 = θmax(kspp_sg1, 0.782)
+θsg2 = θmax(kspp_sg2, 0.782)
+θsg3 = θmax(kspp_sg3, 0.782)

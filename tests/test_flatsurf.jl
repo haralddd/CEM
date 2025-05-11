@@ -44,8 +44,8 @@ above = Vacuum()
 # Silver and glass layered
 eps_silver = -7.5+0.24im
 eps_glass = 2.25 + 0.0im
-eps_sg_perp = ema_eps_perp(0.5, eps_silver, eps_glass)
-eps_sg_para = ema_eps_para(0.5, eps_silver, eps_glass)
+eps_sg_perp = ema_eps_perp(0.7, eps_silver, eps_glass)
+eps_sg_para = ema_eps_para(0.7, eps_silver, eps_glass)
 below = Uniaxial(eps_sg_perp, eps_sg_para, 1.0+0.0im, 1.0+0.0im)
 
 
