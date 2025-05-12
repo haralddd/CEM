@@ -21,6 +21,7 @@ colors = [:darkgreen, :royalblue, :firebrick, :darkorange]
 markers = [:circle, :rect, :diamond, :utriangle]
 markersize = 16
 general_fontsize = 24
+label_fontsize = 32
 axis_fontsize = 40
 ylabelpad = 10.0
 linewidth = 1.0
@@ -53,6 +54,11 @@ function save_mdrc_plots(data, θ0s, θs, ylabel, file_prefix, folder)
             ylabelsize = axis_fontsize,
             xlabelsize = axis_fontsize,
             xticks = -90:30:90,
+            xminorticks = -90:10:90,
+            xminorticksvisible = true,
+            xminorgridvisible = true,
+            xminorgridstyle = (:dot, :dense),
+            xminorgridcolor = (:black, 0.12),
             xticklabelsvisible = is_bottom,
         )
         
@@ -86,6 +92,11 @@ function save_mdrc_plots(data, θ0s, θs, ylabel, file_prefix, folder)
         ylabelsize = axis_fontsize,
         xlabelsize = axis_fontsize,
         xticks = -90:30:90,
+        xminorticks = -90:10:90,
+        xminorticksvisible = true,
+        xminorgridvisible = true,
+        xminorgridstyle = (:dot, :dense),
+        xminorgridcolor = (:black, 0.12),
         ylabelpadding = ylabelpad,
     )
     
@@ -105,17 +116,17 @@ function save_mdrc_plots(data, θ0s, θs, ylabel, file_prefix, folder)
         ymax, maxidx = findmax(ys)
         sc = scatterlines!(ax_combined, θs[maxidx], ymax, color=colors[i], marker=markers[i], markersize=markersize,
             label=L"\theta_0=%$θ0_label^{\circ}")
-        translate!(sc, 0, 0, 10-ymax)
-        translate!(ln, 0, 0, 10-ymax)
+        translate!(sc, 0, 0, 1000-ymax)
+        translate!(ln, 0, 0, 1000-ymax)
     end
     
     # Add legend
-    axislegend(ax_combined, fontsize=axis_fontsize)
+    axislegend(ax_combined, labelsize=label_fontsize)
     
     # Set y limits based on all data
     _min = minimum(data)
     _max = maximum(data)
-    _max += 0.4 * abs(_max) + tol
+    _max += 0.5 * abs(_max) + tol
     ylims!(ax_combined, (_min, _max))
     
     # Save the combined plot
@@ -148,6 +159,11 @@ function save_mdtc_plots_p(data, θtes, θs, θ0s, ylabel, file_prefix, folder)
             ylabelsize = axis_fontsize,
             xlabelsize = axis_fontsize,
             xticks = -90:30:90,
+            xminorticks = -90:10:90,
+            xminorticksvisible = true,
+            xminorgridvisible = true,
+            xminorgridstyle = (:dot, :dense),
+            xminorgridcolor = (:black, 0.12),
             xticklabelsvisible = is_bottom,
             ylabelpadding = ylabelpad,
         )
@@ -188,6 +204,11 @@ function save_mdtc_plots_p(data, θtes, θs, θ0s, ylabel, file_prefix, folder)
         ylabelsize = axis_fontsize,
         xlabelsize = axis_fontsize,
         xticks = -90:30:90,
+        xminorticks = -90:10:90,
+        xminorticksvisible = true,
+        xminorgridvisible = true,
+        xminorgridstyle = (:dot, :dense),
+        xminorgridcolor = (:black, 0.12),
         ylabelpadding = ylabelpad,
     )
     
@@ -210,17 +231,17 @@ function save_mdtc_plots_p(data, θtes, θs, θ0s, ylabel, file_prefix, folder)
         ymax = abs(ys[maxidx])
         sc = scatterlines!(ax_combined, θs[maxidx], ys[maxidx], color=colors[i], marker=markers[i], markersize=markersize,
             label=L"\theta_0=%$θ0_label^{\circ},\ \theta_\mathrm{te}=%$θt_label^{\circ}")
-        translate!(sc, 0, 0, 10-ymax)
-        translate!(ln, 0, 0, 10-ymax)
+        translate!(sc, 0, 0, 1000-ymax)
+        translate!(ln, 0, 0, 1000-ymax)
     end
     
     # Add legend
-    axislegend(ax_combined, fontsize=axis_fontsize)
+    axislegend(ax_combined, labelsize=label_fontsize)
     
     # Set y limits based on all data
     _min = minimum(data)
     _max = maximum(data)
-    _max += 0.4 * abs(_max) + tol
+    _max += 0.5 * abs(_max) + tol
     ylims!(ax_combined, (_min, _max))
     
     # Save the combined plot
@@ -253,6 +274,11 @@ function save_mdtc_plots_s(data, θtos, θs, θ0s, ylabel, file_prefix, folder)
             ylabelsize = axis_fontsize,
             xlabelsize = axis_fontsize,
             xticks = -90:30:90,
+            xminorticks = -90:10:90,
+            xminorticksvisible = true,
+            xminorgridvisible = true,
+            xminorgridstyle = (:dot, :dense),
+            xminorgridcolor = (:black, 0.12),
             xticklabelsvisible = is_bottom,
             ylabelpadding = ylabelpad,
         )
@@ -293,6 +319,11 @@ function save_mdtc_plots_s(data, θtos, θs, θ0s, ylabel, file_prefix, folder)
         ylabelsize = axis_fontsize,
         xlabelsize = axis_fontsize,
         xticks = -90:30:90,
+        xminorticks = -90:10:90,
+        xminorticksvisible = true,
+        xminorgridvisible = true,
+        xminorgridstyle = (:dot, :dense),
+        xminorgridcolor = (:black, 0.12),
         ylabelpadding = ylabelpad,
     )
     
@@ -314,17 +345,17 @@ function save_mdtc_plots_s(data, θtos, θs, θ0s, ylabel, file_prefix, folder)
         ymax = abs(ys[maxidx])
         sc = scatterlines!(ax_combined, θs[maxidx], ys[maxidx], color=colors[i], marker=markers[i], markersize=markersize,
             label=L"\theta_0=%$θ0_label^{\circ},\ \theta_\mathrm{to}=%$θt_label^{\circ}")
-        translate!(sc, 0, 0, 10-ymax)
-        translate!(ln, 0, 0, 10-ymax)
+        translate!(sc, 0, 0, 1000-ymax)
+        translate!(ln, 0, 0, 1000-ymax)
     end
     
     # Add legend
-    axislegend(ax_combined, fontsize=axis_fontsize)
+    axislegend(ax_combined, labelsize=label_fontsize)
     
     # Set y limits based on all data
     _min = minimum(data)
     _max = maximum(data)
-    _max += 0.4 * abs(_max) + tol
+    _max += 0.5 * abs(_max) + tol
     ylims!(ax_combined, (_min, _max))
     
     # Save the combined plot
