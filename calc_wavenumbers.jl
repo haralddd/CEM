@@ -46,6 +46,7 @@ end
 
 LSP(k) = 1.0 / (2imag(k))
 θmax(km, kspp) = asind(real(km - kspp))
+θmin(kp, kspp) = asind(real(kspp - kp))
 
 eps = -7.5 + 0.24im   # permittivity of metallic film
 
@@ -111,3 +112,7 @@ Lsg3 = LSP(kspp_sg3) / 2π
 θsg1 = θmax(kspp_sg1, 0.782)
 θsg2 = θmax(kspp_sg2, 0.782)
 θsg3 = θmax(kspp_sg3, 0.782)
+θsg1p = θmin(kspp_sg1, 1.366)
+θsg2p = θmin(kspp_sg2, 1.366)
+θsg3p = θmin(kspp_sg3, 1.366)
+
